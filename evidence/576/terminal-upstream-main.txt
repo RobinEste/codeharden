@@ -1,0 +1,7 @@
+upstream main 91155115 - login shell: no
+npx: not found
+node: not found
+brew: not found
+PATH=~/Library/pnpm/bin:~/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+capture-done
+%

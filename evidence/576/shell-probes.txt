@@ -1,0 +1,33 @@
+Shell probes on macOS (Darwin 27.0.0, arm64), with a throwaway empty home folder so no personal dotfiles are read.
+
+== A. Each system shell on the list, plain and with -l. Each profile file holds: echo profile-read
+/bin/zsh   plain: ran    -l: profile-read ran 
+/bin/bash  plain: ran    -l: profile-read ran 
+/bin/sh    plain: ran    -l: profile-read ran 
+/bin/ksh   plain: ran    -l: profile-read ran 
+/bin/dash  plain: ran    -l: profile-read ran 
+/bin/tcsh  plain: ran    -l: Warning: no access to tty (Undefined error: 0). Thus no job control in this shell. profile-read ran 
+/bin/csh   plain: ran    -l: Warning: no access to tty (Undefined error: 0). Thus no job control in this shell. profile-read ran 
+fish: not installed on this Mac, so fish -l was not run
+
+== B. zsh startup files read, in order
+zsh -i     : read:.zshenv read:.zshrc 
+zsh -l -i  : read:.zshenv read:.zprofile read:.zshrc read:.zlogin read:.zlogout 
+
+== C. bash startup files read
+bash -i                                    : read:.bashrc 
+bash -l -i                                 : read:.bash_profile 
+bash -l -i, no .bash_profile               : read:.bash_login 
+bash -l -i, no .bash_profile, .bash_login  : read:.profile 
+
+== D. Order of an inherited PATH (/etc/zprofile runs path_helper in a login zsh)
+zsh -i     : /custom/first:/usr/bin:/bin:/usr/sbin:/sbin
+zsh -l -i  : /usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/opt/homebrew/bin:/custom/first
+
+== E. A cd in the profile moves the start folder (.zprofile holds: cd /tmp)
+zsh -i     : <the folder the shell was started in>
+zsh -l -i  : /tmp
+
+== F. Start time with an empty home, 50 starts each (seconds)
+zsh -i     : 0.653 total, 13.1 ms each
+zsh -l -i  : 0.776 total, 15.5 ms each

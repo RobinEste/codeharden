@@ -1,0 +1,9 @@
+PR branch 55d4c021, CODEDEN_SHELL=/bin/bash - login shell: yes
+shell: /bin/bash
+npx: not found
+node: not found
+brew: /opt/homebrew/bin/brew
+PATH=/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootst
+rap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/
+bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/opt/homebrew/bin
+%%

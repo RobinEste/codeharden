@@ -1,0 +1,9 @@
+PR branch 55d4c021 - login shell: yes
+npx: ~/.nvm/versions/node/v24.22.1/bin/npx
+node: ~/.nvm/versions/node/v24.22.1/bin/node
+brew: /opt/homebrew/bin/brew
+PATH=~/Library/pnpm/bin:~/.local/bin:~/.nvm/versions/node/v24.22.1/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Crypt
+exes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.ap
+ple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/
+pkg/env/global/bin:/opt/homebrew/bin
+%
