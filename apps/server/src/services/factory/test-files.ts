@@ -1,11 +1,16 @@
 /**
  * Which changed files are tests, for the merge checks (`checks.ts`): the `tests` check wants one
  * next to changed code, and a test is never code, UI or documentation. Told from the path alone,
- * by the conventions of the common test runners, so a file counts whether the pull request added,
- * modified or renamed it.
+ * by the conventions of the common test runners, so a file counts whatever the pull request did
+ * to it: added, modified, renamed (under its new path) or removed.
  *
  * Kept to names that are tests by convention: a file wrongly taken for a test would let code
- * through without one.
+ * through without one. A name can't tell everything, so code that is named like a test still
+ * counts as one (`src/ab-test.ts`, `scripts/load_test.sh`, `src/api-spec.ts`, `PodSpec.kt`,
+ * `SpeedTest.cs`, a Welsh `messages.cy.ts`, anything in a `test/` or `spec/` folder), and tests
+ * named otherwise still count as code (`TestOrder.java`, `URLTest.java`, `OrderIT.java` outside
+ * a test folder, `order_unittest.cc`, a bare `test.js`). The independent review and CI apply to
+ * every file either way.
  */
 
 /** Source files a test can be written in (not prose, data or config). */

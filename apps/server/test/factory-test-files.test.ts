@@ -6,9 +6,10 @@ import { isDocFile, isTestFile, isUiFile } from "../src/services/factory/policy"
 
 /**
  * Issue #571: the `tests` check said "Code changed but no test files were added or updated" on
- * pull requests that did change tests. The check reads every file of the PR's own diff, modified
- * and renamed ones included; what it missed were tests named by another convention than
- * `x.test.ts`, `x_test.go`, `test_x.py` or a `tests/` folder.
+ * pull requests that did change tests. The check reads every file of the PR's own diff, whatever
+ * its status (added, modified, renamed, removed); what it missed were tests named by another
+ * convention than `x.test.*` / `x.spec.*` in JS/TS, `x_test.go`, `x_test.py`, `test_x.py` or a
+ * `test/`, `tests/`, `__tests__/`, `spec/` or `e2e/` folder.
  */
 
 /** The reviewer found the tests adequate, and did not say none were needed. */
@@ -137,6 +138,10 @@ describe("isTestFile", () => {
     "src/Latest.java",
     "src/latest.ts",
     "src/attest.py",
+    "src/contest.py",
+    "src/latest.test.ts.snap",
+    "src/TestOrder.java",
+    "src/URLTest.java",
     "src/contest/entry.ts",
     "src/testing.ts",
     "src/ab-test/variant.ts",
@@ -148,6 +153,19 @@ describe("isTestFile", () => {
     "config/test.json",
   ])("%s is not a test", (path) => {
     expect(isTestFile(path)).toBe(false);
+  });
+
+  // Names can't tell everything: code named like a test counts as one (see `test-files.ts`).
+  it.each([
+    "src/ab-test.ts",
+    "scripts/load_test.sh",
+    "src/api-spec.ts",
+    "src/PodSpec.kt",
+    "src/SpeedTest.cs",
+    "locales/messages.cy.ts",
+    "docs/spec/design.md",
+  ])("%s is named like a test, so it counts as one (a known limit)", (path) => {
+    expect(isTestFile(path)).toBe(true);
   });
 
   it("keeps tests out of the UI and documentation rules", () => {
