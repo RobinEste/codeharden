@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { defaultShell, shellCommandLine, shellSyntax } from "../src/util/shell-command";
+import {
+  defaultShell,
+  defaultShellArgs,
+  shellCommandLine,
+  shellSyntax,
+} from "../src/util/shell-command";
 import { parseRegQuery } from "../src/util/system-path";
 
 describe("sign-in command lines", () => {
@@ -56,6 +61,17 @@ describe("sign-in command lines", () => {
     expect(defaultShell({}, "win32")).toBe("powershell.exe");
     expect(defaultShell({ SHELL: "/bin/zsh" }, "darwin")).toBe("/bin/zsh");
     expect(defaultShell({ CODEDEN_SHELL: "pwsh" }, "linux")).toBe("pwsh");
+  });
+
+  it("starts the default shell as a login shell on macOS only", () => {
+    expect(defaultShellArgs("/bin/zsh", "darwin")).toEqual(["-l"]);
+    expect(defaultShellArgs("/opt/homebrew/bin/bash", "darwin")).toEqual(["-l"]);
+    expect(defaultShellArgs("/opt/homebrew/bin/fish", "darwin")).toEqual(["-l"]);
+    // A shell whose flags CodeDen doesn't know starts plain.
+    expect(defaultShellArgs("/opt/homebrew/bin/nu", "darwin")).toEqual([]);
+    expect(defaultShellArgs("pwsh", "darwin")).toEqual([]);
+    expect(defaultShellArgs("/bin/zsh", "linux")).toEqual([]);
+    expect(defaultShellArgs("powershell.exe", "win32")).toEqual([]);
   });
 });
 
