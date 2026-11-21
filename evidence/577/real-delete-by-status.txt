@@ -1,0 +1,4 @@
+project race-app 6b919f15-e431-448c-bc4f-40544a9916c1 session e5e89c6c-ed62-46ee-996f-7ca8162d4806
+t+ 0.00s  session status before the request: starting   DELETE /api/projects/6b919f15-e431-448c-bc4f-40544a9916c1 -> 409 {"error": {"code": "project_has_active_sessions", "message": "1 session of this project is still working or waiting to start. Stop it first."}}
+t+ 0.37s  session status before the request: running    DELETE /api/projects/6b919f15-e431-448c-bc4f-40544a9916c1 -> 409 {"error": {"code": "project_has_active_sessions", "message": "1 session of this project is still working or waiting to start. Stop it first."}}
+t+ 0.60s  session status before the request: idle       DELETE /api/projects/6b919f15-e431-448c-bc4f-40544a9916c1 -> 200 {"ok": true}

@@ -1,0 +1,12 @@
+== busy-app: the way out the dialog names (archive the queued session, stop the waiting one)
+statuses: waiting session = waiting | queued session = queued
+POST /api/sessions/<queued>/archive -> 200; its status is now stopped
+DELETE /api/projects/<busy-app> -> 409 {"error": {"code": "project_has_active_sessions", "message": "1 session of this project is still working or waiting to start. Stop it first."}}
+POST /api/sessions/<waiting>/stop -> 200; its status is now stopped
+DELETE /api/projects/<busy-app> -> 200 {"ok": true}
+
+== race-app (archived above): a message to a session of an archived project
+session status: stopped
+POST /api/sessions/<session>/messages -> 200 {"status": "sent"}
+session statuses afterwards: running -> idle
+race-app archivedAt: ['2026-11-21T15:31:00.629Z']

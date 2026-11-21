@@ -1,0 +1,14 @@
+$ curl -i -X DELETE http://127.0.0.1:4318/api/projects/3fa32e2d-f59f-428f-89a0-acd650a8aa00 -H "authorization: Bearer <redacted>"
+HTTP/1.1 409 Conflict
+content-security-policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' ws://127.0.0.1:4318 wss://127.0.0.1:4318; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+content-type: application/json
+Content-Length: 143
+Date: Sat, 21 Nov 2026 15:30:20 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"error":{"code":"project_has_active_sessions","message":"2 sessions of this project are still working or waiting to start. Stop them first."}}
+
+
+$ curl -s http://127.0.0.1:4318/api/projects -H "authorization: Bearer <redacted>"   # names of the listed projects
+['busy-app', 'quiet-app']

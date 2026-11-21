@@ -1,0 +1,12 @@
+Not implemented: Window's scrollTo() method
+
+ Test Files  573 passed | 12 skipped (585)
+      Tests  4498 passed | 45 skipped (4543)
+   Start at  09:59:25
+   Duration  158.17s (tests 53%, import 25%, transform 15%, environment 6%, setup 1%)
+
+     Import  |@codeden/server| 999 modules were evaluated 72791 times · 104.55s total, 35% of tracked time
+             ~10.50s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+
+exit 0
