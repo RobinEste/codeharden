@@ -13,6 +13,7 @@ type MockProjectApi = Pick<
   | "reorderProjects"
   | "refreshProject"
   | "disconnectGithub"
+  | "archiveProject"
 >;
 
 const NOT_GITHUB =
@@ -166,6 +167,12 @@ export function mockProjectApi(world: MockWorld): MockProjectApi {
       const project: Project = { ...rest, kind: "local", updatedAt: new Date().toISOString() };
       world.emitDomain({ type: "project.updated", sessionId: null, payload: { project } });
       return later({ project }, 80);
+    },
+
+    async archiveProject(id) {
+      const { id: projectId } = find(id);
+      world.emitDomain({ type: "project.archived", sessionId: null, payload: { projectId } });
+      return later(undefined, 80);
     },
   };
 }
