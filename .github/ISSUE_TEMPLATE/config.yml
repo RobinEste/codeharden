@@ -6,3 +6,6 @@ contact_links:
   - name: Troubleshooting guide
     url: https://github.com/leonvanzyl/codeden/blob/main/docs/troubleshooting.md
     about: Common problems and their fixes. Worth a look before filing a bug.
+  - name: Skool community
+    url: https://skool.com/agentic-labs
+    about: Chat with other users and get help.
