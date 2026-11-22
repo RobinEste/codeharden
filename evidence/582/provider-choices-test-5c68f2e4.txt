@@ -1,3 +1,6 @@
+$ git log --oneline -1
+5c68f2e4 test(server): cover the back-off states the provider listing really shows
+
 $ pnpm exec vitest run apps/server/test/provider-choices.test.ts --reporter=verbose
 
  RUN  v5.1.0 <repo>
@@ -6,12 +9,12 @@ $ pnpm exec vitest run apps/server/test/provider-choices.test.ts --reporter=verb
  ✓ |@codeden/server| test/provider-choices.test.ts > start_session's provider parameter > says so when no provider is loaded 18ms
  ✓ |@codeden/server| test/provider-choices.test.ts > start_session's provider parameter > names every state that keeps new work off a provider, and calls the rest ready 19ms
  ✓ |@codeden/server| test/provider-choices.test.ts > start_session's provider parameter > reads 'not checked yet' until a detection has answered 0ms
- ✓ |@codeden/server| test/provider-choices.test.ts > start_session's provider parameter > is built for each listing from the last detection, which a listing renews in the background 21ms
- ✓ |@codeden/server| test/provider-choices.test.ts > the orchestrator's defaultProvider parameter > lists the same providers and says an id isn't checked 19ms
+ ✓ |@codeden/server| test/provider-choices.test.ts > start_session's provider parameter > is built for each listing from the last detection, which a listing renews in the background 19ms
+ ✓ |@codeden/server| test/provider-choices.test.ts > the orchestrator's defaultProvider parameter > lists the same providers and says an id isn't checked 17ms
 
  Test Files  1 passed (1)
       Tests  6 passed (6)
-   Start at  13:55:31
-   Duration  885ms (transform 43%, import 42%, tests 14%, setup 1%)
+   Start at  13:59:13
+   Duration  861ms (transform 43%, import 42%, tests 14%, setup 1%)
 
 exit: 0
