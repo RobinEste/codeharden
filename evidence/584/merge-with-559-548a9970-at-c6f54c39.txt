@@ -1,0 +1,28 @@
+Trial merge of PR #584 (c6f54c39) with PR #559 (548a9970)
+
+$ git merge 548a9970   (on c6f54c39)
+Auto-merging docs/DESIGN.md
+Auto-merging packages/providers/src/codex/adapter.ts
+CONFLICT (content): Merge conflict in packages/providers/src/codex/adapter.ts
+
+The conflict is one import line; resolved by naming both imports:
+19:import { ensureLocated, type LocateOptions, quickLocate } from "../util/locate";
+
+$ pnpm typecheck
+apps/desktop typecheck$ tsc --noEmit
+apps/cli typecheck$ tsc --noEmit
+apps/cli typecheck: Done
+apps/desktop typecheck: Done
+
+$ pnpm exec vitest run packages/providers/test/ensure-located.test.ts packages/providers/test/locate-min-version.test.ts packages/providers/test/locate.test.ts packages/providers/test/codex-models.test.ts packages/providers/test/claude-models.test.ts apps/server/test/setup.test.ts apps/server/test/setup-outdated.test.ts
+
+ RUN  v5.1.0 <merged checkout>
+
+
+ Test Files  7 passed (7)
+      Tests  70 passed | 1 skipped (71)
+   Start at  16:30:34
+   Duration  2.39s (transform 53%, tests 33%, import 13%)
+
+
+Not covered by a test: on the merged tree, a CodexAdapter given #559's `locate` option (tests) would still run the first-session look-up of #584 on the real PATH; `located()` should skip or pass `locate` there, a one-line change for whichever of the two merges second.
