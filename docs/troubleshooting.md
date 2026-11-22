@@ -220,7 +220,7 @@ CodeDen uses an installed **Microsoft Edge** or **Google Chrome**. Install one, 
 
 The project's **Permissions** (its Settings tab) and **Settings → Autonomy** are defaults for sessions you start afterwards. A session that exists keeps the level it was created with, also after you stop and resume it; a fork or a hand-off takes its source's. Open the session and change **Permissions** under its message box: it applies from the agent's next tool call (Codex: its next turn). The session's level is also shown in its **Details** panel, and the project's Settings tab lists the open sessions on another level than the project's default.
 
-Under **Supervised** every command asks, also ones that only read; that is what the level means. The project's autonomy mode (Manual, Assisted, the factory modes) has no part in this. See [Security → Permissions](security.md#permissions).
+Under **Supervised** every command asks, also ones that only read; that is what the level means. The project's autonomy mode (Manual, Assisted, the factory modes) doesn't change which commands ask. See [Security → Permissions](security.md#permissions).
 
 ### GitHub features are missing
 
