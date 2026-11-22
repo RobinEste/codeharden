@@ -8,6 +8,7 @@ import { describeProviderParam } from "../shared/provider-choices";
 const describeDefaultProvider = describeProviderParam(
   "defaultProvider",
   "The provider this project's sessions use unless one is named.",
+  "The id is stored as given, loaded or not: a session uses it only while it is loaded, and otherwise falls back to the Settings default or another loaded provider. Pick one that is ready.",
 );
 
 function compactProject(p: Project) {

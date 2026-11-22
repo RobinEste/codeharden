@@ -12,24 +12,27 @@ function choiceText(c: ProviderChoice): string {
 
 /**
  * The description of a provider parameter: the ids the runner offers and whether each can run
- * new work now, so a PM picks one without starting sessions to find out. `omitted` says what
- * leaving the parameter out means for this tool. The parameter stays a string: the list is from
- * when the tools were listed, and a provider that became ready since must not be refused.
+ * new work, so a PM picks one without starting sessions to find out. `omitted` says what leaving
+ * the parameter out means for this tool, `rules` what the tool does with an id that isn't loaded
+ * or isn't ready. The parameter stays a string: the list is from when the tools were listed, and
+ * a provider that became ready since must not be refused.
  */
-export function providerChoicesText(choices: ProviderChoice[], omitted: string): string {
+export function providerChoicesText(
+  choices: ProviderChoice[],
+  omitted: string,
+  rules: string,
+): string {
   if (choices.length === 0) {
     return `Provider id. ${omitted} No provider is loaded right now (the runner isn't connected), so the ids can't be listed.`;
   }
   return `Provider id. ${omitted} Loaded providers when this list was made: ${choices
     .map(choiceText)
-    .join(
-      "; ",
-    )}. Any other id is refused. Pick one that is ready; one that isn't fails to start until the user fixes it (its state may have changed since).`;
+    .join("; ")}. ${rules} The states are from the last check and may have changed since.`;
 }
 
-/** `describeInput` for a tool with a provider parameter named `param`. */
-export function describeProviderParam(param: string, omitted: string) {
+/** `describeInput` for a tool with a provider parameter named `param` (see `providerChoicesText`). */
+export function describeProviderParam(param: string, omitted: string, rules: string) {
   return async (services: AppServices): Promise<Record<string, string>> => ({
-    [param]: providerChoicesText(await services.factory.providerChoices(), omitted),
+    [param]: providerChoicesText(await services.factory.providerChoices(), omitted, rules),
   });
 }
