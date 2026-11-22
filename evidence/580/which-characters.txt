@@ -1,0 +1,71 @@
+# Before (upstream main): which characters fail
+server http://127.0.0.1:54698 (loopback); LAN address http://192.168.1.252:54698; node v24.22.1
+session b7ba5557-217d-4035-ae44-30aac76e4e64 started with 13 image attachments
+stored artifacts: 13
+## Local (127.0.0.1, install token as Bearer): every name
+- plain "image.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="image.png"
+- screenshot "s\u202f.png": 500 application/json 63 bytes
+- tab "a\tb.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="a	b.png"
+- NUL "a\u0000b.png": 500 application/json 63 bytes
+- U+0001 "a\u0001b.png": 500 text/plain 66 bytes
+- U+001F "a\u001fb.png": 500 text/plain 66 bytes
+- DEL "a\u007fb.png": 500 text/plain 66 bytes
+- U+0085 "a\u0085b.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="aÂb.png"
+- U+00A0 nbsp "a\u00a0b.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="aÂ b.png"
+- U+00FF "a\u00ffb.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="aÃ¿b.png"
+- U+0100 "a\u0100b.png": 500 application/json 63 bytes
+- leading space " a.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename=" a.png"
+- percent "100%25 a.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="100%25 a.png"
+## Remote: this same computer through its LAN address http://192.168.1.252:54698
+- signed out (no cookie): screenshot name 401 application/json; image.png 401 application/json
+- install token only (Bearer): screenshot name 401 application/json; image.png 401 application/json
+- password sign-in: 200, session cookie set
+- signed in (session cookie): screenshot name 500 application/json; image.png 200 image/png
+network access left on for the browser check; password: maple-river-quiet-orbit-candle
+session page: /sessions/b7ba5557-217d-4035-ae44-30aac76e4e64
+
+# After (PR head): same names
+server http://127.0.0.1:54708 (loopback); LAN address http://192.168.1.252:54708; node v24.22.1
+session 6200529c-64cb-426b-9ef3-0ebe5e6769d9 started with 13 image attachments
+stored artifacts: 13
+## Local (127.0.0.1, install token as Bearer): every name
+- plain "image.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="image.png"
+- screenshot "s\u202f.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="s_.png"; filename*=UTF-8''s%E2%80%AF.png
+- tab "a\tb.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="a_b.png"; filename*=UTF-8''a%09b.png
+- NUL "a\u0000b.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="a_b.png"; filename*=UTF-8''a%00b.png
+- U+0001 "a\u0001b.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="a_b.png"; filename*=UTF-8''a%01b.png
+- U+001F "a\u001fb.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="a_b.png"; filename*=UTF-8''a%1Fb.png
+- DEL "a\u007fb.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="a_b.png"; filename*=UTF-8''a%7Fb.png
+- U+0085 "a\u0085b.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="a_b.png"; filename*=UTF-8''a%C2%85b.png
+- U+00A0 nbsp "a\u00a0b.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="a_b.png"; filename*=UTF-8''a%C2%A0b.png
+- U+00FF "a\u00ffb.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="a_b.png"; filename*=UTF-8''a%C3%BFb.png
+- U+0100 "a\u0100b.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="a_b.png"; filename*=UTF-8''a%C4%80b.png
+- leading space " a.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename=" a.png"
+- percent "100%25 a.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="100%25 a.png"
+## Remote: this same computer through its LAN address http://192.168.1.252:54708
+- signed out (no cookie): screenshot name 401 application/json; image.png 401 application/json
+- install token only (Bearer): screenshot name 401 application/json; image.png 401 application/json
+- password sign-in: 200, session cookie set
+- signed in (session cookie): screenshot name 200 image/png; image.png 200 image/png
+network access turned off again
+session page: /sessions/6200529c-64cb-426b-9ef3-0ebe5e6769d9

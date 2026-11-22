@@ -1,0 +1,99 @@
+# pnpm typecheck && pnpm lint && pnpm test on c71d3fe3 (Node v24.22.1, pnpm 10.12.1, macOS)
+typecheck exit 0
+lint exit 0
+test exit 1
+
+## pnpm lint
+> biome check .
+
+Checked 2023 files in 569ms. No fixes applied.
+
+## pnpm typecheck (tail)
+packages/providers typecheck$ tsc --noEmit
+packages/providers typecheck: Done
+apps/runner typecheck$ tsc --noEmit
+apps/runner typecheck: Done
+apps/server typecheck$ tsc --noEmit
+apps/server typecheck: Done
+apps/web typecheck$ tsc --noEmit
+apps/web typecheck: Done
+apps/cli typecheck$ tsc --noEmit
+apps/desktop typecheck$ tsc --noEmit
+apps/cli typecheck: Done
+apps/desktop typecheck: Done
+
+## pnpm test (tail; one repeated runtime warning line filtered out)
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+Error: Test timed out in 40000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ test/runner-link.test.ts:141:3
+    139|   });
+    140|
+    141|   it("aborting while the upgrade is still pending drops the socket and…
+       |   ^
+    142|     // A listener that accepts the connection but never answers the We…
+    143|     const accepted: Socket[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 570 passed | 12 skipped (583)
+      Tests  1 failed | 4488 passed | 45 skipped (4534)
+   Start at  12:47:00
+   Duration  144.53s (tests 59%, import 24%, transform 9%, environment 6%, setup 1%)
+
+     Import  |@codeden/server| 1000 modules were evaluated 72460 times · 82.78s total, 39% of tracked time
+             ~8.31s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+
+ ELIFECYCLE  Test failed. See above for more details.
+
+## The same file on untouched upstream main 91155115
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+Error: Test timed out in 40000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ test/runner-link.test.ts:141:3
+    139|   });
+    140|
+    141|   it("aborting while the upgrade is still pending drops the socket and…
+       |   ^
+    142|     // A listener that accepts the connection but never answers the We…
+    143|     const accepted: Socket[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  12:42:58
+   Duration  41.88s (tests 96%, transform 2%, import 1%)
+
+
+## Helper unit test, changelog fragment test and API route tests on c71d3fe3
+ RUN  v5.1.0 <worktree>
+
+
+ Test Files  3 passed (3)
+      Tests  41 passed (41)
+   Start at  12:46:21
+   Duration  1.69s (import 39%, transform 33%, tests 27%, setup 1%, worker 1%)
+

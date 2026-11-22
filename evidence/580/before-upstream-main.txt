@@ -1,0 +1,65 @@
+# Before: upstream main 91155115 (unfixed)
+server http://127.0.0.1:54698 (loopback); LAN address http://192.168.1.252:54698; node v24.22.1
+session 076a9916-f43f-4c1a-8a21-6ab3cef5f42d started with 10 image attachments
+stored artifacts: 10
+
+## Local (127.0.0.1, install token as Bearer): every name
+- plain "image.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="image.png"
+    csp: default-src 'none'; sandbox; x-content-type-options: nosniff
+- macOS screenshot (U+202F) "Screenshot 2026-11-02 at 2.55.06\u202fPM.png": 500 application/json 63 bytes
+    csp: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' ws://127.0.0.1:54698 wss://127.0.0.1:54698; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; x-content-type-options: null
+- Latin-1 accents "r\u00e9sum\u00e9.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="rÃ©sumÃ©.png"
+    csp: default-src 'none'; sandbox; x-content-type-options: nosniff
+- CJK "\u30b9\u30af\u30ea\u30fc\u30f3\u30b7\u30e7\u30c3\u30c8.png": 500 application/json 63 bytes
+    csp: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' ws://127.0.0.1:54698 wss://127.0.0.1:54698; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; x-content-type-options: null
+- emoji "party \ud83c\udf89.png": 500 application/json 63 bytes
+    csp: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' ws://127.0.0.1:54698 wss://127.0.0.1:54698; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; x-content-type-options: null
+- quote and backslash "a\"; filename=\"evil\\.html.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="a_; filename=_evil_.html.png"
+    csp: default-src 'none'; sandbox; x-content-type-options: nosniff
+- CR LF "line\r\nx-injected: 1.png": 200 image/png 94858 bytes
+    content-disposition: inline; filename="line__x-injected: 1.png"
+    csp: default-src 'none'; sandbox; x-content-type-options: nosniff
+- tab, NUL, DEL "tab\tand\u0000null\u007f.png": 500 application/json 63 bytes
+    csp: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' data: blob:; connect-src 'self' ws://127.0.0.1:54698 wss://127.0.0.1:54698; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; x-content-type-options: null
+- lone surrogate "lone \ud83c.png": no artifact stored under this name
+- empty name "": 200 image/png 94858 bytes
+    content-disposition: inline; filename=""
+    csp: default-src 'none'; sandbox; x-content-type-options: nosniff
+
+## Remote: this same computer through its LAN address http://192.168.1.252:54698
+- signed out (no cookie): screenshot name 401 application/json; image.png 401 application/json
+- install token only (Bearer): screenshot name 401 application/json; image.png 401 application/json
+- password sign-in: 200, session cookie set
+- signed in (session cookie): screenshot name 500 application/json; image.png 200 image/png
+network access left on for the browser check; password: maple-river-quiet-orbit-candle
+
+session page: /sessions/076a9916-f43f-4c1a-8a21-6ab3cef5f42d
+
+## Browser (separate profiles; naturalWidth 0 = broken image)
+
+before-local.png at http://127.0.0.1:54698/sessions/076a9916-f43f-4c1a-8a21-6ab3cef5f42d
+  "image.png" naturalWidth=320
+  "Screenshot 2026-11-02 at 2.55.06\u202fPM.png" naturalWidth=0
+  "r\u00e9sum\u00e9.png" naturalWidth=320
+  "\u30b9\u30af\u30ea\u30fc\u30f3\u30b7\u30e7\u30c3\u30c8.png" naturalWidth=0
+  "party \ud83c\udf89.png" naturalWidth=0
+  "a\"; filename=\"evil\\.html.png" naturalWidth=320
+  "line\r\nx-injected: 1.png" naturalWidth=320
+  "tab\tand\u0000null\u007f.png" naturalWidth=0
+  "lone \ud83c.png" naturalWidth=0
+  "" naturalWidth=320
+
+before-remote.png at http://192.168.1.252:54698/sessions/076a9916-f43f-4c1a-8a21-6ab3cef5f42d
+  "image.png" naturalWidth=320
+  "Screenshot 2026-11-02 at 2.55.06\u202fPM.png" naturalWidth=0
+  "r\u00e9sum\u00e9.png" naturalWidth=320
+  "\u30b9\u30af\u30ea\u30fc\u30f3\u30b7\u30e7\u30c3\u30c8.png" naturalWidth=0
+  "party \ud83c\udf89.png" naturalWidth=0
+  "a\"; filename=\"evil\\.html.png" naturalWidth=320
+  "line\r\nx-injected: 1.png" naturalWidth=320
+  "tab\tand\u0000null\u007f.png" naturalWidth=0
+  "lone \ud83c.png" naturalWidth=0
+  "" naturalWidth=320
