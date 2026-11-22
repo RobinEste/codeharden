@@ -1,0 +1,193 @@
+PR #584 head 982550ed: which copy the look-up picks, case by case (fake executables; paths relative to the scratch folder). Script: matrix.ts
+
+## 1. old copy first on PATH, supported copy in a known location
+PATH: case01/path1   known locations: case01/known1/claude   minimum: 2.1.250
+without a minimum (how upstream main looks up): case01/path1/claude 2.0.8
+with the minimum: case01/known1/claude 2.1.327
+  not running: (none)
+quickLocate before any look-up: case01/path1/claude   after it: case01/known1/claude
+detect: installed=true version=2.1.327 supported=true loggedIn=true path=case01/known1/claude
+
+## 2. old, then two supported copies on PATH (2.1.300 before 2.1.327)
+PATH: case02/path1 : case02/path2 : case02/path3   known locations: (none)   minimum: 2.1.250
+without a minimum (how upstream main looks up): case02/path1/claude 2.0.8
+with the minimum: case02/path2/claude 2.1.300
+  not running: (none)
+quickLocate before any look-up: case02/path1/claude   after it: case02/path2/claude
+detect: installed=true version=2.1.300 supported=true loggedIn=true path=case02/path2/claude
+
+## 3. supported copy first on PATH, old copy in a known location
+PATH: case03/path1   known locations: case03/known1/claude   minimum: 2.1.250
+without a minimum (how upstream main looks up): case03/path1/claude 2.1.327
+with the minimum: case03/path1/claude 2.1.327
+  not running: (none)
+quickLocate before any look-up: case03/path1/claude   after it: case03/path1/claude
+detect: installed=true version=2.1.327 supported=true loggedIn=true path=case03/path1/claude
+
+## 4. only old copies (2.0.8 on PATH, 2.1.100 in a known location)
+PATH: case04/path1   known locations: case04/known1/claude   minimum: 2.1.250
+without a minimum (how upstream main looks up): case04/path1/claude 2.0.8
+with the minimum: case04/path1/claude 2.0.8
+  not running: (none)
+quickLocate before any look-up: case04/path1/claude   after it: case04/path1/claude
+detect: installed=true version=2.0.8 supported=false loggedIn=null path=case04/path1/claude
+  issue version_unsupported: Claude Code 2.0.8 (`case04/path1/claude`) is older than the tested minimum 2.1.250.  [fix: claude update]
+
+## 5. the same PATH folder listed twice, supported copy in a known location
+PATH: case05/path1 : case05/path1   known locations: case05/known1/claude   minimum: 2.1.250
+without a minimum (how upstream main looks up): case05/path1/claude 2.0.8
+with the minimum: case05/known1/claude 2.1.327
+  not running: (none)
+quickLocate before any look-up: case05/path1/claude   after it: case05/known1/claude
+detect: installed=true version=2.1.327 supported=true loggedIn=true path=case05/known1/claude
+
+## 6. PATH entry is a symlink to the supported copy in the known location
+PATH: case06/path1   known locations: case06/known1/claude   minimum: 2.1.250
+without a minimum (how upstream main looks up): case06/path1/claude 2.1.327
+with the minimum: case06/path1/claude 2.1.327
+  not running: (none)
+quickLocate before any look-up: case06/path1/claude   after it: case06/path1/claude
+detect: installed=true version=2.1.327 supported=true loggedIn=true path=case06/path1/claude
+
+## 7. PATH entry is a symlink to an old copy, supported copy in a known location
+PATH: case07/path1   known locations: case07/known1/claude   minimum: 2.1.250
+without a minimum (how upstream main looks up): case07/path1/claude 2.0.8
+with the minimum: case07/known1/claude 2.1.327
+  not running: (none)
+quickLocate before any look-up: case07/path1/claude   after it: case07/known1/claude
+detect: installed=true version=2.1.327 supported=true loggedIn=true path=case07/known1/claude
+
+## 8. PATH entry is a symlink to a missing file, supported copy in a known location
+PATH: case08/path1   known locations: case08/known1/claude   minimum: 2.1.250
+without a minimum (how upstream main looks up): case08/known1/claude 2.1.327
+with the minimum: case08/known1/claude 2.1.327
+  not running: case08/path1/claude (points at a missing file)
+quickLocate before any look-up: case08/known1/claude   after it: case08/known1/claude
+detect: installed=true version=2.1.327 supported=true loggedIn=true path=case08/known1/claude
+
+## 9. first copy prints no version for --version, then an old copy, then a supported one
+PATH: case09/path1 : case09/path2   known locations: case09/known1/claude   minimum: 2.1.250
+without a minimum (how upstream main looks up): case09/path2/claude 2.0.8
+with the minimum: case09/known1/claude 2.1.327
+  not running: case09/path1/claude (printed no version for `--version`)
+quickLocate before any look-up: case09/path1/claude   after it: case09/known1/claude
+detect: installed=true version=2.1.327 supported=true loggedIn=true path=case09/known1/claude
+
+## 10. a copy that prints no version, and an old copy; nothing supported
+PATH: case10/path1 : case10/path2   known locations: (none)   minimum: 2.1.250
+without a minimum (how upstream main looks up): case10/path2/claude 2.0.8
+with the minimum: case10/path2/claude 2.0.8
+  not running: case10/path1/claude (printed no version for `--version`)
+quickLocate before any look-up: case10/path1/claude   after it: case10/path2/claude
+detect: installed=true version=2.0.8 supported=false loggedIn=null path=case10/path2/claude
+  issue version_unsupported: Claude Code 2.0.8 (`case10/path2/claude`) is older than the tested minimum 2.1.250.  [fix: claude update]
+
+## 11. only a copy that prints no version
+PATH: case11/path1   known locations: (none)   minimum: 2.1.250
+without a minimum (how upstream main looks up): (none) 
+with the minimum: (none) 
+  not running: case11/path1/claude (printed no version for `--version`)
+quickLocate before any look-up: case11/path1/claude   after it: (none)
+detect: installed=false version=null supported=false loggedIn=null path=(none)
+  issue broken_install: Claude Code is installed but broken: `case11/path1/claude` printed no version for `--version`. Reinstall it.  [fix: npm install -g @anthropic-ai/claude-code]
+
+## 12. old copy never answers --version (2s limit here), supported copy in a known location
+PATH: case12/path1   known locations: case12/known1/claude   minimum: 2.1.250
+without a minimum (how upstream main looks up): case12/known1/claude 2.1.327
+with the minimum: case12/known1/claude 2.1.327
+  not running: case12/path1/claude (did not answer `--version` within 2s)
+quickLocate before any look-up: case12/path1/claude   after it: case12/path1/claude
+detect: installed=true version=2.1.327 supported=true loggedIn=true path=case12/known1/claude
+
+## 13. old copy on PATH, the supported copy never answers --version (2s limit here)
+PATH: case13/path1   known locations: case13/known1/claude   minimum: 2.1.250
+without a minimum (how upstream main looks up): case13/path1/claude 2.0.8
+with the minimum: case13/path1/claude 2.0.8
+  not running: case13/known1/claude (did not answer `--version` within 2s)
+quickLocate before any look-up: case13/path1/claude   after it: case13/path1/claude
+detect: installed=true version=2.0.8 supported=false loggedIn=null path=case13/path1/claude
+  issue version_unsupported: Claude Code 2.0.8 (`case13/path1/claude`) is older than the tested minimum 2.1.250.  [fix: claude update]
+
+## 14. codex: old copy first on PATH, supported copy in a known location
+PATH: case14/path1   known locations: case14/known1/codex   minimum: 0.160.0
+without a minimum (how upstream main looks up): case14/path1/codex 0.42.0
+with the minimum: case14/known1/codex 0.170.0
+  not running: (none)
+quickLocate before any look-up: case14/path1/codex   after it: case14/known1/codex
+detect: installed=true version=0.170.0 supported=true loggedIn=true path=case14/known1/codex
+
+## 15. codex: only an old copy
+PATH: case15/path1   known locations: (none)   minimum: 0.160.0
+without a minimum (how upstream main looks up): case15/path1/codex 0.42.0
+with the minimum: case15/path1/codex 0.42.0
+  not running: (none)
+quickLocate before any look-up: case15/path1/codex   after it: case15/path1/codex
+detect: installed=true version=0.42.0 supported=false loggedIn=null path=case15/path1/codex
+  issue version_unsupported: Codex 0.42.0 (`case15/path1/codex`) is older than the tested minimum 0.160.0.  [fix: npm install -g @openai/codex@latest]
+
+## 16. no copy at all
+PATH: (empty)   known locations: (none)   minimum: 2.1.250
+without a minimum (how upstream main looks up): (none) 
+with the minimum: (none) 
+  not running: (none)
+quickLocate before any look-up: (none)   after it: (none)
+detect: installed=false version=null supported=false loggedIn=null path=(none)
+  issue not_installed: Claude Code is not installed (no `claude` on PATH or in ~/.local/bin).  [fix: npm install -g @anthropic-ai/claude-code]
+
+## Calls made to the fake executables (file, arguments), in order
+case01/path1/claude --version
+case01/path1/claude --version
+case01/known1/claude --version
+case01/known1/claude auth status
+case02/path1/claude --version
+case02/path1/claude --version
+case02/path2/claude --version
+case02/path2/claude auth status
+case03/path1/claude --version
+case03/path1/claude --version
+case03/path1/claude auth status
+case04/path1/claude --version
+case04/path1/claude --version
+case04/known1/claude --version
+case05/path1/claude --version
+case05/path1/claude --version
+case05/known1/claude --version
+case05/known1/claude auth status
+case06/known1/claude --version
+case06/known1/claude --version
+case06/known1/claude auth status
+case07/elsewhere/claude --version
+case07/elsewhere/claude --version
+case07/known1/claude --version
+case07/known1/claude auth status
+case08/known1/claude --version
+case08/known1/claude --version
+case08/known1/claude auth status
+case09/path1/claude --version
+case09/path2/claude --version
+case09/path1/claude --version
+case09/path2/claude --version
+case09/known1/claude --version
+case09/known1/claude auth status
+case10/path1/claude --version
+case10/path2/claude --version
+case10/path1/claude --version
+case10/path2/claude --version
+case11/path1/claude --version
+case11/path1/claude --version
+case12/path1/claude --version
+case12/known1/claude --version
+case12/path1/claude --version
+case12/known1/claude --version
+case12/path1/claude --version
+case12/known1/claude auth status
+case13/path1/claude --version
+case13/path1/claude --version
+case13/known1/claude --version
+case13/known1/claude --version
+case14/path1/codex --version
+case14/path1/codex --version
+case14/known1/codex --version
+case14/known1/codex login status
+case15/path1/codex --version
+case15/path1/codex --version

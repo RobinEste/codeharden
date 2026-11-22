@@ -1,0 +1,83 @@
+# after-pr-982550ed, old copies first on PATH and supported copies in ~/.local/bin
+checkout: 982550edd68cbf8b42e7d5dad2b380ee469e0930
+PATH given to the server: <scratch>/usr-local-bin:<node>:/usr/bin:/bin:/usr/sbin:/sbin   HOME: ~
+fake copies: <scratch>/usr-local-bin/claude = 2.0.8, <scratch>/usr-local-bin/codex = 0.42.0, ~/.local/bin/claude = 2.1.327, ~/.local/bin/codex = 0.170.0
+providers the runner loaded: fake, claude, codex, opencode, cursor, gemini
+
+## 1. Server and runner just started; no setup check and no detection has run yet
+fake executables started so far (the runner's start-up model lists):
+  [server] <scratch>/usr-local-bin/codex --version
+  [server] <scratch>/usr-local-bin/codex --version
+  [server] <scratch>/usr-local-bin/claude --version
+  [server] ~/.local/bin/claude --version
+  [server] ~/.local/bin/claude auth status
+  [server] ~/.local/bin/codex --version
+  [server] ~/.local/bin/codex --version
+  [server] ~/.local/bin/codex login status
+  [server] ~/.local/bin/codex login status
+  [server] ~/.local/bin/codex app-server
+  [runner] <scratch>/usr-local-bin/codex app-server
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --tools= --setting-sources= --strict-mcp-config --no-session-persistence
+  [runner] <scratch>/usr-local-bin/codex app-server
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --tools= --setting-sources= --strict-mcp-config --no-session-persistence
+
+## 2. A session on each provider before any detection ran in this runner
+POST /api/sessions provider=codex: HTTP 200 "started" -> session status "failed"
+POST /api/sessions provider=claude: HTTP 200 "started" -> session status "idle"
+fake executables started by these two sessions:
+  [runner] <scratch>/usr-local-bin/codex app-server
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-2668d444-141d-4052-a468-47bd5af3b31b-V1QEPh/mcp.json
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-2668d444-141d-4052-a468-47bd5af3b31b-V1QEPh/mcp.json
+
+## 3. GET /api/setup/status?refresh=1 (what the setup screen shows)
+answered in 0.0s; ready=true; warnings=[{"id":"git","message":"git user.name and user.email are not set"}]
+{
+  "id": "claude",
+  "state": "ok",
+  "message": "Signed in",
+  "installed": true,
+  "version": "2.1.327",
+  "executablePath": "~/.local/bin/claude",
+  "loggedIn": true,
+  "authMethod": "claude.ai",
+  "fix": null,
+  "durationMs": 9
+}
+{
+  "id": "codex",
+  "state": "ok",
+  "message": "Signed in",
+  "installed": true,
+  "version": "0.170.0",
+  "executablePath": "~/.local/bin/codex",
+  "loggedIn": true,
+  "authMethod": "ChatGPT",
+  "fix": null,
+  "durationMs": 9
+}
+other rows: opencode=missing, cursor=missing, gemini=missing, gh=missing, git=warning, browser=ok, node=ok
+fake executables started by the setup check (server) and the detection it triggers in the runner:
+  [server] ~/.local/bin/claude auth status
+  [server] ~/.local/bin/codex login status
+  [runner] <scratch>/usr-local-bin/claude --version
+  [runner] <scratch>/usr-local-bin/codex --version
+  [runner] ~/.local/bin/claude --version
+  [runner] ~/.local/bin/codex --version
+  [runner] ~/.local/bin/codex login status
+  [runner] ~/.local/bin/claude auth status
+  [runner] ~/.local/bin/codex app-server
+  [runner] ~/.local/bin/claude --output-format stream-json --verbose --input-format stream-json --tools= --setting-sources= --strict-mcp-config --no-session-persistence
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-2668d444-141d-4052-a468-47bd5af3b31b-V1QEPh/mcp.json
+
+## 4. A session on each provider after detection
+POST /api/sessions provider=codex: HTTP 200 "started" -> session status "failed"
+POST /api/sessions provider=claude: HTTP 200 "started" -> session status "idle"
+fake executables started by these two sessions:
+  [runner] ~/.local/bin/codex app-server
+  [runner] ~/.local/bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-bd3cad3f-886a-4180-a8b5-7debf03b6062-gTe3hk/mcp.json
+  [runner] ~/.local/bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-bd3cad3f-886a-4180-a8b5-7debf03b6062-gTe3hk/mcp.json
+
+## 5. The setup screen
+row claude: Claude Code provider Signed in
+row codex: Codex provider Signed in
+screenshot: after-pr-982550ed-both-setup.png

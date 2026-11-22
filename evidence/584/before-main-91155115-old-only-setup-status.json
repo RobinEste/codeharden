@@ -1,0 +1,55 @@
+{
+  "checkedAt": "2026-11-22T19:32:36.316Z",
+  "setupCompleted": false,
+  "ready": false,
+  "checks": [
+    {
+      "id": "claude",
+      "label": "Claude Code",
+      "installed": true,
+      "version": "2.0.8",
+      "executablePath": "<scratch>/usr-local-bin/claude",
+      "loggedIn": null,
+      "authMethod": null,
+      "account": null,
+      "loginExpiresAt": null,
+      "fix": {
+        "kind": "login",
+        "command": "<scratch>/usr-local-bin/claude auth login"
+      },
+      "state": "warning",
+      "message": "Could not read the Claude login state",
+      "detail": "`claude auth status` did not finish in time.",
+      "durationMs": 10005
+    },
+    {
+      "id": "codex",
+      "label": "Codex",
+      "installed": true,
+      "version": "0.42.0",
+      "executablePath": "<scratch>/usr-local-bin/codex",
+      "loggedIn": false,
+      "authMethod": null,
+      "account": null,
+      "loginExpiresAt": null,
+      "fix": {
+        "kind": "login",
+        "command": "<scratch>/usr-local-bin/codex login"
+      },
+      "state": "missing",
+      "message": "Not signed in to Codex",
+      "detail": "`codex login status` exited with code 1.\nstderr: Error loading configuration: missing field 'command' in 'mcp_servers.notion'",
+      "durationMs": 12
+    }
+  ],
+  "warnings": [
+    {
+      "id": "claude",
+      "message": "Could not read the Claude login state"
+    },
+    {
+      "id": "git",
+      "message": "git user.name and user.email are not set"
+    }
+  ]
+}

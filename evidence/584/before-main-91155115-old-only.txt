@@ -1,0 +1,89 @@
+# before-main-91155115, only the old copies
+checkout: 911551159b30ae44367c1cea5f2ba3fa9f755346
+PATH given to the server: <scratch>/usr-local-bin:<node>:/usr/bin:/bin:/usr/sbin:/sbin   HOME: ~
+fake copies: <scratch>/usr-local-bin/claude = 2.0.8, <scratch>/usr-local-bin/codex = 0.42.0
+providers the runner loaded: fake, claude, codex, opencode, cursor, gemini
+
+## 1. Server and runner just started; no setup check and no detection has run yet
+fake executables started so far ([server]: the server process and its own start-up checks; [runner]: the runner, here its start-up model lists):
+  [server] <scratch>/usr-local-bin/codex --version
+  [server] <scratch>/usr-local-bin/codex --version
+  [server] <scratch>/usr-local-bin/claude --version
+  [server] <scratch>/usr-local-bin/codex login status
+  [server] <scratch>/usr-local-bin/codex login status
+  [server] <scratch>/usr-local-bin/claude auth status
+  [runner] <scratch>/usr-local-bin/codex app-server
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --tools= --setting-sources= --strict-mcp-config --no-session-persistence
+  [runner] <scratch>/usr-local-bin/codex app-server
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --tools= --setting-sources= --strict-mcp-config --no-session-persistence
+
+## 2. A session on each provider before any detection ran in this runner
+POST /api/sessions provider=codex: HTTP 200 "started" -> session status "failed"
+POST /api/sessions provider=claude: HTTP 200 "started" -> session status "idle"
+fake executables started by these two sessions:
+  [runner] <scratch>/usr-local-bin/codex app-server
+  [runner] <scratch>/usr-local-bin/codex --version
+  [runner] <scratch>/usr-local-bin/claude --version
+  [runner] <scratch>/usr-local-bin/claude auth status
+  [runner] <scratch>/usr-local-bin/codex login status
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-8f147ee5-5c5c-4ff8-af90-472cdd67eb0c-I8qYxC/mcp.json
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-8f147ee5-5c5c-4ff8-af90-472cdd67eb0c-I8qYxC/mcp.json
+
+## 3. GET /api/setup/status?refresh=1 (what the setup screen shows)
+answered in 10.0s; ready=false; warnings=[{"id":"claude","message":"Could not read the Claude login state"},{"id":"git","message":"git user.name and user.email are not set"}]
+{
+  "id": "claude",
+  "state": "warning",
+  "message": "Could not read the Claude login state",
+  "detail": "`claude auth status` did not finish in time.",
+  "installed": true,
+  "version": "2.0.8",
+  "executablePath": "<scratch>/usr-local-bin/claude",
+  "loggedIn": null,
+  "authMethod": null,
+  "fix": {
+    "kind": "login",
+    "command": "<scratch>/usr-local-bin/claude auth login"
+  },
+  "durationMs": 10005
+}
+{
+  "id": "codex",
+  "state": "missing",
+  "message": "Not signed in to Codex",
+  "detail": "`codex login status` exited with code 1.\nstderr: Error loading configuration: missing field 'command' in 'mcp_servers.notion'",
+  "installed": true,
+  "version": "0.42.0",
+  "executablePath": "<scratch>/usr-local-bin/codex",
+  "loggedIn": false,
+  "authMethod": null,
+  "fix": {
+    "kind": "login",
+    "command": "<scratch>/usr-local-bin/codex login"
+  },
+  "durationMs": 12
+}
+other rows: opencode=missing, cursor=missing, gemini=missing, gh=missing, git=warning, browser=ok, node=ok
+fake executables started by the setup check (server) and the detection it triggers in the runner:
+  [server] <scratch>/usr-local-bin/codex login status
+  [server] <scratch>/usr-local-bin/claude auth status
+  [runner] <scratch>/usr-local-bin/codex app-server
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --tools= --setting-sources= --strict-mcp-config --no-session-persistence
+  [runner] <scratch>/usr-local-bin/claude auth status
+  [runner] <scratch>/usr-local-bin/codex login status
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-8f147ee5-5c5c-4ff8-af90-472cdd67eb0c-I8qYxC/mcp.json
+  [runner] <scratch>/usr-local-bin/codex app-server
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --tools= --setting-sources= --strict-mcp-config --no-session-persistence
+
+## 4. A session on each provider after detection
+POST /api/sessions provider=codex: HTTP 200 "started" -> session status "failed"
+POST /api/sessions provider=claude: HTTP 200 "started" -> session status "idle"
+fake executables started by these two sessions:
+  [runner] <scratch>/usr-local-bin/codex app-server
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-8adbb778-b837-4692-a0b2-d178049624d9-fPpUgN/mcp.json
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-8adbb778-b837-4692-a0b2-d178049624d9-fPpUgN/mcp.json
+
+## 5. The setup screen
+row claude: Claude Code provider Could not read the Claude login state Details `claude auth status` did not finish in time. <scratch>/usr-local-bin/claude auth login Sign in
+row codex: Codex provider Not signed in to Codex Details `codex login status` exited with code 1. stderr: Error loading configuration: missing field 'command' in 'mcp_servers.notion' <scratch>/usr-local-bin/codex login Sign in
+screenshot: byte-identical to before-main-91155115-both-setup.png (on upstream main the screen is the same in both cases), so it is posted once

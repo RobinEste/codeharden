@@ -1,0 +1,26 @@
+merged tree: PR #584 head 982550ed + PR #559 head 548a9970 (git merge, no conflicts; the one file both change, docs/DESIGN.md, merged automatically)
+$ pnpm typecheck
+packages/providers typecheck$ tsc --noEmit
+packages/providers typecheck: Done
+apps/runner typecheck$ tsc --noEmit
+apps/runner typecheck: Done
+apps/server typecheck$ tsc --noEmit
+apps/server typecheck: Done
+apps/web typecheck$ tsc --noEmit
+apps/web typecheck: Done
+apps/cli typecheck$ tsc --noEmit
+apps/desktop typecheck$ tsc --noEmit
+apps/cli typecheck: Done
+apps/desktop typecheck: Done
+typecheck exit 0
+$ vitest run packages/providers/test/locate.test.ts packages/providers/test/locate-min-version.test.ts apps/server/test/setup.test.ts apps/server/test/setup-outdated.test.ts apps/server/test/api-routes.test.ts
+
+ RUN  v5.1.0 <merged checkout>
+
+
+ Test Files  5 passed (5)
+      Tests  53 passed | 1 skipped (54)
+   Start at  14:34:34
+   Duration  3.47s (transform 57%, tests 25%, import 18%)
+
+vitest exit 0

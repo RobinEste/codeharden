@@ -1,0 +1,43 @@
+{
+  "checkedAt": "2026-11-22T19:26:58.259Z",
+  "setupCompleted": false,
+  "ready": true,
+  "checks": [
+    {
+      "id": "claude",
+      "label": "Claude Code",
+      "installed": true,
+      "version": "2.1.327",
+      "executablePath": "~/.local/bin/claude",
+      "loggedIn": true,
+      "authMethod": "claude.ai",
+      "account": "fake@example.test",
+      "loginExpiresAt": null,
+      "fix": null,
+      "state": "ok",
+      "message": "Signed in",
+      "durationMs": 9
+    },
+    {
+      "id": "codex",
+      "label": "Codex",
+      "installed": true,
+      "version": "0.170.0",
+      "executablePath": "~/.local/bin/codex",
+      "loggedIn": true,
+      "authMethod": "ChatGPT",
+      "account": null,
+      "loginExpiresAt": null,
+      "fix": null,
+      "state": "ok",
+      "message": "Signed in",
+      "durationMs": 9
+    }
+  ],
+  "warnings": [
+    {
+      "id": "git",
+      "message": "git user.name and user.email are not set"
+    }
+  ]
+}

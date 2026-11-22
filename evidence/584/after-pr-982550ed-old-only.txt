@@ -1,0 +1,78 @@
+# after-pr-982550ed, only the old copies
+checkout: 982550edd68cbf8b42e7d5dad2b380ee469e0930
+PATH given to the server: <scratch>/usr-local-bin:<node>:/usr/bin:/bin:/usr/sbin:/sbin   HOME: ~
+fake copies: <scratch>/usr-local-bin/claude = 2.0.8, <scratch>/usr-local-bin/codex = 0.42.0
+providers the runner loaded: fake, claude, codex, opencode, cursor, gemini
+
+## 1. Server and runner just started; no setup check and no detection has run yet
+fake executables started so far ([server]: the server process and its own start-up checks; [runner]: the runner, here its start-up model lists):
+  [server] <scratch>/usr-local-bin/codex --version
+  [server] <scratch>/usr-local-bin/codex --version
+  [server] <scratch>/usr-local-bin/claude --version
+  [runner] <scratch>/usr-local-bin/codex app-server
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --tools= --setting-sources= --strict-mcp-config --no-session-persistence
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --tools= --setting-sources= --strict-mcp-config --no-session-persistence
+  [runner] <scratch>/usr-local-bin/codex app-server
+
+## 2. A session on each provider before any detection ran in this runner
+POST /api/sessions provider=codex: HTTP 200 "started" -> session status "failed"
+POST /api/sessions provider=claude: HTTP 200 "started" -> session status "idle"
+fake executables started by these two sessions:
+  [runner] <scratch>/usr-local-bin/codex app-server
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-e05907ed-a6ba-4b52-a755-f7217b72abd0-sepsAy/mcp.json
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-e05907ed-a6ba-4b52-a755-f7217b72abd0-sepsAy/mcp.json
+
+## 3. GET /api/setup/status?refresh=1 (what the setup screen shows)
+answered in 0.0s; ready=false; warnings=[{"id":"claude","message":"Claude Code 2.0.8 is older than 2.1.250; update it"},{"id":"codex","message":"Codex 0.42.0 is older than 0.160.0; update it"},{"id":"git","message":"git user.name and user.email are not set"}]
+{
+  "id": "claude",
+  "state": "warning",
+  "message": "Claude Code 2.0.8 is older than 2.1.250; update it",
+  "detail": "Found at `<scratch>/usr-local-bin/claude`. No copy of version 2.1.250 or newer was found on PATH or in the usual install folders. Update this copy, or remove it if a newer one is installed elsewhere.",
+  "installed": true,
+  "version": "2.0.8",
+  "executablePath": "<scratch>/usr-local-bin/claude",
+  "loggedIn": null,
+  "authMethod": null,
+  "fix": {
+    "kind": "upgrade",
+    "command": "claude update"
+  },
+  "durationMs": 2
+}
+{
+  "id": "codex",
+  "state": "warning",
+  "message": "Codex 0.42.0 is older than 0.160.0; update it",
+  "detail": "Found at `<scratch>/usr-local-bin/codex`. No copy of version 0.160.0 or newer was found on PATH or in the usual install folders. Update this copy, or remove it if a newer one is installed elsewhere.",
+  "installed": true,
+  "version": "0.42.0",
+  "executablePath": "<scratch>/usr-local-bin/codex",
+  "loggedIn": null,
+  "authMethod": null,
+  "fix": {
+    "kind": "upgrade",
+    "command": "npm install -g @openai/codex@latest"
+  },
+  "durationMs": 2
+}
+other rows: opencode=missing, cursor=missing, gemini=missing, gh=missing, git=warning, browser=ok, node=ok
+fake executables started by the setup check (server) and the detection it triggers in the runner:
+  [runner] <scratch>/usr-local-bin/codex --version
+  [runner] <scratch>/usr-local-bin/claude --version
+  [runner] <scratch>/usr-local-bin/codex app-server
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --tools= --setting-sources= --strict-mcp-config --no-session-persistence
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-e05907ed-a6ba-4b52-a755-f7217b72abd0-sepsAy/mcp.json
+
+## 4. A session on each provider after detection
+POST /api/sessions provider=codex: HTTP 200 "started" -> session status "failed"
+POST /api/sessions provider=claude: HTTP 200 "started" -> session status "idle"
+fake executables started by these two sessions:
+  [runner] <scratch>/usr-local-bin/codex app-server
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-df9dcaad-85ca-4b2b-ba2e-fbfaa452dee3-HNE3vd/mcp.json
+  [runner] <scratch>/usr-local-bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-df9dcaad-85ca-4b2b-ba2e-fbfaa452dee3-HNE3vd/mcp.json
+
+## 5. The setup screen
+row claude: Claude Code provider Claude Code 2.0.8 is older than 2.1.250; update it Details Found at `<scratch>/usr-local-bin/claude`. No copy of version 2.1.250 or newer was found on PATH or in the usual install folders. Update this copy, or remove it if a newer one is installed elsewhere. claude update Upgrade
+row codex: Codex provider Codex 0.42.0 is older than 0.160.0; update it Details Found at `<scratch>/usr-local-bin/codex`. No copy of version 0.160.0 or newer was found on PATH or in the usual install folders. Update this copy, or remove it if a newer one is installed elsewhere. npm install -g @openai/codex@latest Upgrade
+screenshot: after-pr-982550ed-old-only-setup.png

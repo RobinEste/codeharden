@@ -1,0 +1,31 @@
+HEAD 911551159b30ae44367c1cea5f2ba3fa9f755346 (untouched upstream main)
+$ pnpm vitest run apps/runner/test/runner-link.test.ts
+
+ RUN  v5.1.0 <checkout of upstream main>
+
+ ❯ |@codeden/runner| test/runner-link.test.ts (5 tests | 1 failed) 40170ms
+   ❯ runner-link (5)
+     × aborting while the upgrade is still pending drops the socket and ends the link 40003ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+Error: Test timed out in 40000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ test/runner-link.test.ts:141:3
+    139|   });
+    140|
+    141|   it("aborting while the upgrade is still pending drops the socket and…
+       |   ^
+    142|     // A listener that accepts the connection but never answers the We…
+    143|     const accepted: Socket[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  14:23:15
+   Duration  41.67s (tests 97%, transform 2%, import 1%)
+
+exit 1
