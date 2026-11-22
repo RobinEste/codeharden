@@ -1,0 +1,276 @@
+PR #584 at c6f54c39: pnpm typecheck && pnpm lint && pnpm test
+
+How it was run: Node 24.22.1, pnpm 10.12.1, macOS. PATH held a folder with only `node` and
+`pnpm`, HOME was an empty folder, and the commands ran inside a macOS sandbox profile that
+refuses every connection except to 127.0.0.1 and hides /usr/local and /opt/homebrew, so that no
+test could start a provider CLI installed on the machine.
+
+Result: typecheck passes, lint passes, pnpm test: 2 failed | 4501 passed | 45 skipped.
+Neither failure is in code this pull request touches, and both fail the same way on untouched
+upstream main (see failing-suites-on-main-91155115.txt):
+- apps/runner/test/runner-link.test.ts ("aborting while the upgrade is still pending ..."): the
+  known intermittent failure, also on upstream main.
+- apps/runner/test/leftover-processes.test.ts ("ends the process ... and then removes the
+  worktree"): caused by the sandbox, which keeps the test from seeing other processes' folders.
+  Outside the sandbox the suite passes on this head (10 of 10); inside it, it fails on upstream
+  main as well.
+
+== head: c6f54c39
+== pnpm typecheck
+
+> codeden-monorepo@ typecheck <checkout>
+> pnpm -r run typecheck
+
+Scope: 7 of 8 workspace projects
+packages/contracts typecheck$ tsc --noEmit
+packages/contracts typecheck: Done
+packages/providers typecheck$ tsc --noEmit
+packages/providers typecheck: Done
+apps/runner typecheck$ tsc --noEmit
+apps/runner typecheck: Done
+apps/server typecheck$ tsc --noEmit
+apps/server typecheck: Done
+apps/web typecheck$ tsc --noEmit
+apps/web typecheck: Done
+apps/desktop typecheck$ tsc --noEmit
+apps/cli typecheck$ tsc --noEmit
+apps/cli typecheck: Done
+apps/desktop typecheck: Done
+typecheck exit: 0
+== pnpm lint
+
+> codeden-monorepo@ lint <checkout>
+> biome check .
+
+Checked 2024 files in 620ms. No fixes applied.
+lint exit: 0
+== pnpm test
+
+> codeden-monorepo@ test <checkout>
+> vitest run
+
+
+ RUN  v5.1.0 <checkout>
+
+ ❯ |@codeden/runner| test/leftover-processes.test.ts (10 tests | 1 failed) 565ms
+   ❯ removing a worktree an agent's dev server still runs in (1)
+     × ends the process (not one in a sibling folder) and then removes the worktree 556ms
+ ❯ |@codeden/runner| test/runner-link.test.ts (5 tests | 1 failed) 40111ms
+   ❯ runner-link (5)
+     × aborting while the upgrade is still pending drops the socket and ends the link 40005ms
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+Not implemented: Window's scrollTo() method
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |@codeden/runner| test/leftover-processes.test.ts > removing a worktree an agent's dev server still runs in > ends the process (not one in a sibling folder) and then removes the worktree
+AssertionError: expected [] to include 99380
+ ❯ test/leftover-processes.test.ts:343:21
+    341|     try {
+    342|       const ended = await endProcessesInside(wt.cwd, { home });
+    343|       expect(ended).toContain(server.child.pid);
+       |                     ^
+    344|       expect(ended).toContain(inCwd.child.pid);
+    345|       expect(ended).not.toContain(other.child.pid);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+Error: Test timed out in 40000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ test/runner-link.test.ts:141:3
+    139|   });
+    140|
+    141|   it("aborting while the upgrade is still pending drops the socket and…
+       |   ^
+    142|     // A listener that accepts the connection but never answers the We…
+    143|     const accepted: Socket[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed | 571 passed | 12 skipped (585)
+      Tests  2 failed | 4501 passed | 45 skipped (4548)
+   Start at  15:50:26
+   Duration  155.68s (tests 56%, import 24%, transform 12%, environment 5%, setup 1%)
+
+     Import  |@codeden/server| 999 modules were evaluated 72694 times · 97.54s total, 35% of tracked time
+             ~9.79s faster with isolate: false — shared modules are evaluated once per worker instead of once per file
+             learn more: https://vitest.dev/guide/improving-performance#test-isolation
+
+ ELIFECYCLE  Test failed. See above for more details.
+test exit: 1
+
+
+== leftover-processes.test.ts on this head, outside the sandbox (same PATH, empty HOME)
+ Test Files  1 passed (1)
+      Tests  10 passed (10)

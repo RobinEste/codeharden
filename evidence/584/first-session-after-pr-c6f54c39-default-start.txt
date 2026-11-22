@@ -1,0 +1,51 @@
+# after-pr-c6f54c39: a fresh runner's first model lists and first sessions (the server starts as the product does, with its own start-up setup check)
+checkout: c6f54c39e1c4eae70ef5ab7ee2b8d9f060b72cae
+PATH given to the server: <scratch>/usr-local-bin:<node>:/usr/bin:/bin:/usr/sbin:/sbin   HOME: ~
+fake copies, old first on PATH: <scratch>/usr-local-bin/claude = 2.0.8, <scratch>/usr-local-bin/codex = 0.42.0, <scratch>/usr-local-bin/opencode = 1.19.5
+fake copies, supported, in the known locations: ~/.local/bin/claude = 2.1.327, ~/.local/bin/codex = 0.170.0, ~/.opencode/bin/opencode = 2.2.7
+providers the runner loaded: fake, claude, codex, opencode, cursor, gemini
+
+## 1. Server and runner just started: the runner's start-up model lists
+No request was made for a setup check, a detection or a model refresh.
+fake executables started so far ([server]: the server process; [runner]: the runner process):
+  [server] <scratch>/usr-local-bin/codex --version
+  [server] <scratch>/usr-local-bin/opencode --version
+  [server] <scratch>/usr-local-bin/claude --version
+  [server] <scratch>/usr-local-bin/codex --version
+  [server] ~/.opencode/bin/opencode --version
+  [server] ~/.local/bin/codex --version
+  [server] ~/.local/bin/codex --version
+  [server] ~/.opencode/bin/opencode auth list --standalone --format json
+  [server] ~/.local/bin/claude --version
+  [server] ~/.local/bin/codex login status
+  [server] ~/.local/bin/claude auth status
+  [server] ~/.local/bin/codex login status
+  [runner] <scratch>/usr-local-bin/claude --version
+  [runner] <scratch>/usr-local-bin/opencode --version
+  [runner] <scratch>/usr-local-bin/codex --version
+  [runner] ~/.local/bin/claude --version
+  [runner] ~/.local/bin/codex --version
+  [runner] ~/.opencode/bin/opencode --version
+  [runner] ~/.local/bin/codex app-server
+  [runner] ~/.local/bin/claude --output-format stream-json --verbose --input-format stream-json --tools= --setting-sources= --strict-mcp-config --no-session-persistence
+  [runner] ~/.opencode/bin/opencode serve --stdio --hostname 127.0.0.1 --port 0
+  [runner] ~/.local/bin/codex app-server
+  [runner] ~/.opencode/bin/opencode serve --stdio --hostname 127.0.0.1 --port 0
+  [runner] ~/.local/bin/claude --output-format stream-json --verbose --input-format stream-json --tools= --setting-sources= --strict-mcp-config --no-session-persistence
+`--version` calls made by the runner so far: 6 (<scratch>/usr-local-bin/claude, <scratch>/usr-local-bin/opencode, <scratch>/usr-local-bin/codex, ~/.local/bin/claude, ~/.local/bin/codex, ~/.opencode/bin/opencode)
+
+## 2. The first session on each provider, still before any setup check or detection request
+POST /api/sessions provider=claude: HTTP 200 "started"
+POST /api/sessions provider=codex: HTTP 200 "started"
+POST /api/sessions provider=opencode: HTTP 200 "started"
+fake executables started by these sessions (the fakes end at once, so the sessions themselves fail or stay idle; what counts is which copy was started):
+  [runner] ~/.local/bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-d3006681-acf1-41b6-be3f-64b5887819a5-NXeBMf/mcp.json
+  [runner] ~/.local/bin/claude --output-format stream-json --verbose --input-format stream-json --permission-prompt-tool=stdio --allowedTools=mcp__codeden --permission-mode=acceptEdits --include-hook-events --include-partial-messages --mcp-config <scratch>/codeden-home/runner/mcp/session-d3006681-acf1-41b6-be3f-64b5887819a5-NXeBMf/mcp.json
+  [runner] ~/.local/bin/codex app-server
+  [runner] ~/.opencode/bin/opencode serve --stdio --hostname 127.0.0.1 --port 0
+`--version` calls made by the runner for these sessions: 0
+
+## Result: the copy the runner started
+claude: first model list -> supported; first session -> supported
+codex: first model list -> supported; first session -> supported
+opencode: first model list -> supported; first session -> supported

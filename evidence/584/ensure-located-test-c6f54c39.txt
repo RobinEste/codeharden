@@ -1,0 +1,41 @@
+PR #584 at c6f54c39: the new unit test (packages/providers/test/ensure-located.test.ts), the
+existing minimum-version suite and the adjusted Claude model-list suite.
+
+$ pnpm exec vitest run --reporter verbose packages/providers/test/ensure-located.test.ts packages/providers/test/locate-min-version.test.ts packages/providers/test/claude-models.test.ts
+
+ RUN  v5.1.0 <checkout>
+
+ ✓ |@codeden/providers| test/locate-min-version.test.ts > findExecutable with a minimum version > passes over an old copy on PATH for a supported one in a known location 257ms
+ ✓ |@codeden/providers| test/locate-min-version.test.ts > findExecutable with a minimum version > takes the first supported copy, not the newest 199ms
+ ✓ |@codeden/providers| test/claude-models.test.ts > listClaudeModels > maps the SDK's model rows; the first one is the default 1ms
+ ✓ |@codeden/providers| test/claude-models.test.ts > listClaudeModels > starts the CLI without a turn, reads supportedModels and closes it 12ms
+ ✓ |@codeden/providers| test/locate-min-version.test.ts > findExecutable with a minimum version > falls back to the first old copy when nothing meets the minimum 128ms
+ ✓ |@codeden/providers| test/locate-min-version.test.ts > findExecutable with a minimum version > finds nothing when there is no copy, and keeps PATH order without a minimum 48ms
+ ✓ |@codeden/providers| test/locate-min-version.test.ts > findExecutable with a minimum version > treats a copy with no known version as older than the minimum 3ms
+ ✓ |@codeden/providers| test/claude-models.test.ts > listClaudeModels > gives up on a CLI that never answers, and still closes it 202ms
+ ✓ |@codeden/providers| test/claude-models.test.ts > ClaudeAdapter model discovery > replaces the alias fallback with the CLI's list and reports the change once 1ms
+ ✓ |@codeden/providers| test/ensure-located.test.ts > a runner's first session and model list > ensureLocated checks the copies once per process 161ms
+ ✓ |@codeden/providers| test/locate-min-version.test.ts > findExecutable with a minimum version > goes back to the old copy when the newer one is gone, and forward once it is updated 99ms
+ ✓ |@codeden/providers| test/claude-models.test.ts > ClaudeAdapter model discovery > keeps the last list when discovery fails, times out or lists nothing, and never throws 102ms
+ ✓ |@codeden/providers| test/claude-models.test.ts > ClaudeAdapter model discovery > skips a refresh with maxAgeMs while the list is recent, then asks again 1ms
+ ✓ |@codeden/providers| test/locate-min-version.test.ts > detection with an old copy first on PATH > claude: uses the supported copy and reports no version problem 125ms
+ ✓ |@codeden/providers| test/locate-min-version.test.ts > detection with an old copy first on PATH > claude: only an old copy leads with the version and its path, and skips the login check 48ms
+ ✓ |@codeden/providers| test/claude-models.test.ts > ClaudeAdapter model discovery > finds claude again after an update, and refreshes a recent list from the new one 165ms
+ ✓ |@codeden/providers| test/claude-models.test.ts > ClaudeAdapter model discovery > takes a session's list as the newest, and counts it as a refresh 2ms
+ ✓ |@codeden/providers| test/claude-models.test.ts > ClaudeAdapter model discovery > skips discovery when Claude Code is not installed 2ms
+ ✓ |@codeden/providers| test/claude-models.test.ts > claudeSdkReady > never asks discovery to install the SDK 2ms
+ ✓ |@codeden/providers| test/ensure-located.test.ts > a runner's first session and model list > Claude Code: both start the supported copy with no detection before 190ms
+ ✓ |@codeden/providers| test/locate-min-version.test.ts > detection with an old copy first on PATH > codex: the same, with its own minimum 132ms
+ ✓ |@codeden/providers| test/locate-min-version.test.ts > detection with an old copy first on PATH > no copy at all is still 'not installed' 1ms
+ ✓ |@codeden/providers| test/ensure-located.test.ts > a runner's first session and model list > Codex: both start the supported copy with no detection before 260ms
+ ✓ |@codeden/providers| test/ensure-located.test.ts > a runner's first session and model list > OpenCode: both start the supported copy with no detection before 459ms
+
+ Test Files  3 passed (3)
+      Tests  24 passed (24)
+   Start at  16:28:34
+   Duration  1.81s (tests 70%, import 15%, transform 15%)
+
+
+
+With the look-up switched off (ensureLocated returning at once, everything else as in c6f54c39),
+all four tests of ensure-located.test.ts fail: each adapter starts the old copy first on PATH.

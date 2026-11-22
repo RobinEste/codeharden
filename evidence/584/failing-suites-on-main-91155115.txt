@@ -1,0 +1,66 @@
+The two suites that failed in the full run, on untouched upstream main
+(911551159b30ae44367c1cea5f2ba3fa9f755346), under the same conditions as checks-c6f54c39.txt.
+
+runner-link.test.ts is intermittent: of three runs on upstream main during this check it failed
+twice (one shown below) and passed once.
+
+$ pnpm exec vitest run apps/runner/test/runner-link.test.ts   (inside the sandbox)
+
+ RUN  v5.1.0 <checkout of upstream main>
+
+ ❯ |@codeden/runner| test/runner-link.test.ts (5 tests | 1 failed) 40103ms
+   ❯ runner-link (5)
+     × aborting while the upgrade is still pending drops the socket and ends the link 40008ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+Error: Test timed out in 40000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ test/runner-link.test.ts:141:3
+    139|   });
+    140|
+    141|   it("aborting while the upgrade is still pending drops the socket and…
+       |   ^
+    142|     // A listener that accepts the connection but never answers the We…
+    143|     const accepted: Socket[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  16:27:51
+   Duration  41.12s (tests 98%, import 1%, transform 1%)
+
+
+
+$ pnpm exec vitest run apps/runner/test/leftover-processes.test.ts   (inside the sandbox used for the full run)
+
+ RUN  v5.1.0 <checkout of upstream main>
+
+ ❯ |@codeden/runner| test/leftover-processes.test.ts (10 tests | 1 failed) 286ms
+   ❯ removing a worktree an agent's dev server still runs in (1)
+     × ends the process (not one in a sibling folder) and then removes the worktree 279ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |@codeden/runner| test/leftover-processes.test.ts > removing a worktree an agent's dev server still runs in > ends the process (not one in a sibling folder) and then removes the worktree
+AssertionError: expected [] to include 24909
+ ❯ test/leftover-processes.test.ts:343:21
+    341|     try {
+    342|       const ended = await endProcessesInside(wt.cwd, { home });
+    343|       expect(ended).toContain(server.child.pid);
+       |                     ^
+    344|       expect(ended).toContain(inCwd.child.pid);
+    345|       expect(ended).not.toContain(other.child.pid);
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 9 passed (10)
+   Start at  15:53:32
+   Duration  821ms (tests 39%, import 34%, transform 26%)
+
+
