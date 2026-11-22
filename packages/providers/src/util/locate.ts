@@ -142,11 +142,31 @@ function meets(version: string | null, min: string): boolean {
 const cache = new Map<string, Validation>();
 /** Cache keys of copies that run but were passed over for a later, supported copy. */
 const passedOver = new Set<string>();
+/** The one `ensureLocated` look-up per tool and minimum in this process. */
+const located = new Map<string, Promise<void>>();
+
+/**
+ * Make sure `findExecutable(name, { minVersion })` has run once in this process, so that
+ * `quickLocate` already knows which copies are broken or too old when a runner starts its
+ * first session or model list, before any detection. The first call runs the look-up (one
+ * `--version` per copy, up to the first supported one); every call returns that same promise.
+ * Never rejects.
+ */
+export function ensureLocated(name: string, minVersion: string): Promise<void> {
+  const key = `${name}\n${minVersion}`;
+  let run = located.get(key);
+  if (!run) {
+    run = findExecutable(name, { minVersion }).then(() => undefined);
+    located.set(key, run);
+  }
+  return run;
+}
 
 /** Forget cached `--version` results (tests). */
 export function clearExecutableCache(): void {
   cache.clear();
   passedOver.clear();
+  located.clear();
 }
 
 /** The file plus what it launches, by modification time and size: a reinstall changes it. */
