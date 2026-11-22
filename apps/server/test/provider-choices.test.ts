@@ -79,7 +79,17 @@ describe("start_session's provider parameter", () => {
 
   it("names every state that keeps new work off a provider, and calls the rest ready", async () => {
     env = createFactoryEnv({
-      providers: ["broken", "old", "signedout", "limited", "backoff", "unsure", "untested", "soon"],
+      providers: [
+        "broken",
+        "old",
+        "signedout",
+        "limited",
+        "backoff",
+        "codex",
+        "unsure",
+        "untested",
+        "soon",
+      ],
     });
     const fix = (kind: "install" | "login" | "upgrade") => ({ kind, command: `x ${kind}` });
     env.detected.broken = {
@@ -111,11 +121,11 @@ describe("start_session's provider parameter", () => {
       resetsAt: resets,
       observedAt: env.now().toISOString(),
     });
-    // A factory session failed on it: backed off for a while (`provider-failure.ts`).
-    env.factory.ctx.sessions.providerFailed("backoff", {
-      reason: "failing to start",
-      until: resets,
-    });
+    // Factory sessions failed because of their provider, which backs it off for new work
+    // (`provider-failure.ts`): a usage limit until its reset, a sign-in until the login changes.
+    const sessions = env.factory.ctx.sessions;
+    sessions.providerFailed("backoff", { reason: "at its usage limit", until: resets });
+    sessions.providerFailed("codex", { reason: "not signed in", until: null, signin: true });
     // Detection found nothing that stops new work, so these read "ready" (as the factory counts
     // them): a sign-in it couldn't read, a version outside the tested range, a login about to end.
     env.detected.unsure = {
@@ -135,7 +145,8 @@ describe("start_session's provider parameter", () => {
       "`old`: too old (0.36.0, needs 0.68.0+), fix: `x upgrade`",
       "`signedout`: not signed in, fix: `x login`",
       `\`limited\`: at its usage limit${untilText(resets)}`,
-      `\`backoff\`: failing to start${untilText(resets)}`,
+      `\`backoff\`: at its usage limit${untilText(resets)}`,
+      "`codex`: not signed in, fix: `codex login`",
       "`unsure`: ready",
       "`untested`: ready",
       "`soon`: ready",
