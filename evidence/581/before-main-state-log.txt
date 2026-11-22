@@ -1,0 +1,18 @@
+locked tile (orchestrator chat, main): Fake (scripted) can't be used in this session. Start a new session to switch providers.
+"Change provider" in the picker: 0
+
+## main 1. Orchestrator's first message on Auto: started on Claude Code, which can't run
+settings.providers: {"orchestrator":"auto","pm":"auto","agent":"auto"}
+roleSessions: orchestrator=0a85d007 pms=[]
+  session 0a85d007 role=orchestrator provider=claude status=failed live queued=1
+
+## main 2. Orchestrator set to Fake in Settings → Providers → Defaults per role: nothing happens to the session
+settings.providers: {"orchestrator":"fake","pm":"auto","agent":"auto"}
+roleSessions: orchestrator=0a85d007 pms=[]
+  session 0a85d007 role=orchestrator provider=claude status=failed live queued=1
+
+## main 3. Next orchestrator message: still the Claude Code session; the message only joins its queue
+settings.providers: {"orchestrator":"fake","pm":"auto","agent":"auto"}
+roleSessions: orchestrator=0a85d007 pms=[]
+  session 0a85d007 role=orchestrator provider=claude status=failed live queued=1
+

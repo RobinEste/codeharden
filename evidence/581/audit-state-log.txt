@@ -1,0 +1,100 @@
+## 0. Start: fresh home, every role on Auto. Fake is the only provider that can run (Claude Code, OpenCode, Cursor, Gemini CLI not installed; Codex not signed in)
+settings.providers: {"orchestrator":"auto","pm":"auto","agent":"auto"}
+roleSessions: orchestrator=null pms=[]
+
+locked tile (orchestrator chat): Fake (scripted) can't be used in this session. The orchestrator runs on its role's provider: change it in Settings → Providers → Defaults per role, and the next message starts a fresh conversation there.
+picker footer: The orchestrator can run on another provider. [Change provider]
+
+## 1. Orchestrator's first message on Auto: started on Claude Code, which can't run; the turn never started and the message waits in its queue
+settings.providers: {"orchestrator":"auto","pm":"auto","agent":"auto"}
+roleSessions: orchestrator=3bab0459 pms=[]
+  session 3bab0459 role=orchestrator provider=claude status=failed live queued=1
+  inbox run_failed open session=3bab0459 "Run failed: Orchestrator"
+
+"Change provider" leads to: /settings/providers
+
+## 2. Orchestrator set to Fake in Settings → Providers → Defaults per role: the Claude Code session is stopped and archived, its queued message dropped, its failed-run inbox item dismissed
+settings.providers: {"orchestrator":"fake","pm":"auto","agent":"auto"}
+roleSessions: orchestrator=null pms=[]
+  session 3bab0459 role=orchestrator provider=claude status=failed archived queued=0
+  inbox run_failed dismissed session=3bab0459 "Run failed: Orchestrator" resolution={"reason":"moved to another provider"}
+
+## 3. Next orchestrator message: a new session on Fake ran the turn
+settings.providers: {"orchestrator":"fake","pm":"auto","agent":"auto"}
+roleSessions: orchestrator=c6fee816 pms=[]
+  session 3bab0459 role=orchestrator provider=claude status=failed archived queued=0
+  session c6fee816 role=orchestrator provider=fake status=idle live queued=0
+  inbox run_failed dismissed session=3bab0459 "Run failed: Orchestrator" resolution={"reason":"moved to another provider"}
+
+locked tile (PM chat): Fake (scripted) can't be used in this session. A project manager runs on its role's provider: change it in Settings → Providers → Defaults per role, and the next message starts a fresh conversation there.
+picker footer: Project managers can run on another provider. [Change provider]
+
+## 4. PM's first message on Auto: started on Claude Code, failed the same way
+settings.providers: {"orchestrator":"fake","pm":"auto","agent":"auto"}
+roleSessions: orchestrator=c6fee816 pms=["0ef03bf5"]
+  session 3bab0459 role=orchestrator provider=claude status=failed archived queued=0
+  session c6fee816 role=orchestrator provider=fake status=idle live queued=0
+  session 0ef03bf5 role=pm provider=claude status=failed live queued=1
+  inbox run_failed open session=0ef03bf5 "Run failed: PM · demo"
+  inbox run_failed dismissed session=3bab0459 "Run failed: Orchestrator" resolution={"reason":"moved to another provider"}
+
+## 5. Project managers set to Fake, then the next PM message: a new PM session on Fake ran the turn
+settings.providers: {"orchestrator":"fake","pm":"fake","agent":"auto"}
+roleSessions: orchestrator=c6fee816 pms=["753c2284"]
+  session 3bab0459 role=orchestrator provider=claude status=failed archived queued=0
+  session c6fee816 role=orchestrator provider=fake status=idle live queued=0
+  session 0ef03bf5 role=pm provider=claude status=failed archived queued=0
+  session 753c2284 role=pm provider=fake status=idle live queued=0
+  inbox run_failed dismissed session=0ef03bf5 "Run failed: PM · demo" resolution={"reason":"moved to another provider"}
+  inbox run_failed dismissed session=3bab0459 "Run failed: Orchestrator" resolution={"reason":"moved to another provider"}
+
+## 6. Orchestrator (Fake) is waiting on an approval when its setting changes to Gemini CLI: the session is left as it is, with its approval open
+settings.providers: {"orchestrator":"gemini","pm":"fake","agent":"auto"}
+roleSessions: orchestrator=c6fee816 pms=["753c2284"]
+  session 3bab0459 role=orchestrator provider=claude status=failed archived queued=0
+  session c6fee816 role=orchestrator provider=fake status=waiting live queued=0
+  session 0ef03bf5 role=pm provider=claude status=failed archived queued=0
+  session 753c2284 role=pm provider=fake status=idle live queued=0
+  inbox approval open session=c6fee816 "Run `echo hello` outside the sandbox"
+  inbox run_failed dismissed session=0ef03bf5 "Run failed: PM · demo" resolution={"reason":"moved to another provider"}
+  inbox run_failed dismissed session=3bab0459 "Run failed: Orchestrator" resolution={"reason":"moved to another provider"}
+
+## 7. Approval answered and the turn ended: the Fake session is still the orchestrator (nothing retires it until the next message, wake or settings change)
+settings.providers: {"orchestrator":"gemini","pm":"fake","agent":"auto"}
+roleSessions: orchestrator=c6fee816 pms=["753c2284"]
+  session 3bab0459 role=orchestrator provider=claude status=failed archived queued=0
+  session c6fee816 role=orchestrator provider=fake status=idle live queued=0
+  session 0ef03bf5 role=pm provider=claude status=failed archived queued=0
+  session 753c2284 role=pm provider=fake status=idle live queued=0
+  inbox run_failed dismissed session=0ef03bf5 "Run failed: PM · demo" resolution={"reason":"moved to another provider"}
+  inbox run_failed dismissed session=3bab0459 "Run failed: Orchestrator" resolution={"reason":"moved to another provider"}
+  inbox approval resolved session=c6fee816 "Run `echo hello` outside the sandbox" resolution={"status":"completed","decision":"allow_once","decidedBy":"user"}
+
+## 8. Next orchestrator message: the Fake session is retired and a new session starts on Gemini CLI (not installed here, so it fails to start; that is the provider the setting names)
+settings.providers: {"orchestrator":"gemini","pm":"fake","agent":"auto"}
+roleSessions: orchestrator=af81f9c2 pms=["753c2284"]
+  session 3bab0459 role=orchestrator provider=claude status=failed archived queued=0
+  session c6fee816 role=orchestrator provider=fake status=stopped archived queued=0
+  session 0ef03bf5 role=pm provider=claude status=failed archived queued=0
+  session 753c2284 role=pm provider=fake status=idle live queued=0
+  session af81f9c2 role=orchestrator provider=gemini status=failed live queued=1
+  inbox run_failed open session=af81f9c2 "Run failed: Orchestrator"
+  inbox run_failed dismissed session=0ef03bf5 "Run failed: PM · demo" resolution={"reason":"moved to another provider"}
+  inbox run_failed dismissed session=3bab0459 "Run failed: Orchestrator" resolution={"reason":"moved to another provider"}
+  inbox approval resolved session=c6fee816 "Run `echo hello` outside the sandbox" resolution={"status":"completed","decision":"allow_once","decidedBy":"user"}
+
+retired orchestrator conversation c6fee816 opens at /sessions/<id>: yes
+
+## 9. Project default provider = Fake, then Project managers set to Gemini CLI: the project's default wins, so this PM stays on Fake
+settings.providers: {"orchestrator":"gemini","pm":"gemini","agent":"auto"}
+roleSessions: orchestrator=af81f9c2 pms=["753c2284"]
+  session 3bab0459 role=orchestrator provider=claude status=failed archived queued=0
+  session c6fee816 role=orchestrator provider=fake status=stopped archived queued=0
+  session 0ef03bf5 role=pm provider=claude status=failed archived queued=0
+  session 753c2284 role=pm provider=fake status=idle live queued=0
+  session af81f9c2 role=orchestrator provider=gemini status=failed live queued=1
+  inbox run_failed open session=af81f9c2 "Run failed: Orchestrator"
+  inbox run_failed dismissed session=0ef03bf5 "Run failed: PM · demo" resolution={"reason":"moved to another provider"}
+  inbox run_failed dismissed session=3bab0459 "Run failed: Orchestrator" resolution={"reason":"moved to another provider"}
+  inbox approval resolved session=c6fee816 "Run `echo hello` outside the sandbox" resolution={"status":"completed","decision":"allow_once","decidedBy":"user"}
+
