@@ -1,0 +1,9 @@
+providers the runner loaded: fake
+01-settings-supervised-one-on-another-level.png: notice = 1 open session is on another level and keeps it: Update the docs (Auto). To change a session's, open it and use the Permissions picker under its message box: it applies while the session runs.
+project level after the click: full; A is waiting
+02-settings-changed-to-full-while-session-waits.png: notice = 2 open sessions are on another level and keep it: Refactor the parser (Supervised), Update the docs (Auto). To change a session's, open it and use the Permissions picker under its message box: it applies while the session runs.
+03: session A level=supervised status=waiting
+04: session B level=full status=idle
+after new session B was started (page identical to 02, so no separate image): notice = 2 open sessions are on another level and keep it: Refactor the parser (Supervised), Update the docs (Auto). To change a session's, open it and use the Permissions picker under its message box: it applies while the session runs.
+06-settings-after-session-level-changed.png: notice = 1 open session is on another level and keeps it: Update the docs (Auto). To change a session's, open it and use the Permissions picker under its message box: it applies while the session runs.
+07-settings-no-notice-when-all-match.png: notice = (no notice)

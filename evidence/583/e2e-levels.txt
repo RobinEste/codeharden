@@ -1,0 +1,26 @@
+STEP 1  project level=supervised  autonomy mode=assisted
+STEP 2  session A created, status=waiting (waiting on an approval), level=supervised
+STEP 3  update_project {autonomy:"full"} while A waits -> project level=full, autonomy mode=assisted
+        update_project result note: "New sessions in this project start with this level. Sessions that already exist keep the level they have; the user changes it in each session's Permissions picker."
+        update_project {timezone} (level untouched) note: null
+
+STEP 4  what each session runs with, project level now = full
+A  running when the project changed                        level=supervised ASKED for approval
+S  stopped before, resumed after the change                level=supervised ASKED for approval
+B  new session (user), no level picked                     level=full       ran WITHOUT asking
+C  new session (user), Supervised picked in the draft      level=supervised ASKED for approval
+D  new session started by the PM (start_session)           level=full       ran WITHOUT asking
+E  fork of A                                               level=supervised ASKED for approval
+F  hand-off of A                                           level=supervised ASKED for approval
+G  review of B                                             level=read_only  (read-only: the Fake provider runs no command)
+H  automation run, automation names no level               level=full       ran WITHOUT asking
+I  automation run, automation names Supervised             level=supervised ASKED for approval
+
+STEP 5  changing a session's own level (PATCH /api/sessions/:id, the Permissions picker)
+A  after its own level is set to Full while it is open     level=full       ran WITHOUT asking
+S  stopped, own level set to Full, then resumed            level=full       ran WITHOUT asking
+
+STEP 6  the project goes back to Supervised; sessions created at Full keep Full
+        project level=supervised
+B  created when the project was Full                       level=full       ran WITHOUT asking
+N  new session after the change back                       level=supervised ASKED for approval
