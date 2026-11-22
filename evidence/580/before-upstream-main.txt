@@ -1,5 +1,5 @@
 # Before: upstream main 91155115 (unfixed)
-server http://127.0.0.1:54698 (loopback); LAN address http://192.168.1.252:54698; node v24.22.1
+server http://127.0.0.1:54698 (loopback); LAN address http://192.168.x.x:54698; node v24.22.1
 session 076a9916-f43f-4c1a-8a21-6ab3cef5f42d started with 10 image attachments
 stored artifacts: 10
 
@@ -29,7 +29,7 @@ stored artifacts: 10
     content-disposition: inline; filename=""
     csp: default-src 'none'; sandbox; x-content-type-options: nosniff
 
-## Remote: this same computer through its LAN address http://192.168.1.252:54698
+## Remote: this same computer through its LAN address http://192.168.x.x:54698
 - signed out (no cookie): screenshot name 401 application/json; image.png 401 application/json
 - install token only (Bearer): screenshot name 401 application/json; image.png 401 application/json
 - password sign-in: 200, session cookie set
@@ -52,7 +52,7 @@ before-local.png at http://127.0.0.1:54698/sessions/076a9916-f43f-4c1a-8a21-6ab3
   "lone \ud83c.png" naturalWidth=0
   "" naturalWidth=320
 
-before-remote.png at http://192.168.1.252:54698/sessions/076a9916-f43f-4c1a-8a21-6ab3cef5f42d
+before-remote-redacted.png at http://192.168.x.x:54698/sessions/076a9916-f43f-4c1a-8a21-6ab3cef5f42d
   "image.png" naturalWidth=320
   "Screenshot 2026-11-02 at 2.55.06\u202fPM.png" naturalWidth=0
   "r\u00e9sum\u00e9.png" naturalWidth=320

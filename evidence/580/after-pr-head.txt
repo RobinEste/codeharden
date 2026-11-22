@@ -1,5 +1,5 @@
 # After: PR head ac1e963f (fixed)
-server http://127.0.0.1:54708 (loopback); LAN address http://192.168.1.252:54708; node v24.22.1
+server http://127.0.0.1:54708 (loopback); LAN address http://192.168.x.x:54708; node v24.22.1
 session 1382bfbb-e9f5-41c1-b746-3f3dc2ce69bd started with 10 image attachments
 stored artifacts: 10
 
@@ -36,7 +36,7 @@ stored artifacts: 10
     content-disposition: inline; filename=""
     csp: default-src 'none'; sandbox; x-content-type-options: nosniff
 
-## Remote: this same computer through its LAN address http://192.168.1.252:54708
+## Remote: this same computer through its LAN address http://192.168.x.x:54708
 - signed out (no cookie): screenshot name 401 application/json; image.png 401 application/json
 - install token only (Bearer): screenshot name 401 application/json; image.png 401 application/json
 - password sign-in: 200, session cookie set
@@ -59,7 +59,7 @@ after-local.png at http://127.0.0.1:54708/sessions/1382bfbb-e9f5-41c1-b746-3f3dc
   "lone \ud83c.png" naturalWidth=320
   "" naturalWidth=320
 
-after-remote.png at http://192.168.1.252:54708/sessions/1382bfbb-e9f5-41c1-b746-3f3dc2ce69bd
+after-remote-redacted.png at http://192.168.x.x:54708/sessions/1382bfbb-e9f5-41c1-b746-3f3dc2ce69bd
   "image.png" naturalWidth=320
   "Screenshot 2026-11-02 at 2.55.06\u202fPM.png" naturalWidth=320
   "r\u00e9sum\u00e9.png" naturalWidth=320

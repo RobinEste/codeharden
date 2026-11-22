@@ -1,5 +1,5 @@
 # Before (upstream main): which characters fail
-server http://127.0.0.1:54698 (loopback); LAN address http://192.168.1.252:54698; node v24.22.1
+server http://127.0.0.1:54698 (loopback); LAN address http://192.168.x.x:54698; node v24.22.1
 session b7ba5557-217d-4035-ae44-30aac76e4e64 started with 13 image attachments
 stored artifacts: 13
 ## Local (127.0.0.1, install token as Bearer): every name
@@ -23,7 +23,7 @@ stored artifacts: 13
     content-disposition: inline; filename=" a.png"
 - percent "100%25 a.png": 200 image/png 94858 bytes
     content-disposition: inline; filename="100%25 a.png"
-## Remote: this same computer through its LAN address http://192.168.1.252:54698
+## Remote: this same computer through its LAN address http://192.168.x.x:54698
 - signed out (no cookie): screenshot name 401 application/json; image.png 401 application/json
 - install token only (Bearer): screenshot name 401 application/json; image.png 401 application/json
 - password sign-in: 200, session cookie set
@@ -32,7 +32,7 @@ network access left on for the browser check; password: maple-river-quiet-orbit-
 session page: /sessions/b7ba5557-217d-4035-ae44-30aac76e4e64
 
 # After (PR head): same names
-server http://127.0.0.1:54708 (loopback); LAN address http://192.168.1.252:54708; node v24.22.1
+server http://127.0.0.1:54708 (loopback); LAN address http://192.168.x.x:54708; node v24.22.1
 session 6200529c-64cb-426b-9ef3-0ebe5e6769d9 started with 13 image attachments
 stored artifacts: 13
 ## Local (127.0.0.1, install token as Bearer): every name
@@ -62,7 +62,7 @@ stored artifacts: 13
     content-disposition: inline; filename=" a.png"
 - percent "100%25 a.png": 200 image/png 94858 bytes
     content-disposition: inline; filename="100%25 a.png"
-## Remote: this same computer through its LAN address http://192.168.1.252:54708
+## Remote: this same computer through its LAN address http://192.168.x.x:54708
 - signed out (no cookie): screenshot name 401 application/json; image.png 401 application/json
 - install token only (Bearer): screenshot name 401 application/json; image.png 401 application/json
 - password sign-in: 200, session cookie set
