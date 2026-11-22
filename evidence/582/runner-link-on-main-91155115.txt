@@ -1,0 +1,33 @@
+$ git log --oneline -1   (untouched upstream main)
+91155115 Auto: `Invoke-WebRequest … -OutFile <outside>` and PowerShell's `${C:\path}` file syntax read and write files outside the worktree without asking (#548)
+
+$ pnpm exec vitest run apps/runner/test/runner-link.test.ts
+
+ RUN  v5.1.0 <upstream-main>
+
+ ❯ |@codeden/runner| test/runner-link.test.ts (5 tests | 1 failed) 40175ms
+   ❯ runner-link (5)
+     × aborting while the upgrade is still pending drops the socket and ends the link 40011ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+Error: Test timed out in 40000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ test/runner-link.test.ts:141:3
+    139|   });
+    140|
+    141|   it("aborting while the upgrade is still pending drops the socket and…
+       |   ^
+    142|     // A listener that accepts the connection but never answers the We…
+    143|     const accepted: Socket[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  13:54:06
+   Duration  41.87s (tests 96%, transform 3%, import 1%)
+
+exit: 1

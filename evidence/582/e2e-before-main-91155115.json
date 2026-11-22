@@ -1,0 +1,144 @@
+{
+  "runner": {
+    "connected": true,
+    "loadedProviders": [
+      "fake (Fake (scripted))",
+      "claude (Claude Code)",
+      "codex (Codex)",
+      "opencode (OpenCode)",
+      "cursor (Cursor)",
+      "gemini (Gemini CLI)"
+    ]
+  },
+  "pmFirstListMs": 14,
+  "pmStartSessionProvider": {
+    "type": "string",
+    "pattern": "^[a-z][a-z0-9-]{0,39}$"
+  },
+  "pmSecondListMs": 8,
+  "pmSecondListSameText": true,
+  "detected": [
+    {
+      "providerId": "fake",
+      "installed": true,
+      "version": "1.0.0",
+      "loggedIn": true,
+      "supported": true,
+      "issues": [],
+      "executablePath": null,
+      "account": null
+    },
+    {
+      "providerId": "claude",
+      "installed": false,
+      "version": null,
+      "loggedIn": null,
+      "supported": false,
+      "issues": [
+        {
+          "code": "not_installed",
+          "fix": "npm install -g @anthropic-ai/claude-code"
+        }
+      ],
+      "executablePath": null,
+      "account": null
+    },
+    {
+      "providerId": "codex",
+      "installed": true,
+      "version": "0.167.2",
+      "loggedIn": false,
+      "supported": true,
+      "issues": [
+        {
+          "code": "not_logged_in",
+          "fix": "codex login"
+        }
+      ],
+      "executablePath": "<redacted>",
+      "account": null
+    },
+    {
+      "providerId": "opencode",
+      "installed": false,
+      "version": null,
+      "loggedIn": null,
+      "supported": false,
+      "issues": [
+        {
+          "code": "not_installed",
+          "fix": "npm install -g @opencode/cli"
+        }
+      ],
+      "executablePath": null,
+      "account": null
+    },
+    {
+      "providerId": "cursor",
+      "installed": false,
+      "version": null,
+      "loggedIn": null,
+      "supported": false,
+      "issues": [
+        {
+          "code": "not_installed",
+          "fix": "curl https://cursor.com/install -fsS | bash"
+        }
+      ],
+      "executablePath": null,
+      "account": null
+    },
+    {
+      "providerId": "gemini",
+      "installed": false,
+      "version": null,
+      "loggedIn": null,
+      "supported": false,
+      "issues": [
+        {
+          "code": "not_installed",
+          "fix": "npm install -g @google/gemini-cli"
+        }
+      ],
+      "executablePath": null,
+      "account": null
+    }
+  ],
+  "refusalUnknownId": {
+    "isError": true,
+    "text": "Provider antigravity is not available"
+  },
+  "startOnReady": {
+    "isError": false,
+    "text": "{\"status\":\"started\",\"sessionId\":\"38f6c84f-2dc1-4cd3-a197-2d0d4a465bf5\"}"
+  },
+  "choices": [],
+  "startOnNotReady": [],
+  "createProjectDefaultProvider": {
+    "type": "string",
+    "pattern": "^[a-z][a-z0-9-]{0,39}$"
+  },
+  "updateProjectDefaultProvider": {
+    "anyOf": [
+      {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,39}$"
+      },
+      {
+        "type": "null"
+      }
+    ]
+  },
+  "updateProjectUnknownId": {
+    "isError": false,
+    "text": "{\"project\":{\"id\":\"01e47bbd-f7ae-41cc-b983-654877fa23cc\",\"name\":\"repo\",\"kind\":\"local\",\"path\":\"<work>/repo\",\"isGitRepo\":true,\"github\":null,\"defaultBranch\":\"main\",\"defaultProvider\":\"antigravity\",\"autonomy\":null,\"autonomyMode\":\"assisted\",\"agentCiEnv\":true}}"
+  },
+  "startWithUnloadedProjectDefault": {
+    "isError": false,
+    "text": "{\"status\":\"started\",\"sessionId\":\"31bfb6bb-87ed-4d67-abb3-101bc10a6cf5\"}"
+  },
+  "startWithUnloadedProjectDefaultRanOn": "claude",
+  "pmToolCount": 24,
+  "orchestratorToolCount": 11,
+  "serverLog": []
+}

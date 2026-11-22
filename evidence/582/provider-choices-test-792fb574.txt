@@ -1,0 +1,17 @@
+$ pnpm exec vitest run apps/server/test/provider-choices.test.ts --reporter=verbose
+
+ RUN  v5.1.0 <repo>
+
+ ✓ |@codeden/server| test/provider-choices.test.ts > start_session's provider parameter > lists the loaded providers and whether each is ready 34ms
+ ✓ |@codeden/server| test/provider-choices.test.ts > start_session's provider parameter > says so when no provider is loaded 18ms
+ ✓ |@codeden/server| test/provider-choices.test.ts > start_session's provider parameter > names every state that keeps new work off a provider, and calls the rest ready 19ms
+ ✓ |@codeden/server| test/provider-choices.test.ts > start_session's provider parameter > reads 'not checked yet' until a detection has answered 0ms
+ ✓ |@codeden/server| test/provider-choices.test.ts > start_session's provider parameter > is built for each listing from the last detection, which a listing renews in the background 21ms
+ ✓ |@codeden/server| test/provider-choices.test.ts > the orchestrator's defaultProvider parameter > lists the same providers and says an id isn't checked 19ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  13:55:31
+   Duration  885ms (transform 43%, import 42%, tests 14%, setup 1%)
+
+exit: 0

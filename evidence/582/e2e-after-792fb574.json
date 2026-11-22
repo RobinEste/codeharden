@@ -1,0 +1,302 @@
+{
+  "runner": {
+    "connected": true,
+    "loadedProviders": [
+      "fake (Fake (scripted))",
+      "claude (Claude Code)",
+      "codex (Codex)",
+      "opencode (OpenCode)",
+      "cursor (Cursor)",
+      "gemini (Gemini CLI)"
+    ]
+  },
+  "pmFirstListMs": 132,
+  "pmStartSessionProvider": {
+    "type": "string",
+    "pattern": "^[a-z][a-z0-9-]{0,39}$",
+    "description": "Provider id. Leave it out to use the project's default provider when it is loaded, else the default provider for agents in Settings when it is loaded, else the first loaded provider in a fixed order, ready or not. Loaded providers when this list was made: `fake` (Fake (scripted)): ready; `claude` (Claude Code): not installed, fix: `npm install -g @anthropic-ai/claude-code`; `codex` (Codex): not signed in, fix: `codex login`; `opencode` (OpenCode): not installed, fix: `npm install -g @opencode/cli`; `cursor` (Cursor): not installed, fix: `curl https://cursor.com/install -fsS | bash`; `gemini` (Gemini CLI): not installed, fix: `npm install -g @google/gemini-cli`. An id that isn't loaded is refused while the runner is connected. Readiness isn't checked when a session starts: on a provider that isn't ready the session is created and then fails to start or fails its first turn, so pick one that is ready. The states are from the last check and may have changed since."
+  },
+  "pmSecondListMs": 7,
+  "pmSecondListSameText": true,
+  "detected": [
+    {
+      "providerId": "fake",
+      "installed": true,
+      "version": "1.0.0",
+      "loggedIn": true,
+      "supported": true,
+      "issues": [],
+      "executablePath": null,
+      "account": null
+    },
+    {
+      "providerId": "claude",
+      "installed": false,
+      "version": null,
+      "loggedIn": null,
+      "supported": false,
+      "issues": [
+        {
+          "code": "not_installed",
+          "fix": "npm install -g @anthropic-ai/claude-code"
+        }
+      ],
+      "executablePath": null,
+      "account": null
+    },
+    {
+      "providerId": "codex",
+      "installed": true,
+      "version": "0.167.2",
+      "loggedIn": false,
+      "supported": true,
+      "issues": [
+        {
+          "code": "not_logged_in",
+          "fix": "codex login"
+        }
+      ],
+      "executablePath": "<redacted>",
+      "account": null
+    },
+    {
+      "providerId": "opencode",
+      "installed": false,
+      "version": null,
+      "loggedIn": null,
+      "supported": false,
+      "issues": [
+        {
+          "code": "not_installed",
+          "fix": "npm install -g @opencode/cli"
+        }
+      ],
+      "executablePath": null,
+      "account": null
+    },
+    {
+      "providerId": "cursor",
+      "installed": false,
+      "version": null,
+      "loggedIn": null,
+      "supported": false,
+      "issues": [
+        {
+          "code": "not_installed",
+          "fix": "curl https://cursor.com/install -fsS | bash"
+        }
+      ],
+      "executablePath": null,
+      "account": null
+    },
+    {
+      "providerId": "gemini",
+      "installed": false,
+      "version": null,
+      "loggedIn": null,
+      "supported": false,
+      "issues": [
+        {
+          "code": "not_installed",
+          "fix": "npm install -g @google/gemini-cli"
+        }
+      ],
+      "executablePath": null,
+      "account": null
+    }
+  ],
+  "refusalUnknownId": {
+    "isError": true,
+    "text": "Provider antigravity is not available. Loaded providers: fake, claude, codex, opencode, cursor, gemini"
+  },
+  "startOnReady": {
+    "isError": false,
+    "text": "{\"status\":\"started\",\"sessionId\":\"8e4d9f6c-f9a0-4337-9181-fb61071496e6\"}"
+  },
+  "choices": [
+    {
+      "id": "fake",
+      "name": "Fake (scripted)",
+      "checked": true,
+      "runnable": true,
+      "reason": null,
+      "until": null,
+      "fix": null
+    },
+    {
+      "id": "claude",
+      "name": "Claude Code",
+      "checked": true,
+      "runnable": false,
+      "reason": "not installed",
+      "until": null,
+      "fix": {
+        "kind": "install",
+        "command": "npm install -g @anthropic-ai/claude-code"
+      }
+    },
+    {
+      "id": "codex",
+      "name": "Codex",
+      "checked": true,
+      "runnable": false,
+      "reason": "not signed in",
+      "until": null,
+      "fix": {
+        "kind": "login",
+        "command": "codex login"
+      }
+    },
+    {
+      "id": "opencode",
+      "name": "OpenCode",
+      "checked": true,
+      "runnable": false,
+      "reason": "not installed",
+      "until": null,
+      "fix": {
+        "kind": "install",
+        "command": "npm install -g @opencode/cli"
+      }
+    },
+    {
+      "id": "cursor",
+      "name": "Cursor",
+      "checked": true,
+      "runnable": false,
+      "reason": "not installed",
+      "until": null,
+      "fix": {
+        "kind": "install",
+        "command": "curl https://cursor.com/install -fsS | bash"
+      }
+    },
+    {
+      "id": "gemini",
+      "name": "Gemini CLI",
+      "checked": true,
+      "runnable": false,
+      "reason": "not installed",
+      "until": null,
+      "fix": {
+        "kind": "install",
+        "command": "npm install -g @google/gemini-cli"
+      }
+    }
+  ],
+  "startOnNotReady": [
+    {
+      "provider": "claude",
+      "listedAs": "not installed",
+      "result": {
+        "isError": false,
+        "text": "{\"status\":\"started\",\"sessionId\":\"23ae3aa7-3dc8-4d7c-8796-7fbdbae0b98b\"}"
+      },
+      "session": {
+        "provider": "claude",
+        "status": "failed",
+        "lastTurn": null,
+        "startError": {
+          "message": "Claude Code is not installed (no `claude` on PATH)"
+        }
+      }
+    },
+    {
+      "provider": "codex",
+      "listedAs": "not signed in",
+      "result": {
+        "isError": false,
+        "text": "{\"status\":\"started\",\"sessionId\":\"1b08b460-6b42-4f35-a356-7cf3162948dc\"}"
+      },
+      "session": {
+        "provider": "codex",
+        "status": "idle",
+        "lastTurn": {
+          "status": "failed",
+          "error": {
+            "kind": "transient",
+            "message": "unexpected status 401 Unauthorized: Missing bearer or basic authentication in header"
+          }
+        },
+        "startError": null
+      }
+    },
+    {
+      "provider": "opencode",
+      "listedAs": "not installed",
+      "result": {
+        "isError": false,
+        "text": "{\"status\":\"started\",\"sessionId\":\"1b5bb554-7455-4669-af00-7d7e8c2e9038\"}"
+      },
+      "session": {
+        "provider": "opencode",
+        "status": "failed",
+        "lastTurn": null,
+        "startError": {
+          "message": "OpenCode is not installed (no `opencode` on PATH)"
+        }
+      }
+    },
+    {
+      "provider": "cursor",
+      "listedAs": "not installed",
+      "result": {
+        "isError": false,
+        "text": "{\"status\":\"started\",\"sessionId\":\"080c43b7-07f0-4f26-9b8a-e65e39aaaa5f\"}"
+      },
+      "session": {
+        "provider": "cursor",
+        "status": "failed",
+        "lastTurn": null,
+        "startError": {
+          "message": "The Cursor CLI is not installed (no `cursor-agent`, or `agent` from Cursor)"
+        }
+      }
+    },
+    {
+      "provider": "gemini",
+      "listedAs": "not installed",
+      "result": {
+        "isError": false,
+        "text": "{\"status\":\"started\",\"sessionId\":\"a3a21834-dcf7-4e23-ac75-193c9d73520a\"}"
+      },
+      "session": {
+        "provider": "gemini",
+        "status": "failed",
+        "lastTurn": null,
+        "startError": {
+          "message": "Gemini CLI is not installed (no `gemini` on PATH)"
+        }
+      }
+    }
+  ],
+  "createProjectDefaultProvider": {
+    "type": "string",
+    "pattern": "^[a-z][a-z0-9-]{0,39}$",
+    "description": "Provider id. The provider this project's sessions use unless one is named. Loaded providers when this list was made: `fake` (Fake (scripted)): ready; `claude` (Claude Code): not installed, fix: `npm install -g @anthropic-ai/claude-code`; `codex` (Codex): not signed in, fix: `codex login`; `opencode` (OpenCode): not installed, fix: `npm install -g @opencode/cli`; `cursor` (Cursor): not installed, fix: `curl https://cursor.com/install -fsS | bash`; `gemini` (Gemini CLI): not installed, fix: `npm install -g @google/gemini-cli`. The id is stored as given, loaded or not: a session uses it only while it is loaded, and otherwise falls back to the Settings default or another loaded provider. Pick one that is ready. The states are from the last check and may have changed since."
+  },
+  "updateProjectDefaultProvider": {
+    "anyOf": [
+      {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,39}$"
+      },
+      {
+        "type": "null"
+      }
+    ],
+    "description": "Provider id. The provider this project's sessions use unless one is named. Loaded providers when this list was made: `fake` (Fake (scripted)): ready; `claude` (Claude Code): not installed, fix: `npm install -g @anthropic-ai/claude-code`; `codex` (Codex): not signed in, fix: `codex login`; `opencode` (OpenCode): not installed, fix: `npm install -g @opencode/cli`; `cursor` (Cursor): not installed, fix: `curl https://cursor.com/install -fsS | bash`; `gemini` (Gemini CLI): not installed, fix: `npm install -g @google/gemini-cli`. The id is stored as given, loaded or not: a session uses it only while it is loaded, and otherwise falls back to the Settings default or another loaded provider. Pick one that is ready. The states are from the last check and may have changed since."
+  },
+  "updateProjectUnknownId": {
+    "isError": false,
+    "text": "{\"project\":{\"id\":\"332396f9-86e6-48b2-93b9-9e3ca1a339fd\",\"name\":\"repo\",\"kind\":\"local\",\"path\":\"<work>/repo\",\"isGitRepo\":true,\"github\":null,\"defaultBranch\":\"main\",\"defaultProvider\":\"antigravity\",\"autonomy\":null,\"autonomyMode\":\"assisted\",\"agentCiEnv\":true}}"
+  },
+  "startWithUnloadedProjectDefault": {
+    "isError": false,
+    "text": "{\"status\":\"started\",\"sessionId\":\"45712031-a09a-468c-a744-dd30918ec050\"}"
+  },
+  "startWithUnloadedProjectDefaultRanOn": "claude",
+  "pmToolCount": 24,
+  "orchestratorToolCount": 11,
+  "serverLog": []
+}
