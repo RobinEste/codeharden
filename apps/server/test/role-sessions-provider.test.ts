@@ -5,6 +5,7 @@ import { type ProviderInfo, type Session, Settings, type SettingsInput } from "@
 import { describe, expect, it, vi } from "vitest";
 import { openDatabase } from "../src/db/client";
 import { EventStore } from "../src/events/store";
+import { InboxService } from "../src/services/inbox-service";
 import { RoleSessions } from "../src/services/orchestration/role-sessions";
 import type { ProjectService } from "../src/services/projects/project-service";
 import { SessionRepo } from "../src/services/sessions/repo";
@@ -17,6 +18,8 @@ const info = (id: string): ProviderInfo =>
 interface Env {
   roles: RoleSessions;
   repo: SessionRepo;
+  sessions: SessionService;
+  inbox: InboxService;
   /** Change the settings, as `PATCH /api/settings` does before it applies them to the roles. */
   set(settings: SettingsInput): void;
   /** End the session's turn with `status`. */
@@ -30,7 +33,9 @@ function withRoles(run: (env: Env) => Promise<void>) {
     const dir = mkdtempSync(join(tmpdir(), "codeden-role-provider-"));
     const database = openDatabase(join(dir, "codeden.db"));
     try {
-      const repo = new SessionRepo(database.db, new EventStore(database.db));
+      const store = new EventStore(database.db);
+      const repo = new SessionRepo(database.db, store);
+      const inbox = new InboxService(database.db, store, () => async () => {});
       let settings = Settings.parse({});
       const stopped: string[] = [];
       const project = {
@@ -61,8 +66,10 @@ function withRoles(run: (env: Env) => Promise<void>) {
         inbox: { dismissRequestsForSession: () => {} },
       } as unknown as SessionServiceDeps);
       await run({
-        roles: new RoleSessions({ db: database.db, repo, sessions, projects }),
+        roles: new RoleSessions({ db: database.db, repo, sessions, projects, inbox }),
         repo,
+        sessions,
+        inbox,
         set: (next) => {
           settings = Settings.parse(next);
         },
@@ -121,6 +128,42 @@ describe("role sessions: moving the orchestrator or a PM to another provider (§
       const second = await roles.ensure("orchestrator", null);
       expect(second.provider).toBe("codex");
       expect(repo.get(first.id).archivedAt).not.toBeNull();
+    }),
+  );
+
+  it(
+    "leaves a session whose turn is on its way to the runner",
+    withRoles(async ({ roles, repo, sessions, set, settle }) => {
+      const first = await roles.ensure("pm", "p1");
+      settle(first.id);
+      set({ providers: { pm: { provider: "codex" } } });
+      // Idle in the database, but a message is being handed to the runner.
+      const delivering = vi.spyOn(sessions, "isDelivering").mockReturnValue(true);
+      await roles.applyProviderSettings();
+      expect(repo.get(first.id).archivedAt).toBeNull();
+      expect((await roles.ensure("pm", "p1")).id).toBe(first.id);
+
+      delivering.mockReturnValue(false);
+      expect((await roles.ensure("pm", "p1")).provider).toBe("codex");
+    }),
+  );
+
+  it(
+    "dismisses the retired session's failed runs, whose Retry would bring it back",
+    withRoles(async ({ roles, repo, inbox, set, settle }) => {
+      const first = await roles.ensure("orchestrator", null);
+      settle(first.id, "failed");
+      const failed = inbox.raiseRunFailed(repo.get(first.id), "turn-1:failed", "Not logged in");
+      expect(failed.status).toBe("open");
+
+      set({ providers: { orchestrator: { provider: "codex" } } });
+      await roles.applyProviderSettings();
+
+      expect(repo.get(first.id).archivedAt).not.toBeNull();
+      expect(inbox.get(failed.id)).toMatchObject({
+        status: "dismissed",
+        resolution: { reason: "moved to another provider" },
+      });
     }),
   );
 

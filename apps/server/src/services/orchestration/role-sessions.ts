@@ -4,6 +4,7 @@ import type { Db } from "../../db/client";
 import { rowToSession } from "../../db/rows";
 import { sessions } from "../../db/schema";
 import { ServiceError } from "../errors";
+import type { InboxService } from "../inbox-service";
 import { projectDefaultProvider } from "../projects/project-config";
 import type { ProjectService } from "../projects/project-service";
 import type { SessionRepo } from "../sessions/repo";
@@ -33,6 +34,7 @@ export class RoleSessions {
       db: Db;
       repo: SessionRepo;
       sessions: SessionService;
+      inbox: Pick<InboxService, "list" | "close">;
       projects: ProjectService;
       log?: (message: string) => void;
     },
@@ -108,12 +110,22 @@ export class RoleSessions {
 
   /**
    * Retire a role session whose provider is no longer the one the settings name, so the role
-   * starts a fresh session there. A session with a turn under way stays until it is checked
-   * again. Returns whether it was retired.
+   * starts a fresh session there. A session with a turn under way (or on its way to the runner)
+   * stays until it is checked again: when the settings next change, or on the role's next
+   * message or wake. Returns whether it was retired.
+   *
+   * Stopping it drops its queued messages and dismisses its open approvals and questions, as
+   * stopping any session does. Its open failed runs are dismissed too: their Retry messages the
+   * session, which would bring the retired conversation back on the old provider.
    */
   private async retireIfMoved(session: Session): Promise<boolean> {
-    if (BUSY.has(session.status) || !this.movedTo(session)) return false;
+    const underWay = BUSY.has(session.status) || this.deps.sessions.isDelivering(session.id);
+    if (underWay || !this.movedTo(session)) return false;
     await this.deps.sessions.stop(session.id);
+    for (const item of this.deps.inbox.list({ sessionId: session.id })) {
+      if (item.kind !== "run_failed") continue;
+      this.deps.inbox.close(item, "dismissed", { reason: "moved to another provider" });
+    }
     this.deps.repo.update(session.id, (s) =>
       s.archivedAt ? s : { ...s, archivedAt: new Date().toISOString() },
     );
