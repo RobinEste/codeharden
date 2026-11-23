@@ -237,7 +237,8 @@ export function DevPreviewProjectSettings({ project }: { project: Project }) {
             <AlertDialogTitle>Run these commands on this computer?</AlertDialogTitle>
             <AlertDialogDescription>
               The app will run them as you, in this project's worktrees, whenever a preview starts.
-              Running previews stop now and start again with the new commands.
+              Previews that are running stop now: the PM thread's starts again with the new
+              commands, a session's when you turn it on again.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 text-xs">

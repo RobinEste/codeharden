@@ -1,5 +1,6 @@
-import type { DevPreviewLimits } from "@codeden/contracts";
+import { DevPreviewLimits } from "@codeden/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { toast } from "sonner";
 import { NumberField } from "@/components/common/number-field";
 import { SettingRow, SettingsSection } from "@/components/settings/settings-ui";
@@ -34,12 +35,16 @@ export function DevPreviewLimitsSettings() {
     },
     onError: (e) => toast.error("Previews not stopped", { description: e.message }),
   });
+  const [problem, setProblem] = useState<string | null>(null);
   if (!view.data) return null;
   const { limits, remote } = view.data;
   const update = (patch: Partial<DevPreviewLimits>) => {
     const next = { ...limits, ...patch };
     queryClient.setQueryData(key, { limits: next, remote });
-    save.mutate(next);
+    // Half-typed ranges stay in the form and are saved once they make sense.
+    const checked = DevPreviewLimits.safeParse(next);
+    setProblem(checked.success ? null : (checked.error.issues[0]?.message ?? "Not valid"));
+    if (checked.success) save.mutate(checked.data);
   };
   return (
     <div data-testid="dev-preview-limits">
@@ -80,7 +85,7 @@ export function DevPreviewLimitsSettings() {
           label="Ports"
           help="Previews get free ports from this range, on this computer only. The app's own ports are never given out."
         >
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-2 text-xs">
             <NumberField
               {...field}
               min={1024}
@@ -90,7 +95,7 @@ export function DevPreviewLimitsSettings() {
               value={limits.portFrom}
               onChange={(portFrom) => update({ portFrom })}
             />
-            to
+            <span className="text-muted-foreground">to</span>
             <NumberField
               {...field}
               min={1024}
@@ -102,6 +107,11 @@ export function DevPreviewLimitsSettings() {
             />
           </div>
         </SettingRow>
+        {problem && (
+          <p className="px-4 py-2 text-2xs text-status-failed" role="alert">
+            {problem}. Not saved yet.
+          </p>
+        )}
         <SettingRow label="Stop all previews" help="Ends every running preview in every project.">
           <Button
             size="sm"
