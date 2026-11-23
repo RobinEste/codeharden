@@ -137,7 +137,7 @@ export async function holdIssue(
 /**
  * `factory_release_issue`: take the hold label off and drop the record. The loop picks the issue
  * up on its next tick: intake takes it in, or its parked item goes on from the queue. An issue
- * that wasn't held is answered as such, never refused.
+ * that wasn't held is answered as such, never refused. The PM (`by`) releases only its own holds.
  */
 export async function releaseIssue(
   ctx: FactoryContext,
@@ -153,6 +153,17 @@ export async function releaseIssue(
   const result = { issueNumber: issue.number, held: false, itemId: item?.id ?? null };
   if (!labelled && !recorded) {
     return { ...result, stage: item?.stage ?? null, message: `#${issue.number} wasn't held.` };
+  }
+  // The PM releases only a hold it placed itself. A label a person put on the issue (on GitHub,
+  // or through the app) stays until a person takes it off.
+  const own = loop.holds.some((h) => h.issueNumber === issue.number && h.by === "pm");
+  if (by === "pm" && labelled && !own) {
+    return {
+      ...result,
+      held: true,
+      stage: item?.stage ?? null,
+      message: `#${issue.number} is held by a person, not by you: it stays held until they take the \`${FACTORY_HOLD_LABEL}\` label off the issue.`,
+    };
   }
   if (labelled) await ctx.github.unlabelIssue(projectId, issue.number, [FACTORY_HOLD_LABEL]);
   if (recorded) {

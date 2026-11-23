@@ -1,0 +1,86 @@
+import { FACTORY_HOLD_LABEL } from "@codeden/contracts";
+import { afterEach, describe, expect, it } from "vitest";
+import { createFactoryEnv, type FactoryEnv } from "./support/factory-env";
+import { factorySteps } from "./support/factory-steps";
+
+/** A hold a person placed is theirs to release: the PM's tool takes off only its own. */
+let env: FactoryEnv;
+afterEach(() => env?.close());
+const s = factorySteps(() => env);
+const projectId = () => env.project.id;
+const labels = (number: number) => env.gh.issue(projectId(), number)?.labels ?? [];
+const openIssue = (title: string, held = false) =>
+  env.gh.openIssue({
+    projectId: projectId(),
+    title,
+    author: "codeden",
+    labels: held ? [FACTORY_HOLD_LABEL] : [],
+  });
+const byIssue = (number: number) =>
+  env.factory.data.items(projectId()).find((i) => i.issue?.number === number);
+
+describe("releasing held issues: whose hold it is", () => {
+  it("leaves a label a person put on the issue, and says why", async () => {
+    env = createFactoryEnv();
+    s.enable();
+    const theirs = openIssue("Rotate the keys", true);
+    const comments = env.gh.comments.length;
+
+    const res = await env.factory.release(
+      projectId(),
+      { issueNumber: theirs.number, reason: "looks ready to me" },
+      "pm",
+    );
+    expect(res).toMatchObject({ issueNumber: theirs.number, held: true });
+    expect(res.message).toMatch(/held by a person, not by you/);
+    expect(labels(theirs.number)).toContain(FACTORY_HOLD_LABEL);
+    // Nothing is posted on the issue, and the loop still skips it.
+    expect(env.gh.comments).toHaveLength(comments);
+    await s.tick();
+    expect(byIssue(theirs.number)).toBeUndefined();
+    expect((await env.factory.status(projectId())).held).toEqual([
+      expect.objectContaining({ issue: expect.objectContaining({ number: theirs.number }) }),
+    ]);
+  });
+
+  it("leaves a hold a person made through the app", async () => {
+    env = createFactoryEnv();
+    s.enable();
+    const issue = openIssue("Change the billing plan");
+    await env.factory.hold(projectId(), { issueNumber: issue.number, reason: "my call" }, "user");
+
+    const res = await env.factory.release(projectId(), { issueNumber: issue.number }, "pm");
+    expect(res).toMatchObject({ held: true });
+    expect(labels(issue.number)).toContain(FACTORY_HOLD_LABEL);
+    expect(env.factory.data.loopOrNew(projectId()).holds).toEqual([
+      expect.objectContaining({ issueNumber: issue.number, by: "user", reason: "my call" }),
+    ]);
+
+    // The person releases their own.
+    const mine = await env.factory.release(projectId(), { issueNumber: issue.number }, "user");
+    expect(mine).toMatchObject({ held: false });
+    expect(labels(issue.number)).not.toContain(FACTORY_HOLD_LABEL);
+  });
+
+  it("still lets the PM release a hold it placed, and a person release any", async () => {
+    env = createFactoryEnv();
+    s.enable();
+    const own = openIssue("Add CSV export");
+    const theirs = openIssue("Add JSON export", true);
+    await env.factory.hold(projectId(), { issueNumber: own.number, reason: "waiting" }, "pm");
+
+    expect(await env.factory.release(projectId(), { issueNumber: own.number }, "pm")).toMatchObject(
+      { held: false },
+    );
+    expect(labels(own.number)).not.toContain(FACTORY_HOLD_LABEL);
+    expect(
+      await env.factory.release(projectId(), { issueNumber: theirs.number }, "user"),
+    ).toMatchObject({ held: false });
+    expect(labels(theirs.number)).not.toContain(FACTORY_HOLD_LABEL);
+
+    // One that isn't held is answered as before.
+    const free = openIssue("Add XML export");
+    const res = await env.factory.release(projectId(), { issueNumber: free.number }, "pm");
+    expect(res.message).toMatch(/wasn't held/);
+  });
+});
