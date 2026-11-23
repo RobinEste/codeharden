@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { messageFrom, type Session } from "@codeden/contracts";
+import { HARDEN_PROJECTS_DIRNAME, messageFrom, type Session } from "@codeden/contracts";
 import { createImageEngineRegistry, type ImageEngineRegistry } from "@codeden/providers";
 import type { Db } from "../db/client";
 import type { EventStore } from "../events/store";
@@ -94,7 +94,7 @@ export interface ServicesOptions {
   /** Picks up PATH changes before a setup re-check (tests that pin PATH pass a no-op). */
   refreshPath?: () => Promise<unknown>;
   utility?: UtilityService;
-  /** Default clone location (`~/codeden-projects`). */
+  /** Default clone location (`~/codeharden-projects`, from `HARDEN_PROJECTS_DIRNAME`). */
   projectsDir?: string;
   /** User home for provider config roots (`~/.claude`, `~/.codex`). */
   userHome?: string;
@@ -225,7 +225,7 @@ export function createServices(opts: ServicesOptions): AppServices {
     db: opts.db,
     store: opts.store,
     exec,
-    projectsDir: opts.projectsDir ?? join(userHome, "codeden-projects"),
+    projectsDir: opts.projectsDir ?? join(userHome, HARDEN_PROJECTS_DIRNAME),
   });
   const sessionRepo = new SessionRepo(opts.db, opts.store);
   const artifacts = new ArtifactService(opts.db, opts.store, opts.paths.artifacts);

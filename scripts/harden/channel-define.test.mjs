@@ -1,16 +1,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  HARDEN_APP_ID,
+  HARDEN_APP_SLUG,
   HARDEN_BRANCH,
+  HARDEN_DEFAULT_PORT,
   HARDEN_PACKAGE_NAME,
+  HARDEN_PRODUCT_NAME,
   HARDEN_REPOSITORY,
 } from "../../packages/contracts/src/harden-channel.ts";
 import {
+  DEFAULT_APP_ID,
+  DEFAULT_APP_SLUG,
   DEFAULT_HARDEN_BRANCH,
   DEFAULT_PACKAGE_NAME,
+  DEFAULT_PORT,
+  DEFAULT_PRODUCT_NAME,
   DEFAULT_RELEASE_REPOSITORY,
   hardenChannelDefine,
   readHardenChannel,
   repositoryOfRemote,
+  slugOfPackage,
 } from "./channel-define.mjs";
 
 const OWN = { origin: "harperaa/codeharden" };
@@ -47,6 +56,10 @@ describe("the build-time update channel", () => {
       __CODEHARDEN_PACKAGE__: '"@acme/harden"',
       __CODEHARDEN_REPOSITORY__: '"acme/harden-fork"',
       __CODEHARDEN_BRANCH__: '"work"',
+      __CODEHARDEN_PRODUCT__: '"harden"',
+      __CODEHARDEN_APP_ID__: '"com.harden.app"',
+      __CODEHARDEN_SLUG__: '"harden"',
+      __CODEHARDEN_PORT__: "4417",
     });
   });
 
@@ -56,6 +69,10 @@ describe("the build-time update channel", () => {
       __CODEHARDEN_PACKAGE__: '"example-harden"',
       __CODEHARDEN_REPOSITORY__: '"example/example-harden"',
       __CODEHARDEN_BRANCH__: '"harden"',
+      __CODEHARDEN_PRODUCT__: '"example-harden"',
+      __CODEHARDEN_APP_ID__: '"com.exampleharden.app"',
+      __CODEHARDEN_SLUG__: '"exampleharden"',
+      __CODEHARDEN_PORT__: "4417",
     });
     expect(JSON.stringify(define)).not.toContain("codeharden");
     // The environment still wins over the remote.
@@ -90,6 +107,10 @@ describe("the build-time update channel", () => {
       __CODEHARDEN_PACKAGE__: '"codeharden"',
       __CODEHARDEN_REPOSITORY__: '"harperaa/codeharden"',
       __CODEHARDEN_BRANCH__: '"harden"',
+      __CODEHARDEN_PRODUCT__: '"CodeHarden"',
+      __CODEHARDEN_APP_ID__: '"com.codeharden.app"',
+      __CODEHARDEN_SLUG__: '"codeharden"',
+      __CODEHARDEN_PORT__: "4417",
     });
   });
 
@@ -102,6 +123,54 @@ describe("the build-time update channel", () => {
     for (const branch of ["a b", "../x", "x..y", "-x", "x/", "x.lock"]) {
       expect(() => readHardenChannel({ HARDEN_BRANCH: branch }, OWN)).toThrow(/HARDEN_BRANCH/);
     }
+  });
+
+  it("gives CodeHarden its own identity, the one the contracts module defaults to", () => {
+    expect(readHardenChannel({}, OWN)).toMatchObject({
+      productName: "CodeHarden",
+      appId: "com.codeharden.app",
+      slug: "codeharden",
+      port: 4417,
+    });
+    expect(DEFAULT_PRODUCT_NAME).toBe(HARDEN_PRODUCT_NAME);
+    expect(DEFAULT_APP_ID).toBe(HARDEN_APP_ID);
+    expect(DEFAULT_APP_SLUG).toBe(HARDEN_APP_SLUG);
+    expect(DEFAULT_PORT).toBe(HARDEN_DEFAULT_PORT);
+    // Never upstream's: the two must install and run side by side.
+    expect(HARDEN_APP_ID).not.toBe("dev.codeden.app");
+    expect(HARDEN_APP_SLUG).not.toBe("codeden");
+    expect(HARDEN_DEFAULT_PORT).not.toBe(4317);
+  });
+
+  it("derives a fork's identity from its package name, so it never installs as CodeHarden", () => {
+    expect(slugOfPackage("@acme/my_harden.cli")).toBe("myhardencli");
+    expect(slugOfPackage("9lives")).toBe("app9lives");
+    const fork = readHardenChannel({ PACKAGE_NAME: "example-harden" }, FORK);
+    expect(fork).toMatchObject({
+      productName: "example-harden",
+      appId: "com.exampleharden.app",
+      slug: "exampleharden",
+    });
+    expect(
+      readHardenChannel(
+        {
+          PACKAGE_NAME: "example-harden",
+          PRODUCT_NAME: "Example Harden",
+          APP_ID: "org.example.harden",
+          DEFAULT_PORT: "4500",
+        },
+        FORK,
+      ),
+    ).toMatchObject({ productName: "Example Harden", appId: "org.example.harden", port: 4500 });
+  });
+
+  it("refuses a malformed product name, app id or port", () => {
+    expect(() => readHardenChannel({ PRODUCT_NAME: "Code/Harden" }, OWN)).toThrow(/PRODUCT_NAME/);
+    expect(() => readHardenChannel({ APP_ID: "codeharden" }, OWN)).toThrow(/APP_ID/);
+    for (const port of ["80", "70000", "x", "4417.5"]) {
+      expect(() => readHardenChannel({ DEFAULT_PORT: port }, OWN)).toThrow(/DEFAULT_PORT/);
+    }
+    expect(() => readHardenChannel({ PACKAGE_NAME: "---" }, OWN)).toThrow(/PACKAGE_NAME/);
   });
 
   it("only warns when an ordinary build in another repository has no PACKAGE_NAME", () => {

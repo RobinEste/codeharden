@@ -5,9 +5,14 @@
  * desktop packaging and the links all read from here, so an update can only ever fetch
  * CodeHarden, never upstream CodeDen.
  *
+ * It also holds the install's identity: everything that tells this product apart from upstream
+ * CodeDen (and from another fork) on one machine: the product name, the app id, the home
+ * folder, the `codeharden://` link scheme, the keychain service and the default port. Two
+ * products with different identities install and run side by side and share nothing.
+ *
  * The values are fixed when a bundle is built (`scripts/harden/channel-define.mjs`, from the
- * `PACKAGE_NAME`, `RELEASE_REPOSITORY` and `HARDEN_BRANCH` build variables) and default to
- * CodeHarden's own.
+ * `PACKAGE_NAME`, `RELEASE_REPOSITORY` and `HARDEN_BRANCH` build variables, and the optional
+ * `PRODUCT_NAME`, `APP_ID` and `DEFAULT_PORT`) and default to CodeHarden's own.
  * There is no runtime override: a running install can't be pointed at another package or
  * repository by an environment variable or a setting.
  *
@@ -21,6 +26,15 @@ declare const __CODEHARDEN_REPOSITORY__: string | undefined;
 
 /** Replaced at build time with the fork's working branch (`scripts/harden/channel-define.mjs`). */
 declare const __CODEHARDEN_BRANCH__: string | undefined;
+
+/** Replaced at build time with the product name (`scripts/harden/channel-define.mjs`). */
+declare const __CODEHARDEN_PRODUCT__: string | undefined;
+/** Replaced at build time with the desktop app's id (`scripts/harden/channel-define.mjs`). */
+declare const __CODEHARDEN_APP_ID__: string | undefined;
+/** Replaced at build time with the identity's lower-case word (`scripts/harden/channel-define.mjs`). */
+declare const __CODEHARDEN_SLUG__: string | undefined;
+/** Replaced at build time with the default port (`scripts/harden/channel-define.mjs`). */
+declare const __CODEHARDEN_PORT__: number | undefined;
 
 /** npm package names: `name` or `@scope/name`, lower case. */
 export const HARDEN_PACKAGE_PATTERN = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
@@ -51,6 +65,75 @@ export const HARDEN_BRANCH: string =
   !__CODEHARDEN_BRANCH__.includes("..")
     ? __CODEHARDEN_BRANCH__
     : undefined) ?? "harden";
+
+/** A product name: letters, digits, spaces, dots, dashes; safe in a file name. */
+export const HARDEN_PRODUCT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/;
+/** A reverse-DNS app id (`com.codeharden.app`). */
+export const HARDEN_APP_ID_PATTERN = /^[A-Za-z][A-Za-z0-9-]*(?:\.[A-Za-z0-9][A-Za-z0-9-]*)+$/;
+/** The identity's word: lower-case letters and digits, starting with a letter (a URL scheme). */
+export const HARDEN_SLUG_PATTERN = /^[a-z][a-z0-9]{0,39}$/;
+
+/** The product's name: the app, its window and About, and the version line (`CodeHarden`). */
+export const HARDEN_PRODUCT_NAME: string =
+  (typeof __CODEHARDEN_PRODUCT__ === "string" && HARDEN_PRODUCT_PATTERN.test(__CODEHARDEN_PRODUCT__)
+    ? __CODEHARDEN_PRODUCT__
+    : undefined) ?? "CodeHarden";
+
+/**
+ * The desktop app's id: the macOS bundle id, the Windows AppUserModelId (notifications, taskbar,
+ * the installer's uninstall entry) and electron-builder's `appId`.
+ */
+export const HARDEN_APP_ID: string =
+  (typeof __CODEHARDEN_APP_ID__ === "string" && HARDEN_APP_ID_PATTERN.test(__CODEHARDEN_APP_ID__)
+    ? __CODEHARDEN_APP_ID__
+    : undefined) ?? "com.codeharden.app";
+
+/** The identity's one lower-case word; the names below are made from it. */
+export const HARDEN_APP_SLUG: string =
+  (typeof __CODEHARDEN_SLUG__ === "string" && HARDEN_SLUG_PATTERN.test(__CODEHARDEN_SLUG__)
+    ? __CODEHARDEN_SLUG__
+    : undefined) ?? "codeharden";
+
+/** The scheme of the links the desktop app opens: `codeharden://session/<id>`. */
+export const HARDEN_DEEP_LINK_SCHEME: string = HARDEN_APP_SLUG;
+
+/** The data folder's name in the user's home folder: `~/.codeharden`. */
+export const HARDEN_HOME_DIRNAME = `.${HARDEN_APP_SLUG}`;
+
+/** The default data folder as it is written for people: `~/.codeharden`. */
+export const HARDEN_HOME_DISPLAY = `~/${HARDEN_HOME_DIRNAME}`;
+
+/**
+ * The folder in the user's home that repositories are cloned into unless a person picks another:
+ * `~/codeharden-projects`. Only a default for new clones: a project keeps the path it has.
+ */
+export const HARDEN_PROJECTS_DIRNAME = `${HARDEN_APP_SLUG}-projects`;
+
+/** The service name secrets are kept under in the OS keychain. */
+export const HARDEN_KEYCHAIN_SERVICE: string = HARDEN_APP_SLUG;
+
+/**
+ * The port the CLI and the desktop app listen on by default. Upstream CodeDen uses 4317, so
+ * both run at once without `--port`.
+ */
+export const HARDEN_DEFAULT_PORT: number =
+  (typeof __CODEHARDEN_PORT__ === "number" &&
+  Number.isInteger(__CODEHARDEN_PORT__) &&
+  __CODEHARDEN_PORT__ >= 1024 &&
+  __CODEHARDEN_PORT__ <= 65535
+    ? __CODEHARDEN_PORT__
+    : undefined) ?? 4417;
+
+/** The home folder upstream CodeDen uses, and CodeHarden used before it had its own. */
+export const UPSTREAM_HOME_DIRNAME = ".codeden";
+
+/**
+ * The one line said when the old home exists and this product's own doesn't yet: nothing is
+ * moved or copied, and `--home` keeps using the old data.
+ */
+export function hardenHomeNotice(): string {
+  return `${HARDEN_PRODUCT_NAME} now keeps its data in its own home, ${HARDEN_HOME_DISPLAY}, and starts empty there. To keep using the old one: ${HARDEN_COMMAND} --home ~/${UPSTREAM_HOME_DIRNAME}`;
+}
 
 /** The command the package installs: its name without the scope (`codeharden`). */
 export const HARDEN_COMMAND: string = HARDEN_PACKAGE_NAME.slice(

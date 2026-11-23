@@ -15,6 +15,7 @@ import { dirname, join, resolve, sep } from "node:path";
 // The update channel (package name, command): a module without imports, safe to load here.
 import {
   HARDEN_COMMAND,
+  HARDEN_HOME_DIRNAME,
   HARDEN_NPX_COMMAND,
   HARDEN_PACKAGE_NAME,
   HARDEN_PACKAGE_SEGMENTS,
@@ -52,7 +53,7 @@ export function homeFromArgs(args: string[], env: NodeJS.ProcessEnv = process.en
     if (arg === "--home" && args[i + 1]) return resolve(args[i + 1] as string);
     if (arg.startsWith("--home=")) return resolve(arg.slice("--home=".length));
   }
-  return env.CODEDEN_HOME ? resolve(env.CODEDEN_HOME) : join(homedir(), ".codeden");
+  return env.CODEDEN_HOME ? resolve(env.CODEDEN_HOME) : join(homedir(), HARDEN_HOME_DIRNAME);
 }
 
 /** A repository or workspace build: the package root next to `dist/` still has `src/`. */

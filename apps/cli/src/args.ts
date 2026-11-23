@@ -1,7 +1,12 @@
 import { parseArgs } from "node:util";
-import { formatHardenVersion, HARDEN_COMMAND } from "@codeden/contracts";
+import {
+  formatHardenVersion,
+  HARDEN_COMMAND,
+  HARDEN_DEFAULT_PORT,
+  HARDEN_HOME_DISPLAY,
+} from "@codeden/contracts";
 
-export const DEFAULT_PORT = 4317;
+export const DEFAULT_PORT = HARDEN_DEFAULT_PORT;
 
 /** The help text below, with its commands named after the channel's command (`HARDEN_COMMAND`). */
 const named = (help: string) =>
@@ -23,7 +28,7 @@ Usage:
 
 Options:
   --port <n>     Port to listen on (default ${DEFAULT_PORT})
-  --home <dir>   Data directory (default ~/.codeden, or CODEDEN_HOME)
+  --home <dir>   Data directory (default ${HARDEN_HOME_DISPLAY}, or CODEDEN_HOME)
   --no-open      Do not open the browser
   -v, --version  Print the version
   -h, --help     Show this help

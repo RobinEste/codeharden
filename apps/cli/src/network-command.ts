@@ -16,9 +16,8 @@ import {
   PasswordRuleError,
   RemoteAccessStore,
 } from "@codeden/server";
+import { DEFAULT_PORT } from "./args";
 import { findRunningServer } from "./running";
-
-const DEFAULT_PORT = 4317;
 
 /**
  * The home's network access file, used while CodeDen is not running. A damaged file is kept
