@@ -11,7 +11,7 @@ export interface HardenMarkShape {
 /** The brand red: the shield, and the second half of the wordmark on a light ground. */
 export const HARDEN_BRAND_RED = "#d32231";
 /** The red of the wordmark on a dark ground: a lighter tint, 4.5:1 on the dark theme. */
-export const HARDEN_BRAND_RED_ON_DARK = "#da4350";
+export const HARDEN_BRAND_RED_ON_DARK = "#db4c58";
 /** The mark's second colour. */
 export const HARDEN_BRAND_WHITE = "#ffffff";
 

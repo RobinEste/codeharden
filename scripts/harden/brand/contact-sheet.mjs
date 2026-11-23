@@ -27,7 +27,12 @@ const font = readFileSync(
 const mark = readMark();
 const colors = brandColors(mark);
 const { ratios } = colors;
-const r = (n) => `${n.toFixed(2)}:1`;
+const r = (set) =>
+  typeof set === "number"
+    ? `${set.toFixed(2)}:1`
+    : Object.entries(set)
+        .map(([name, n]) => `${name} ${n.toFixed(2)}:1`)
+        .join(", ");
 
 let ids = 0;
 /** An SVG at a pixel size (mask ids made unique: the page holds many copies). */
@@ -75,7 +80,7 @@ figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:6px}fi
 </style></head><body>
 <h1>CodeHarden: the mark, the wordmark and the icons</h1>
 <p>One SVG source and one red, <b>${colors.red}</b> (white on it ${r(ratios.whiteOnRed)}). Every size is drawn at its true pixel size.</p>
-<p>Light theme, mark and the word Harden: ${r(ratios.light.page)} on the page, ${r(ratios.light.sidebar)} on the sidebar. Dark theme, mark: ${r(ratios.darkMark.page)} on the page, ${r(ratios.darkMark.sidebar)} on the sidebar; the word Harden in the tint <b>${colors.textOnDark}</b>: ${r(ratios.darkText.page)} on the page, ${r(ratios.darkText.sidebar)} on the sidebar. WCAG AA asks 3:1 for graphics and large text, 4.5:1 for normal text.</p>
+<p>Light theme, the mark and the word Harden: ${r(ratios.light)}. Dark theme, the mark: ${r(ratios.darkMark)}; the word Harden in the tint <b>${colors.textOnDark}</b>: ${r(ratios.darkText)}. WCAG AA asks 3:1 for graphics and large text, 4.5:1 for normal text.</p>
 <section>
 ${row(sizes(), sizes(), "strip")}
 ${row(fig(markSvg(mark), 512, "512 on light"), fig(markSvg(mark), 512, "512 on dark"), "big")}

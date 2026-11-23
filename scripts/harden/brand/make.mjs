@@ -236,11 +236,16 @@ try {
   await browser.close();
 }
 
-const r = (n) => `${n.toFixed(2)}:1`;
+const r = (set) =>
+  typeof set === "number"
+    ? `${set.toFixed(2)}:1`
+    : Object.entries(set)
+        .map(([name, n]) => `${name} ${n.toFixed(2)}:1`)
+        .join(", ");
 const { ratios } = colors;
 console.log(`
 red ${colors.red}, white on it ${r(ratios.whiteOnRed)}
-light theme: on the page ${r(ratios.light.page)}, on the sidebar ${r(ratios.light.sidebar)}
-dark theme, the mark: on the page ${r(ratios.darkMark.page)}, on the sidebar ${r(ratios.darkMark.sidebar)}
-dark theme, the wordmark's ${colors.textOnDark}: on the page ${r(ratios.darkText.page)}, on the sidebar ${r(ratios.darkText.sidebar)}
+light theme, the mark and the wordmark: ${r(ratios.light)}
+dark theme, the mark: ${r(ratios.darkMark)}
+dark theme, the wordmark's ${colors.textOnDark}: ${r(ratios.darkText)}
 ${changed === 0 ? "nothing changed" : `${changed} file(s) changed`}`);

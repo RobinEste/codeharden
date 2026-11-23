@@ -8,10 +8,13 @@ import { fileURLToPath } from "node:url";
 
 export const MARK_FILE = fileURLToPath(new URL("./mark.svg", import.meta.url));
 
-/** The themes' surfaces the red is read on (`apps/web/src/index.css`, as sRGB). */
+/**
+ * The themes' surfaces the wordmark is read on (`--background`, `--sidebar` and `--card` in
+ * `apps/web/src/index.css`, as sRGB): the page, the sidebar, and the card of Settings › About.
+ */
 export const SURFACES = {
-  light: { page: "#f9fafb", sidebar: "#f4f5f7" },
-  dark: { page: "#0d0e12", sidebar: "#090a0d" },
+  light: { page: "#f9fafb", sidebar: "#f4f5f7", card: "#ffffff" },
+  dark: { page: "#0d0e12", sidebar: "#090a0d", card: "#131519" },
 };
 /** The tile behind the mark in app icons: near white, so the red shield reads on any Dock. */
 export const TILE = "#fbfbfc";
@@ -98,20 +101,13 @@ export function brandColors(mark = readMark()) {
     textOnDark: tintFor(mark.ink, dark),
   };
   const worst = (color, surfaces) => Math.min(...surfaces.map((s) => contrast(color, s)));
+  const on = (color, surfaces) =>
+    Object.fromEntries(Object.entries(surfaces).map(([name, s]) => [name, contrast(color, s)]));
   const ratios = {
     whiteOnRed: contrast(mark.paper, mark.ink),
-    light: {
-      page: contrast(mark.ink, SURFACES.light.page),
-      sidebar: contrast(mark.ink, SURFACES.light.sidebar),
-    },
-    darkMark: {
-      page: contrast(mark.ink, SURFACES.dark.page),
-      sidebar: contrast(mark.ink, SURFACES.dark.sidebar),
-    },
-    darkText: {
-      page: contrast(colors.textOnDark, SURFACES.dark.page),
-      sidebar: contrast(colors.textOnDark, SURFACES.dark.sidebar),
-    },
+    light: on(mark.ink, SURFACES.light),
+    darkMark: on(mark.ink, SURFACES.dark),
+    darkText: on(colors.textOnDark, SURFACES.dark),
   };
   // WCAG AA: 3:1 for graphics and large text. A red that fails it is not usable as the brand.
   if (worst(mark.ink, [...light, ...dark]) < 3 || ratios.whiteOnRed < 3) {
@@ -129,6 +125,10 @@ const path = (shape, fill, stroke, widen = 0) =>
 export function markShapes(mark, widen = 0) {
   return mark.shapes.map((shape) => path(shape, shape.fill, mark.ink, widen)).join("");
 }
+
+/** Text as it is written inside an XML element. */
+const escapeXml = (text) =>
+  text.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
 const svg = (body, viewBox = "0 0 32 32") =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}">${body}</svg>`;
@@ -195,7 +195,7 @@ const GENERATED =
 
 /** `public/harden/favicon.svg`: the mark as a browser draws it in a tab. */
 export function faviconFile(mark) {
-  return `${markSvg(mark).replace(">", `><title>${mark.title}</title>`)}\n`;
+  return `${svg(`<title>${escapeXml(mark.title)}</title>${markShapes(mark)}`)}\n`;
 }
 
 /** `packages/contracts/src/harden-mark.ts`: the mark and its colours for the UI and the server's pages. */

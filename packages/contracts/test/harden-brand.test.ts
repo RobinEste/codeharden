@@ -26,8 +26,9 @@ describe("the wordmark", () => {
     expect(hardenWordmarkHtml("light")).toBe(
       `Code<span style="color:${HARDEN_BRAND_RED}">Harden</span>`,
     );
-    expect(hardenWordmarkHtml("dark")).toContain(`color:${HARDEN_BRAND_RED_ON_DARK}`);
-    expect(hardenWordmarkHtml("dark").replace(/<[^>]+>/g, "")).toBe("CodeHarden");
+    expect(hardenWordmarkHtml("dark")).toBe(
+      `Code<span style="color:${HARDEN_BRAND_RED_ON_DARK}">Harden</span>`,
+    );
     expect(hardenWordmarkHtml("dark", "Acme Den")).toBe("Acme Den");
     expect(hardenWordmarkHtml("light", "A<b>&")).toBe("A&#60;b&#62;&#38;");
   });
