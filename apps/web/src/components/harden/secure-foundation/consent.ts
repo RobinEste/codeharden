@@ -46,6 +46,13 @@ const day = (iso: string) => iso.slice(0, 10);
 const UNATTENDED = "runs commands inside the new project without asking for each one";
 const URL_WHILE = "only works while the setup session's processes are running";
 
+/** What stays off in a quiet project, in the verification view and on the project's page. */
+export const QUIET_MEANS =
+  "Pull requests, issues and reviews on GitHub don't wake its project manager, and scheduled or event automations and issue triage don't run";
+/** How the person turns automatic work on, in the same two places. */
+export const QUIET_TURN_ON =
+  "To turn automatic work on, change the project's autonomy mode from Manual to Assisted on its page";
+
 /**
  * The statements of the verification view, in order: where, from what, what runs, what it needs from
  * the person, and what the URL at the end is. Plain sentences, built from the same answers the
@@ -84,6 +91,7 @@ export function consentStatements(input: ConsentInput): string[] {
     `A setup session runs on ${provider.displayName} at the ${LEVEL[input.autonomy]} permission level: it ${UNATTENDED}. ${provider.runsCommandFiles ? "It runs the template's /install command." : "It reads the template's install instructions and follows them."} ${product}'s protected areas and always-ask rules still apply, and it is told to refuse anything outside the project folder.`,
     "The setup first checks this computer again (Node, npm, git, the sign-ins). Only that part can ask you something, and it lands in the inbox. After it the setup runs without you.",
     `At the end you get the app's local URL${deploy ? " and the deployed URL. The deployed one stays up; the local one" : ". It"} ${URL_WHILE}: stopping or archiving that session, or quitting ${product}, stops the app.`,
+    `The new project starts in Manual mode with automatic work off: apart from this setup session, ${product} starts nothing in it by itself. ${QUIET_MEANS}. ${QUIET_TURN_ON}.`,
   ];
 }
 
@@ -126,19 +134,21 @@ export function createsOf(
 }
 
 /**
- * The three lines above the form's buttons, always shown: what is created in the person's
- * accounts, that the setup runs unattended, and what the URL at the end is. Pressing Go is the
- * confirmation of these; the verification view has the full lists.
+ * The lines above the form's buttons, always shown: what is created in the person's accounts,
+ * that the setup runs unattended, what the URL at the end is, and that nothing else starts in
+ * the new project by itself. Pressing Go is the confirmation of these; the verification view
+ * has the full lists.
  */
 export function consentSummary(
   answers: Parameters<typeof createsOf>[0],
   autonomy: AutonomyLevel,
-): [string, string, string] {
+): [string, string, string, string] {
   return [
     secureFoundationCreatesLine(createsOf(answers)),
     `The setup session ${UNATTENDED} (${LEVEL[autonomy]} permission level).`,
     answers.deploy
       ? `The app's local URL ${URL_WHILE}; the deployed one stays up.`
       : `The app's URL ${URL_WHILE}.`,
+    "The new project starts with automatic work off (Manual mode): nothing else starts in it until you turn that on.",
   ];
 }

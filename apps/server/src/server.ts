@@ -384,6 +384,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
   };
   writeJsonFile(paths.serverLock, lock);
   log(`server listening on ${url}`);
+  services.devPreview.start({ port });
   // Index transcript items the search index hasn't seen yet, a batch at a time (§6).
   const searchBackfill = new SearchBackfill(database.db, { log });
   searchBackfill.start();
@@ -445,6 +446,7 @@ export async function startServer(opts: StartServerOptions): Promise<RunningServ
       services.checksLoop.stop();
       services.inboxSettler.stop();
       services.updates.stop();
+      await services.devPreview.stop();
       await searchBackfill.stop();
       await services.localStt.stop();
       await redetectorStopped;

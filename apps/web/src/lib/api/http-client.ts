@@ -47,6 +47,7 @@ import {
 } from "@codeden/contracts";
 import { httpAutomationsApi } from "./automations-api";
 import type { CodeDenClient, SendMode } from "./client";
+import { httpDevPreviewApi } from "./dev-preview-api";
 import { httpFactoryApi } from "./factory-api";
 import { createFetcher } from "./http";
 import {
@@ -225,6 +226,7 @@ export function createHttpClient(origin: string, opts: HttpClientOptions = {}): 
       get(`/updates${o?.refresh ? "?refresh=1" : ""}`, (v) => UpdateStatus.parse(v)),
     updates: httpUpdatesApi(http, origin),
     secureFoundation: httpSecureFoundationApi(http),
+    devPreview: httpDevPreviewApi(http),
     async completeSetup() {
       await post("/setup/complete");
     },

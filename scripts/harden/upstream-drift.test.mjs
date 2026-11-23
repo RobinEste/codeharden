@@ -193,6 +193,7 @@ const ALLOWED = [
   [MOCK, /~\/\.codeden\/(?:wt|backups|orchestrator|models|deps)\b/, WHY.mock],
   [MOCK, /\\\\\.codeden\\\\wt\\\\/, WHY.mock],
   ["apps/web/src/lib/api/network-api.ts", /(?:url: "http:\/\/[\w.]+:|^\s*port: )4317\b/, WHY.mock],
+  ["packages/contracts/src/dev-preview.ts", /DEV_PREVIEW_RESERVED_PORTS: readonly number\[\] = \[4317, 4417, 4318, 4319, 5173, 5174\];/, "upstream's default port in the list of ports a dev preview is never given: a port to keep away from, so that a preview can't take the port of an upstream install on the same machine. This install's own port is added to the list from HARDEN_DEFAULT_PORT (`dev-preview-service.ts`)"],
   // --- client names and commit authors
   [/^packages\/providers\/src\/(?:acp|codex)\/process\.ts$/, /clientInfo: \{ name: "codeden", title: "CodeDen",/, WHY.hello],
   ["apps/server/src/services/automations/import-link.ts", /"user-agent": "codeden"/, WHY.hello],
@@ -413,10 +414,23 @@ const CALL_SITES = [
   ["apps/web/src/lib/api/http-client.ts", "the web client's Secure Foundation calls", /secureFoundation: httpSecureFoundationApi\(http\)/],
   ["apps/server/src/routes/api.ts", "the Secure Foundation routes", /\.route\("\/secure-foundation", secureFoundationRoutes\(s\)\)/],
   ["apps/server/src/services/container.ts", "the Secure Foundation service", /secureFoundation: createSecureFoundation\(/],
+  ["apps/server/src/services/orchestration/orchestration-service.ts", "a quiet Secure Foundation project's manager is not woken", /if \(holdsPmWakes\(this\.deps, projectId\)\) return "empty";/],
   ["apps/server/src/services/secure-foundation/index.ts", "the template comes from the fork's configuration, never from a request", "HARDEN_TEMPLATE_REPOSITORY", "HARDEN_TEMPLATE_BRANCH", "hardenTemplateUrl"],
   ["packages/contracts/src/harden-channel.ts", "the Secure Foundation template in the fork's configuration", "HARDEN_TEMPLATE_REPOSITORY", "HARDEN_TEMPLATE_BRANCH", "__CODEHARDEN_TEMPLATE_REPOSITORY__", "__CODEHARDEN_TEMPLATE_BRANCH__"],
   ["packages/contracts/src/provider.ts", "the capability the setup brief reads instead of a provider id", "projectCommands"],
   ["packages/providers/src/claude/adapter.ts", "the provider that runs project command files says so", /projectCommands: true/],
+  // --- Dev preview: a fork-only feature, slotted into upstream's files one line at a time
+  ["packages/contracts/src/index.ts", "exports the dev preview's contracts", /export \* from "\.\/dev-preview"/],
+  ["apps/server/src/routes/api.ts", "the dev preview routes", /\.route\("\/dev-preview", devPreviewRoutes\(s\)\)/],
+  ["apps/server/src/services/container.ts", "the dev preview service", /devPreview: createDevPreview\(/],
+  ["apps/server/src/server.ts", "the dev preview starts with the server (ending what a crash left) and stops every preview when the server closes", /services\.devPreview\.start\(\{ port \}\)/, /await services\.devPreview\.stop\(\)/],
+  ["apps/server/src/routes/dev-preview.ts", "setting commands and starting previews are refused to other devices", "requireLocal", "isRemoteRequest", "SetDevPreviewRequest"],
+  ["apps/server/src/services/dev-preview/process.ts", "a preview's processes get a terminal's environment, without the app's own variables", "agentEnv", "defaultShell"],
+  ["apps/web/src/components/thread/thread-view.tsx", "the dev preview bar under a thread's header", /<DevPreviewBar session=\{session\} \/>/],
+  ["apps/web/src/components/orchestration/role-chat.tsx", "the dev preview bar on a PM thread that hasn't started", /<DevPreviewPmBar projectId=\{role === "pm" \? projectId : null\} \/>/],
+  ["apps/web/src/routes/project.tsx", "the dev preview section of a project's settings", /<DevPreviewProjectSettings project=\{project\} \/>/],
+  ["apps/web/src/routes/settings.tsx", "the dev preview limits in the app's settings", /render: \(\) => <DevPreviewLimitsSettings \/>/],
+  ["apps/web/src/lib/api/http-client.ts", "the web client's dev preview calls", /devPreview: httpDevPreviewApi\(http\)/],
   // --- OpenCode sessions: slash commands are plain prompts in this fork for now
   ["packages/providers/src/opencode/commands.ts", "the commands OpenCode lists pass the fork's switch before they are reported or routed", /commands = hardenListedCommands\(/],
   ["packages/providers/src/opencode/harden-commands.ts", "the switch itself, off in the product", "hardenListedCommands", /^let run = false;$/m],
@@ -976,6 +990,79 @@ describe("the fork's call sites are still there", () => {
     expect(
       callSiteProblem(status, page.replace(/ *<SecureFoundationStatus [^>]*\/>\n/, "")),
     ).toMatch(/project\.tsx no longer has/);
+  });
+
+  it("fails when a dev preview slot or registration disappears", () => {
+    const site = (start) => CALL_SITES.find(([, what]) => what.startsWith(start));
+    // Each fixture is the real file as a merge that took upstream's side would leave it.
+    const cases = [
+      [
+        "the dev preview bar under",
+        "      <DevPreviewBar session={session} />\n",
+        /thread-view\.tsx no longer has/,
+      ],
+      [
+        "the dev preview bar on a PM",
+        /^ *<DevPreviewPmBar [^\n]*\/>\n/m,
+        /role-chat\.tsx no longer has/,
+      ],
+      [
+        "the dev preview section",
+        /^ *<DevPreviewProjectSettings [^\n]*\/>\n/m,
+        /project\.tsx no longer has/,
+      ],
+      [
+        "the dev preview limits",
+        /render: \(\) => <DevPreviewLimitsSettings \/>,?/,
+        /settings\.tsx no longer has/,
+      ],
+      [
+        "the web client's dev preview",
+        "    devPreview: httpDevPreviewApi(http),\n",
+        /http-client\.ts no longer has/,
+      ],
+      [
+        "the dev preview routes",
+        '      .route("/dev-preview", devPreviewRoutes(s))\n',
+        /api\.ts no longer has/,
+      ],
+      ["the dev preview service", "devPreview: createDevPreview(", /container\.ts no longer has/],
+      [
+        "the dev preview starts",
+        "      await services.devPreview.stop();\n",
+        /server\.ts no longer has `await services/,
+      ],
+      [
+        "the dev preview starts",
+        "  services.devPreview.start({ port });\n",
+        /server\.ts no longer has `services\.devPreview\.start/,
+      ],
+      ["exports the dev preview", 'export * from "./dev-preview";\n', /index\.ts no longer has/],
+    ];
+    for (const [start, slot, problem] of cases) {
+      const entry = site(start);
+      const ours = read(entry[0]) ?? "";
+      expect(callSiteProblem(entry, ours), start).toBeNull();
+      const upstream = ours.replace(slot, "");
+      expect(upstream, start).not.toBe(ours);
+      expect(callSiteProblem(entry, upstream), start).toMatch(problem);
+      expect(callSiteProblem(entry, null), start).toMatch(/is gone/);
+    }
+    // The import alone is not the slot.
+    const bar = site("the dev preview bar under");
+    expect(
+      callSiteProblem(
+        bar,
+        'import { DevPreviewBar } from "@/components/harden/dev-preview/bar";\n',
+      ),
+    ).not.toBeNull();
+    // The route module must keep its this-computer-only check.
+    const routes = site("setting commands and starting previews");
+    const module = read(routes[0]) ?? "";
+    expect(callSiteProblem(routes, module)).toBeNull();
+    expect(callSiteProblem(routes, module.replaceAll("requireLocal", "anyone"))).toMatch(
+      /dev-preview\.ts no longer has requireLocal/,
+    );
   });
 
   it("fails when the vision file goes back to upstream's", () => {

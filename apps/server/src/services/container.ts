@@ -15,6 +15,7 @@ import { reportedCommands } from "./agent-config/slash-commands";
 import { ArtifactService } from "./artifacts";
 import { AutomationService, type AutomationServiceDeps } from "./automations/automation-service";
 import { BrowserService } from "./browser/browser-service";
+import { createDevPreview, type DevPreviewService } from "./dev-preview";
 import { type Exec, runTool } from "./exec";
 import { type FactoryOptions, FactoryService } from "./factory/factory-service";
 import { type FactoryGithub, GithubFactoryPort } from "./factory/github-port";
@@ -81,6 +82,8 @@ export interface ServicesOptions {
   runner: RunnerPort;
   /** Routes each session to its own runner (`docs/remote-runners.md` §8); default: `runner`. */
   runners?: RunnerRouter;
+  /** Test seams of the dev preview (`services/dev-preview`). */
+  devPreview?: Parameters<typeof createDevPreview>[0]["overrides"];
   /** Clone URLs and brokered git credentials for sandbox runners (§9); tests inject one. */
   gitBroker?: GitBroker;
   /**
@@ -179,6 +182,7 @@ export interface AppServices {
   setup: SetupService;
   /** The "Secure Foundation" add-project option (`docs/secure-foundation.md`). */
   secureFoundation: SecureFoundationService;
+  devPreview: DevPreviewService;
   /** Claude Code support: the Claude Agent SDK, installed on demand (§14). */
   claudeSdk: ClaudeSdkService;
   configFiles: ConfigFiles;
@@ -505,11 +509,21 @@ export function createServices(opts: ServicesOptions): AppServices {
     }),
     localStt,
     setup,
+    devPreview: createDevPreview({
+      paths: opts.paths,
+      exec,
+      projects,
+      sessions: sessionRepo,
+      runners,
+      log: opts.log,
+      overrides: opts.devPreview,
+    }),
     secureFoundation: createSecureFoundation({
       exec,
       projectsDir,
       projects,
       sessions: () => sessions as SessionService,
+      factory: () => factory,
       runner: opts.runner,
       setup,
     }),

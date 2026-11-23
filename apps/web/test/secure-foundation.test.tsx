@@ -162,6 +162,9 @@ describe("the lines above the buttons", () => {
     expect(consent()).toContain(
       "The app's URL only works while the setup session's processes are running.",
     );
+    expect(consent()).toContain(
+      "The new project starts with automatic work off (Manual mode): nothing else starts in it until you turn that on.",
+    );
     // They follow the answers: without Doppler nothing is said to be created there.
     fireEvent.click(screen.getByLabelText(/\.env\.local/));
     expect(consent()).toContain("Creates a Clerk app and a Convex project in your accounts.");
@@ -236,6 +239,10 @@ describe("what the verification view says will happen", () => {
     expect(text).toContain("runs commands inside the new project without asking for each one");
     expect(text).toContain("Alpha at the Full permission level");
     expect(text).toContain("It only works while the setup session's processes are running");
+    // The project starts quiet, and the way to change that is named.
+    expect(text).toContain("starts in Manual mode with automatic work off");
+    expect(text).toContain("don't wake its project manager");
+    expect(text).toContain("change the project's autonomy mode from Manual to Assisted");
     // No step comes before this one any more.
     expect(text).not.toContain("previous step");
   });
