@@ -47,6 +47,11 @@ const keyOf = (role: OrchestrationRole, projectId: string | null) => `${role}:${
 export class RoleSessions {
   /** The change of a role's session under way (retire, create or both), by role key. */
   private readonly changing = new Map<string, Promise<Session | undefined>>();
+  /**
+   * Role sessions retired with nothing to hand over, by role key, until the role's next session
+   * is created: `onMoved` then names the session it replaces.
+   */
+  private readonly retired = new Map<string, Session>();
   /** The last `applyProviderSettings` run: they follow each other. */
   private applying: Promise<void> = Promise.resolve();
 
@@ -60,7 +65,7 @@ export class RoleSessions {
       settings: Pick<SettingsStore, "get">;
       /** The home runner: its providers are the ones a role can move to. */
       runner: Pick<RunnerPort, "isConnected" | "providers">;
-      /** A role's session was replaced by a new one, which took over its queued messages. */
+      /** A role's retired session was replaced by a new one (which took over its queue). */
       onMoved?: (from: Session, to: Session) => void;
       log?: (message: string) => void;
     },
@@ -196,7 +201,9 @@ export class RoleSessions {
     projectId: string | null,
     always: boolean,
   ): Promise<Session | undefined> {
+    const key = keyOf(role, projectId);
     const queued = existing ? await this.retire(existing) : [];
+    if (existing) this.retired.set(key, existing);
     if (!always && queued.length === 0) return undefined;
     let created: Session;
     try {
@@ -205,13 +212,14 @@ export class RoleSessions {
       if (existing && queued.length > 0) {
         this.deps.repo.update(existing.id, (s) => ({ ...s, archivedAt: null }));
         this.deps.sessions.restoreQueued(queued);
+        this.retired.delete(key);
       }
       throw error;
     }
-    if (existing) {
-      this.deps.sessions.adoptQueued(created.id, queued);
-      this.deps.onMoved?.(existing, created);
-    }
+    this.deps.sessions.adoptQueued(created.id, queued);
+    const replaced = this.retired.get(key);
+    this.retired.delete(key);
+    if (replaced) this.deps.onMoved?.(replaced, created);
     return created;
   }
 

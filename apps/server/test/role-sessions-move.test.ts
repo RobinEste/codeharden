@@ -102,6 +102,29 @@ describe("role sessions: the queue moves with the role (§8.1)", () => {
   );
 
   it(
+    "answers an ask_pm that was open for a session retired with an empty queue",
+    withRoles(async ({ roles, asks, set, settle, turn }) => {
+      const old = await roles.ensure("pm", "p1");
+      settle(old.id);
+      // A question the loop guard holds back: tracked for the PM's session, not yet sent.
+      const question = `Question from the orchestrator ${askMarker("0123abcd")}:\nAny news?`;
+      asks.register("0123abcd", { pmSessionId: old.id, projectId: "p1", fromSessionId: null });
+      const answer = asks.wait("0123abcd", 60_000);
+      // Nothing is queued, so the settings change starts no session.
+      await set({ providers: { pm: { provider: "codex" } } });
+      expect(roles.find("pm", "p1")).toBeUndefined();
+
+      // The held question is delivered later, to the session the role then gets.
+      const next = await roles.ensure("pm", "p1");
+      turn(next.id, "turn-1", question, "No news.");
+      expect(await Promise.race([answer, Promise.resolve("unanswered")])).toEqual({
+        status: "answered",
+        text: "No news.",
+      });
+    }),
+  );
+
+  it(
     "hands the queue over when the role is next used, ahead of the message that uses it",
     withRoles(async ({ roles, sessions, setQuietly, settle, queue }) => {
       const old = await roles.ensure("orchestrator", null);
