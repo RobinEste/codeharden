@@ -1,5 +1,26 @@
 # CodeHarden releases
 
+## 2026.1123.0917 — 2026-11-23 09:17
+
+### codeharden
+- fix(harden): never drop a ticked deploy, start one login per service, and word the clone mode truthfully
+- docs: the deploy option of Secure Foundation
+- feat(web): the deploy option in the Secure Foundation form, off by default
+- feat(server): GitHub and Vercel connections, the deploy part of the setup brief and the deployed URL
+- feat(contracts): the deploy option of Secure Foundation: the repository, the Vercel scope and what gets created
+- fix(server): find the services' CLIs on the person's shell path, read afresh at each check
+- docs: the Connections step of Secure Foundation
+- feat(web): the Connections step of the Secure Foundation form
+- feat(server): ask each service's own CLI whether it is signed in, and run its login from the form
+- feat(contracts): the Connections step of Secure Foundation: sign-in state, logins and the Convex team
+- fix(harden): make the Secure Foundation folder name in one pass, and never clean up through a link
+- test(providers): record the project-commands capability in the Claude fixtures
+- docs: Secure Foundation user guide, the fork's template variables and the changelog note
+- test(harden): guard the Secure Foundation slots against upstream merges
+- feat(web): the Secure Foundation option, its form and confirm step, and the setup status on the project page
+- feat(server): create a project from the Secure Foundation template and start its setup session
+- feat(contracts): Secure Foundation contracts, the template in the fork's configuration and a capability for project command files
+
 ## 2026.1123.0059 — 2026-11-23 00:59
 
 ### codeharden
