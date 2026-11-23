@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AutonomyLevel, Id, ProviderId, Timestamp } from "./common";
 import { Project } from "./entities/project";
 import type { Session } from "./entities/session";
+import type { AutonomyMode } from "./factory";
 
 /**
  * "Secure Foundation": the add-project option that creates a new project from the fork's
@@ -364,6 +365,36 @@ const LOCAL_URL = /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d{1,5})?(?
 /** True for a setup session (`SECURE_FOUNDATION_WORK_KEY`). */
 export function isSecureFoundationSetup(session: Pick<Session, "workKey">): boolean {
   return session.workKey === SECURE_FOUNDATION_WORK_KEY;
+}
+
+// ------------------------------------------------------------------- quiet
+
+/**
+ * The autonomy mode a new Secure Foundation project is created in. `manual`: the person drives
+ * every session, so nothing but the setup session they pressed Go for starts in it.
+ */
+export const SECURE_FOUNDATION_PROJECT_MODE: AutonomyMode = "manual";
+
+/** The mode the person switches to when they turn automatic work on. */
+export const SECURE_FOUNDATION_OPT_IN_MODE: AutonomyMode = "assisted";
+
+/**
+ * Whether a project is a quiet Secure Foundation project: one Secure Foundation set up (it has
+ * a setup session among `sessions`, the project's own, archived ones included) that is still in
+ * the mode it was created in. In a quiet project nothing starts by itself: scheduled and event
+ * automations and issue triage don't run (what Manual mode means for every project), and no
+ * pull request, issue, review or session update wakes its project manager; those updates wait
+ * for the manager's next turn. The person turns automatic work on by changing the project's
+ * autonomy mode, and off again by changing it back.
+ */
+export function isSecureFoundationQuiet(
+  project: Pick<Project, "autonomyMode">,
+  sessions: ReadonlyArray<Pick<Session, "workKey">>,
+): boolean {
+  return (
+    project.autonomyMode === SECURE_FOUNDATION_PROJECT_MODE &&
+    sessions.some(isSecureFoundationSetup)
+  );
 }
 
 /**

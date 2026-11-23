@@ -1,15 +1,19 @@
 import { execFileSync } from "node:child_process";
 import {
   CreateSecureFoundationRequest,
+  type CreateSecureFoundationResponse,
   isSecureFoundationSetup,
+  RoleMessageResponse,
   SECURE_FOUNDATION_SETUP_AUTONOMY,
   SecureFoundationOptions,
   type Session,
+  StartSessionResponse,
   secureFoundationStatus,
 } from "@codeden/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sameRealPath } from "../src/services/projects/detect";
 import { createSecureFoundation } from "../src/services/secure-foundation";
+import { holdsPmWakes } from "../src/services/secure-foundation/quiet";
 import { type Harness, startHarness, waitUntil } from "./support/harness";
 import { removeTree } from "./support/remove-tree";
 import { makeTemplateFixture, type TemplateFixture } from "./support/secure-foundation-fixture";
@@ -21,6 +25,8 @@ import { makeTemplateFixture, type TemplateFixture } from "./support/secure-foun
 const EMAIL = "person@site.test";
 let h: Harness;
 let fixture: TemplateFixture;
+/** The project the create test made, for the tests after it. */
+let made: CreateSecureFoundationResponse;
 
 beforeAll(async () => {
   fixture = makeTemplateFixture();
@@ -56,6 +62,7 @@ describe("Secure Foundation with the Fake provider", () => {
       projectsDir: `${h.home}/made`,
       projects: s.projects,
       sessions: () => s.sessions,
+      factory: () => s.factory,
       runner: s.runner,
       setup: s.setup,
       template: fixture.source,
@@ -75,8 +82,12 @@ describe("Secure Foundation with the Fake provider", () => {
         commit: template.commit,
       }),
     );
+    made = result;
     expect(result.project.name).toBe("Flow Site");
     expect(result.project.kind).toBe("local");
+    // Quiet from the start: Manual mode, set before the setup session exists.
+    expect(result.project.autonomyMode).toBe("manual");
+    expect(s.projects.get(result.project.id).autonomyMode).toBe("manual");
     expect(result.project.isGitRepo).toBe(true);
     const count = execFileSync("git", ["-C", result.project.path, "rev-list", "--count", "HEAD"], {
       encoding: "utf8",
@@ -106,5 +117,60 @@ describe("Secure Foundation with the Fake provider", () => {
       expect(event.sessionId).toBe(result.sessionId);
       expect(event.type.startsWith("agent."), event.type).toBe(true);
     }
+  });
+
+  it("is quiet, and still does what the person asks: a session by hand, a message to its project manager", async () => {
+    const s = h.server.services;
+    const projectId = made.project.id;
+    expect(holdsPmWakes({ db: s.db, projects: s.projects }, projectId)).toBe(true);
+
+    // A session the person starts by hand runs its turn.
+    const started = StartSessionResponse.parse(
+      (
+        await h.api("POST", "/sessions", {
+          projectId,
+          provider: "fake",
+          purpose: "By hand",
+          input: { text: "hello" },
+        })
+      ).body,
+    );
+    if (started.status !== "started") throw new Error(`not started: ${started.status}`);
+    await waitUntil(async () =>
+      (await h.detail(started.sessionId)).session.status === "idle" ? true : undefined,
+    );
+
+    // An update for the project manager arrives while the project is quiet: it is kept.
+    const notice = `pr.opened:${projectId}:7`;
+    s.orchestration.notify({
+      id: notice,
+      type: "pr.opened",
+      projectId,
+      target: "pm",
+      sessionId: null,
+      title: "PR #7 opened: Bump left-pad",
+      data: {
+        sessionId: null,
+        pr: { number: 7, url: "https://github.test/pr/7", state: "open", title: "Bump left-pad" },
+      },
+    });
+    const kept = () => s.orchestration.notices.undelivered("pm", projectId).map((n) => n.id);
+    expect(kept()).toContain(notice);
+    expect(s.orchestration.roles.find("pm", projectId)).toBeUndefined();
+
+    // The person's message starts the project manager, and its turn takes the update with it.
+    const sent = RoleMessageResponse.parse(
+      (
+        await h.api("POST", `/orchestration/projects/${projectId}/pm/messages`, {
+          input: { text: "hello pm" },
+        })
+      ).body,
+    );
+    await waitUntil(async () =>
+      (await h.detail(sent.sessionId)).session.status === "idle" && !kept().includes(notice)
+        ? true
+        : undefined,
+    );
+    expect(s.orchestration.roles.find("pm", projectId)?.id).toBe(sent.sessionId);
   });
 });

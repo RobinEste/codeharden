@@ -1,14 +1,23 @@
 import {
+  isSecureFoundationQuiet,
   isSecureFoundationSetup,
+  SECURE_FOUNDATION_OPT_IN_MODE,
   type SecureFoundationPhase,
   secureFoundationStatus,
 } from "@codeden/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { ExternalLink, ShieldCheck } from "lucide-react";
+import { useState } from "react";
+import { AutonomyDialog } from "@/components/factory/autonomy-dialog";
 import { useClient } from "@/lib/api";
 import { useSnapshot } from "@/lib/queries";
-import { secureFoundationDocsUrl, secureFoundationRemovalUrl } from "./copy";
+import { QUIET_MEANS, QUIET_TURN_ON } from "./consent";
+import {
+  secureFoundationDocsUrl,
+  secureFoundationQuietUrl,
+  secureFoundationRemovalUrl,
+} from "./copy";
 import { secureFoundationKey } from "./use-secure-foundation";
 
 const LABEL: Record<SecureFoundationPhase, string> = {
@@ -30,11 +39,15 @@ const HINT: Partial<Record<SecureFoundationPhase, string>> = {
 
 /**
  * A project's "Secure Foundation setup" status: derived from its setup session, with the app's
- * URL while that session's processes run. Renders nothing for any other project.
+ * URL while that session's processes run. While the project is quiet (`isSecureFoundationQuiet`)
+ * it says that automatic work is off and opens the autonomy dialog to turn it on. Renders
+ * nothing for any other project.
  */
 export function SecureFoundationStatus({ projectId }: { projectId: string }) {
   const client = useClient();
   const { data } = useSnapshot();
+  const [choosingMode, setChoosingMode] = useState(false);
+  const project = data?.projects.find((p) => p.id === projectId);
   const session = (data?.sessions ?? [])
     .filter((s) => s.projectId === projectId && isSecureFoundationSetup(s))
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
@@ -48,6 +61,7 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
   });
   if (!session || !status) return null;
   const claim = finish.data?.clerkClaimUrl;
+  const quiet = project ? isSecureFoundationQuiet(project, [session]) : false;
   return (
     <section
       className="rounded-xl border border-border p-3 text-xs"
@@ -96,6 +110,40 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
       )}
       {HINT[status.phase] && (
         <p className="mt-1.5 text-2xs text-muted-foreground">{HINT[status.phase]}</p>
+      )}
+      {project && quiet && (
+        <p className="mt-2 text-2xs" data-testid="secure-foundation-quiet">
+          <span className="font-medium">Automatic work is off.</span>{" "}
+          <span className="text-muted-foreground">
+            This project is in Manual mode, as Secure Foundation creates it: nothing starts in it by
+            itself. {QUIET_MEANS}; what arrives meanwhile is kept for the project manager's next
+            turn. {QUIET_TURN_ON}.
+          </span>{" "}
+          <button
+            type="button"
+            className="underline underline-offset-2 hover:text-foreground"
+            onClick={() => setChoosingMode(true)}
+            data-testid="secure-foundation-turn-on"
+          >
+            Turn on automatic work…
+          </button>{" "}
+          <a
+            href={secureFoundationQuietUrl()}
+            target="_blank"
+            rel="noreferrer"
+            className="text-muted-foreground underline underline-offset-2"
+          >
+            What this changes
+          </a>
+        </p>
+      )}
+      {project && quiet && choosingMode && (
+        <AutonomyDialog
+          project={project}
+          open
+          onOpenChange={setChoosingMode}
+          initialMode={SECURE_FOUNDATION_OPT_IN_MODE}
+        />
       )}
       {finish.data?.deployedUrl && (
         <p className="mt-2 text-2xs" data-testid="secure-foundation-deployed">

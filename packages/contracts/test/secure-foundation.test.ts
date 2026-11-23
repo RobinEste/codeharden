@@ -5,11 +5,14 @@ import {
   HARDEN_TEMPLATE_BRANCH,
   HARDEN_TEMPLATE_REPOSITORY,
   hardenTemplateUrl,
+  isSecureFoundationQuiet,
   isSecureFoundationSetup,
   ProviderCapabilities,
   SECURE_FOUNDATION_DEFAULT_DEPLOY,
   SECURE_FOUNDATION_DEFAULT_SECRETS,
   SECURE_FOUNDATION_DEFAULT_SHELL,
+  SECURE_FOUNDATION_OPT_IN_MODE,
+  SECURE_FOUNDATION_PROJECT_MODE,
   SECURE_FOUNDATION_REPOSITORY_MODE,
   SECURE_FOUNDATION_SETUP_AUTONOMY,
   SECURE_FOUNDATION_WORK_KEY,
@@ -436,5 +439,28 @@ describe("the one line that names what is created", () => {
     );
     // One short name per thing created: none is left out of the line.
     for (const created of all) expect(secureFoundationCreatesLine(all)).toContain(created.short);
+  });
+});
+
+describe("a new project is quiet", () => {
+  const setup = { workKey: SECURE_FOUNDATION_WORK_KEY };
+  const other = { workKey: "issue:1" };
+
+  it("starts in Manual mode, and Assisted is the mode that turns automatic work on", () => {
+    expect(SECURE_FOUNDATION_PROJECT_MODE).toBe("manual");
+    expect(SECURE_FOUNDATION_OPT_IN_MODE).toBe("assisted");
+  });
+
+  it("while it has a setup session and is still in the mode it was created in", () => {
+    expect(isSecureFoundationQuiet({ autonomyMode: "manual" }, [other, setup])).toBe(true);
+    // The person turned automatic work on (any other mode), and off again.
+    for (const mode of ["assisted", "software_factory", "dark_factory"] as const) {
+      expect(isSecureFoundationQuiet({ autonomyMode: mode }, [setup])).toBe(false);
+    }
+  });
+
+  it("never applies to a project Secure Foundation didn't set up", () => {
+    expect(isSecureFoundationQuiet({ autonomyMode: "manual" }, [other])).toBe(false);
+    expect(isSecureFoundationQuiet({ autonomyMode: "manual" }, [])).toBe(false);
   });
 });

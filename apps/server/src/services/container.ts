@@ -505,6 +505,7 @@ export function createServices(opts: ServicesOptions): AppServices {
       projectsDir,
       projects,
       sessions: () => sessions as SessionService,
+      factory: () => factory,
       runner: opts.runner,
       setup,
     }),

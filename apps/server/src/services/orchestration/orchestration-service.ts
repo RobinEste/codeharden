@@ -20,6 +20,7 @@ import { errorMessage } from "../errors";
 import type { TrustedAuthors } from "../github/review-trust";
 import type { InboxService } from "../inbox-service";
 import type { ProjectService } from "../projects/project-service";
+import { holdsPmWakes } from "../secure-foundation/quiet";
 import { mayHaveStarted } from "../sessions/input-decorator";
 import type { SessionRepo } from "../sessions/repo";
 import type { SessionService } from "../sessions/session-service";
@@ -445,6 +446,8 @@ export class OrchestrationService {
     const role: OrchestrationRole = key === "orchestrator" ? "orchestrator" : "pm";
     const projectId = role === "pm" ? key.slice(3) : null;
     if (this.notices.undelivered(role, projectId).length === 0) return "empty";
+    // CodeHarden: a quiet Secure Foundation project's manager is not woken; its notices wait.
+    if (holdsPmWakes(this.deps, projectId)) return "empty";
     const session = await this.roles.ensure(role, projectId);
     if (NOT_READY.has(session.status)) return "busy";
     await this.deps.sessions.send(
