@@ -91,6 +91,28 @@ function evaluate(expression, { dryRun, os = "", secrets = {} }) {
   );
 }
 
+/** The lines under a job's `    key:`, as written (comments included), up to the job's next key. */
+function jobBlock(job, key) {
+  const lines = job.split("\n");
+  const start = lines.indexOf(`    ${key}:`);
+  expect(start).toBeGreaterThan(-1);
+  const body = [];
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() !== "" && line.search(/\S/) < 6) break;
+    body.push(line);
+  }
+  while (body.at(-1)?.trim() === "") body.pop();
+  return body.join("\n");
+}
+
+/** A job's permissions, as `name: level` in the order written. */
+function permissions(job) {
+  return jobBlock(job, "permissions")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "" && !line.startsWith("#"));
+}
+
 /** The value of a top-level key of a job (`    key: value`), as written. */
 function jobKey(job, key) {
   return new RegExp(`^ {4}${key}: (.+)$`, "m").exec(job)?.[1];
@@ -114,7 +136,11 @@ describe("the desktop installers workflow", () => {
     expect(workflow).not.toContain("id-token");
     const all = jobs(workflow);
     expect(Object.keys(all)).toEqual(["check", "build", "sign", "release"]);
-    expect(all.check).toMatch(/permissions:\n\s+contents: read\n/);
+    // The check job also reads the environment's rules, which is the Actions permission.
+    expect(permissions(all.check)).toEqual(["contents: read", "actions: read"]);
+    expect(permissions(all.build)).toEqual(["contents: read"]);
+    expect(permissions(all.sign)).toEqual(["contents: read"]);
+    expect(permissions(all.release)).toEqual(["contents: write", "actions: read"]);
     expect(all.build).toMatch(/permissions:\n\s+contents: read\n/);
     expect(all.sign).toMatch(/permissions:\n\s+contents: read\n/);
     expect(all.check + all.build + all.sign).not.toMatch(/: write\b/);
@@ -173,10 +199,12 @@ describe("the desktop installers workflow", () => {
     expect([...asked.matchAll(/secrets\.([A-Z_]+) != ''/g)].map((m) => m[1]).sort()).toEqual(
       [...mac, ...win].sort(),
     );
-    // No other job names a secret (`sign` runs the build job's steps), and the build job
-    // names none anywhere else.
-    expect(check + sign + release).not.toMatch(SECRET);
+    // The build job names none anywhere else, `sign` has the same steps (so the same
+    // expressions), and no other job names a secret.
     expect(build.match(new RegExp(SECRET, "g"))).toHaveLength(2 * (mac.length + win.length));
+    expect(secretExpressions(sign)).toEqual(secretExpressions(build));
+    expect(sign.match(new RegExp(SECRET, "g"))).toHaveLength(2 * (mac.length + win.length));
+    expect(check + release).not.toMatch(SECRET);
     // And the script drops the other systems' variables again before anything is built.
     const script = scripts(workflow);
     const drop = script.indexOf('if [ "$RUNNER_OS" != "macOS" ]; then unset');
@@ -240,11 +268,18 @@ describe("approval before signing and publishing", () => {
     expect(check + build + release).not.toMatch(/^\s*environment:/m);
     // The jobs that wait are exactly the systems that have signing secrets.
     expect(sign).toMatch(/matrix:\n\s+os: \[windows-latest, macos-latest\]\n/);
-    // They run the build job's own steps and variables, not a copy that could drift.
-    expect(build).toMatch(/^ {4}steps: &build-steps$/m);
-    expect(build).toMatch(/^ {4}env: &build-env$/m);
-    expect(jobKey(sign, "steps")).toBe("*build-steps");
-    expect(jobKey(sign, "env")).toBe("*build-env");
+  });
+
+  it("builds the signed installers with the very steps a dry run rehearsed", () => {
+    const { build, sign } = all;
+    // `sign` is `build` written out again (no YAML anchors: GitHub documents them for an `env`
+    // map and a whole job, not for a list of steps). Line for line the same, comments too, so
+    // a change to one that misses the other fails here.
+    expect(jobBlock(build, "steps").split("\n").length).toBeGreaterThan(100);
+    expect(jobBlock(sign, "steps")).toBe(jobBlock(build, "steps"));
+    expect(jobBlock(sign, "env")).toBe(jobBlock(build, "env"));
+    expect(workflow).not.toMatch(/^\s*[\w-]+: [&*][\w-]+\s*$/m);
+    expect(workflow).not.toContain("<<:");
   });
 
   it("gives a secret to a real run's signing jobs only", () => {
@@ -497,12 +532,12 @@ const TAG_SHA = "a".repeat(40);
 const HEAD_SHA = "b".repeat(40);
 
 /** An environment as GitHub's "Get an environment" returns it. */
-const environment = ({ reviewers = 1, branches = true, bypass = false } = {}) =>
+const environment = ({ reviewers = 1, branches = "selected", bypass = false } = {}) =>
   JSON.stringify({
     name: "release",
     can_admins_bypass: bypass,
     protection_rules: [
-      ...(branches ? [{ id: 1, type: "branch_policy" }] : []),
+      ...(branches !== "any" ? [{ id: 1, type: "branch_policy" }] : []),
       ...(reviewers
         ? [
             {
@@ -517,10 +552,22 @@ const environment = ({ reviewers = 1, branches = true, bypass = false } = {}) =>
           ]
         : []),
     ],
-    deployment_branch_policy: branches
-      ? { protected_branches: false, custom_branch_policies: true }
-      : null,
+    deployment_branch_policy:
+      branches === "any"
+        ? null
+        : {
+            protected_branches: branches === "protected",
+            custom_branch_policies: branches === "selected",
+          },
   });
+
+/** The environment's own branch and tag rules, as "List deployment branch policies" returns them. */
+const policies = (...rules) =>
+  JSON.stringify({
+    total_count: rules.length,
+    branch_policies: rules.map(([type, name], i) => ({ id: i + 1, name, type })),
+  });
+const ONLY_HARDEN = policies(["branch", "harden"]);
 
 // CI's runners have `jq`; a computer without it skips these (they need GitHub's own filter).
 describe.skipIf(!hasJq)("the check job's steps, run as written", () => {
@@ -584,11 +631,11 @@ describe.skipIf(!hasJq)("the check job's steps, run as written", () => {
     }
   });
 
-  const gate = (env, fixture) =>
+  const gate = (env, fixture, rules = ONLY_HARDEN) =>
     runStep(
       "Check the approval gate",
       { DRY_RUN: "false", RELEASE_APPROVAL: "", ...env },
-      fixture === undefined ? {} : { FIXTURE_ENVIRONMENT: fixture },
+      fixture === undefined ? {} : { FIXTURE_ENVIRONMENT: fixture, FIXTURE_BRANCH_POLICIES: rules },
     );
 
   it("lets a real run start when the environment requires a review and restricts branches", () => {
@@ -609,7 +656,7 @@ describe.skipIf(!hasJq)("the check job's steps, run as written", () => {
     const open = gate({}, environment({ reviewers: 0 }));
     expect(open.status).toBe(1);
     expect(open.log).toContain("has no required reviewers");
-    const anyBranch = gate({}, environment({ branches: false }));
+    const anyBranch = gate({}, environment({ branches: "any" }));
     expect(anyBranch.status).toBe(1);
     expect(anyBranch.log).toContain("lets every branch use it");
     // The environment as GitHub creates it by itself: no rules at all.
@@ -620,6 +667,43 @@ describe.skipIf(!hasJq)("the check job's steps, run as written", () => {
     expect(bare.status).toBe(1);
     expect(bare.log).toContain("has no required reviewers");
     expect(bare.log).toContain("lets every branch use it");
+  });
+
+  it("refuses a real run unless the default branch alone may use the environment", () => {
+    // "Protected branches only" admits every protected branch, and every branch when none is.
+    const protectedOnly = gate({}, environment({ branches: "protected" }));
+    expect(protectedOnly.status).toBe(1);
+    expect(protectedOnly.log).toContain("lets every protected branch use it");
+    // Its own rules, but more than the one that names the default branch.
+    for (const [rules, named] of [
+      [policies(["branch", "harden"], ["branch", "someone/patch"]), "branch someone/patch"],
+      [policies(["branch", "*"]), "branch *"],
+      [policies(["branch", "harden*"]), "branch harden*"],
+      [policies(["tag", "harden"]), "tag harden"],
+      [policies(["branch", "harden"], ["tag", "v*"]), "tag v*"],
+      [policies(["branch", "main"]), "branch main"],
+      [policies(), "no branch at all"],
+    ]) {
+      const run = gate({}, environment(), rules);
+      expect(run.status).toBe(1);
+      expect(run.log).toContain('::error::The environment "release" may be used by:');
+      expect(run.log).toContain(named);
+      expect(run.log).not.toContain("a real run waits for an approval");
+    }
+    // Rules that can't be read are not a pass.
+    const unread = gate({}, environment(), "");
+    expect(unread.status).toBe(1);
+    expect(unread.log).toContain("can't be read");
+    // Another default branch: its own name is the one rule.
+    const other = gate(
+      { DEFAULT_BRANCH: "trunk", GITHUB_REF: "refs/heads/trunk" },
+      environment(),
+      policies(["branch", "trunk"]),
+    );
+    expect(other.status).toBe(0);
+    expect(
+      gate({ DEFAULT_BRANCH: "trunk", GITHUB_REF: "refs/heads/trunk" }, environment()).status,
+    ).toBe(1);
   });
 
   it("refuses a real run started on another branch than the default one", () => {
@@ -639,7 +723,7 @@ describe.skipIf(!hasJq)("the check job's steps, run as written", () => {
   it("never stops a dry run: it reports what a real run would stop on", () => {
     for (const [env, fixture] of [
       [{}, undefined],
-      [{}, environment({ reviewers: 0, branches: false })],
+      [{}, environment({ reviewers: 0, branches: "any" })],
       [{ GITHUB_REF: "refs/heads/someone/patch" }, environment()],
     ]) {
       const run = gate({ DRY_RUN: "true", ...env }, fixture);

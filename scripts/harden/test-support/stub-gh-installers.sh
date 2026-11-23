@@ -14,6 +14,8 @@ gh() {
   done
   case "$path" in
     */environments/release) body="${FIXTURE_ENVIRONMENT:-}" ;;
+    */environments/release/deployment-branch-policies\?per_page=100)
+      body="${FIXTURE_BRANCH_POLICIES:-}" ;;
     */git/ref/tags/*) if [ -n "${FIXTURE_TAG_SHA:-}" ]; then body='{"ref":"a tag"}'; fi ;;
     */commits/refs/tags/*)
       if [ -n "${FIXTURE_TAG_SHA:-}" ]; then body="{\"sha\":\"${FIXTURE_TAG_SHA}\"}"; fi ;;

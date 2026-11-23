@@ -47,13 +47,13 @@ You do these steps yourself, signed in to GitHub as the repository's owner. **No
 
 2. **Required reviewers.** Tick **Required reviewers**, add yourself, and leave **Prevent self-review** off: with it on, the person who started a run can't approve it, and when you are the only reviewer nobody could. (Up to six people or teams can be listed; one approval is enough.) Untick **Allow administrators to bypass configured protection rules**, so that there is no second way past the review. Press **Save protection rules**.
 
-3. **Only `harden` may use it.** Under **Deployment branches and tags** choose **Selected branches and tags**, press **Add deployment branch or tag rule**, ref type **Branch**, name pattern `harden`, **Add rule**. GitHub matches this rule against the branch a run was *started on* (the branch chosen in "Run workflow"), not against the tag given as input, so `harden` is the right rule and a tag rule is not needed. It is what keeps a workflow file on some other branch from asking for the secrets: only the workflow as it is on `harden` can. Not "Protected branches only": that admits every protected branch, and every branch when none is protected.
+3. **Only `harden` may use it.** Under **Deployment branches and tags** choose **Selected branches and tags**, press **Add deployment branch or tag rule**, ref type **Branch**, name pattern `harden`, **Add rule**. GitHub matches this rule against the branch a run was *started on* (the branch chosen in "Run workflow"), not against the tag given as input, so `harden` is the right rule and a tag rule is not needed. It is what keeps a workflow file on some other branch from asking for the secrets: only the workflow as it is on `harden` can. Not "Protected branches only": that admits every protected branch, and every branch when none is protected. Add no second rule: the workflow refuses a real run unless this one rule, the branch `harden`, is the only one.
 
 4. **Add the signing secrets to the environment.** On the same page, **Environment secrets › Add environment secret**, once per secret: the five macOS ones (`CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`) and, if you sign for Windows, `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD`. GitHub never shows a saved secret again, so they can't be copied over from the repository's: enter each value again ([Signing with an Apple Developer ID](#signing-with-an-apple-developer-id) says what each one is; export the `.p12` from your keychain again, with a new password if you like, and make a new app-specific password if you no longer have the old one).
 
 5. **Have the workflow that names the environment on `harden`:** merge the change that added the approval (once; it is there for good). Until then a real run works as before, from the repository-level secrets.
 
-6. **Rehearse.** Run the workflow for a release tag with **dry-run** on (this also shows that GitHub accepts the new workflow file). Its "Check the tag" job says: *The environment "release" requires a review … a real run waits for an approval before it signs or publishes.* A warning there instead names what is missing; fix it and run the dry run again.
+6. **Rehearse.** Run the workflow for a release tag with **dry-run** on (this also shows that GitHub accepts the new workflow file). Its "Check the tag" job says: *The environment "release" requires a review … and only harden may use it: a real run waits for an approval before it signs or publishes.* A warning there instead names what is missing; fix it and run the dry run again.
 
 7. **Delete the repository-level copies.** **Settings › Secrets and variables › Actions › Repository secrets**: delete the same names there. Only now are the secrets behind the approval. (Don't delete them before step 5: the old workflow would then build an unsigned app in a real run and publish it.)
 
@@ -62,7 +62,7 @@ You do these steps yourself, signed in to GitHub as the repository's owner. **No
 | What is wrong | What a real run does |
 |---|---|
 | The environment `release` doesn't exist | Stops in its first job, before anything is built. (GitHub would otherwise create the environment the moment a job names it, with no reviewers and no secrets, and the run would go through unapproved.) |
-| It has no required reviewers, or every branch may use it | Stops in its first job, naming which. |
+| It has no required reviewers, or anything but the one branch `harden` may use it (no rule, "Protected branches only", a second rule, a pattern, a tag rule) | Stops in its first job, naming which. |
 | The run was started on another branch than `harden` | Stops in its first job. |
 | The environment has no macOS signing secrets | Asks for the approval; then the macOS job stops in its first step, within seconds and before anything is checked out. Nothing is published. |
 | Only some of the five macOS secrets are there | The macOS job stops before packaging and names the missing ones, as before. |
@@ -91,7 +91,7 @@ Before you approve, look at what you are approving: the run's title names the ta
 | Variable | Unset | Other values |
 |---|---|---|
 | `SIGNED_INSTALLERS` | `macos`: a real run must sign the macOS app, and stops when the environment has no macOS signing secrets | `macos windows` once you sign for Windows too; `windows`; `none` for a repository that publishes unsigned installers |
-| `RELEASE_APPROVAL` | `required`: a real run stops unless the environment `release` exists, has required reviewers and restricts its branches | `none`: publish without an approval; the environment's rules are not checked |
+| `RELEASE_APPROVAL` | `required`: a real run stops unless the environment `release` exists, has required reviewers and admits the default branch only | `none`: publish without an approval; the environment's rules are not checked |
 
 `RELEASE_APPROVAL=none` is for a fork that can't have reviewers: GitHub offers required reviewers for public repositories on every plan, and for private ones only on GitHub Enterprise. CodeHarden's own repository leaves both variables unset.
 
