@@ -12,6 +12,7 @@ import type { RunnerPort } from "../runner-port";
 import type { SessionService } from "../sessions/session-service";
 import type { SetupService } from "../setup/setup-service";
 import { SecureFoundationService } from "./secure-foundation-service";
+import { SecureFoundationSetups } from "./setups";
 import type { TemplateSource } from "./template";
 
 export { SecureFoundationService } from "./secure-foundation-service";
@@ -27,6 +28,8 @@ export function buildTemplate(): TemplateSource | null {
 /** The service over the server's own projects, sessions, providers and setup checks. */
 export function createSecureFoundation(deps: {
   exec: Exec;
+  /** The app's home, where the answers a dev preview depends on are kept. */
+  home: string;
   projectsDir: string;
   projects: ProjectService;
   /** Read when used: sessions are built after projects. */
@@ -48,5 +51,6 @@ export function createSecureFoundation(deps: {
     projects: deps.projects,
     setProjectMode: (projectId, mode) => deps.factory().setMode(projectId, { mode }),
     startSession: (req) => deps.sessions().start(StartSessionRequest.parse(req)),
+    setups: new SecureFoundationSetups(deps.home),
   });
 }

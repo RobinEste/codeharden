@@ -2,6 +2,11 @@ import { type DevPreviewSettings, hardenDocsUrl, type Project } from "@codeden/c
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import {
+  DEV_PREVIEW_ANCHOR,
+  SecureFoundationDevPreviewNotes,
+  useSecureFoundationDevPreview,
+} from "@/components/harden/secure-foundation/dev-preview-offer";
 import { Segmented, SettingRow, SettingsSection } from "@/components/settings/settings-ui";
 import {
   AlertDialog,
@@ -17,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useClient } from "@/lib/api";
-import { formChanged, formOf, type PreviewForm, settingsOf } from "./form";
+import { formChanged, formHolds, formOf, type PreviewForm, settingsOf } from "./form";
 import { devPreviewKey } from "./use-dev-preview";
 
 const mono = "h-8 font-mono text-xs";
@@ -26,6 +31,10 @@ const mono = "h-8 font-mono text-xs";
  * Project page > Settings > Dev preview: the commands the app may run for this project.
  * They are typed here and nowhere else, and Save asks before it stores them: nothing is ever
  * taken from the repository. On another device the form is read-only.
+ *
+ * For a project Secure Foundation set up, the empty form starts filled in with the values that
+ * work for such a project (`secureFoundationDevPreview`). That changes the form only: the same
+ * Save and the same confirmation stand between those values and anything being stored or run.
  */
 export function DevPreviewProjectSettings({ project }: { project: Project }) {
   const client = useClient();
@@ -39,6 +48,14 @@ export function DevPreviewProjectSettings({ project }: { project: Project }) {
   const confirmedAt = config?.confirmedAt;
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset only when what is stored changes
   useEffect(() => setForm(formOf(config)), [confirmedAt, config?.pmEnabled]);
+  // Values to start from, for a Secure Foundation project that has no settings yet. After the
+  // reset above on purpose, and only into a form nobody typed in.
+  const offered = useSecureFoundationDevPreview(project.id)?.settings ?? null;
+  const fillable = view.data !== undefined && !view.data.remote;
+  const startFrom = fillable && !config ? offered : null;
+  useEffect(() => {
+    if (startFrom) setForm((current) => (formChanged(current, null) ? current : formOf(startFrom)));
+  }, [startFrom]);
 
   const stored = () => {
     void queryClient.invalidateQueries({ queryKey: devPreviewKey });
@@ -78,11 +95,20 @@ export function DevPreviewProjectSettings({ project }: { project: Project }) {
   };
 
   return (
-    <div data-testid="dev-preview-settings">
+    <div id={DEV_PREVIEW_ANCHOR} className="scroll-mt-6" data-testid="dev-preview-settings">
       <SettingsSection
         title="Dev preview"
         description="Run this project's dev server for a session, in that session's own worktree, so the page reloads as the agent works. The PM thread gets one for the base branch."
       >
+        <SecureFoundationDevPreviewNotes
+          projectId={project.id}
+          filled={offered !== null && formHolds(form, offered)}
+          onFill={
+            remote
+              ? undefined
+              : (settings) => set({ ...formOf(settings), pmEnabled: form.pmEnabled })
+          }
+        />
         <SettingRow
           label="Dev command"
           stacked

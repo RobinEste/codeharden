@@ -4,9 +4,11 @@ import {
   SECURE_FOUNDATION_DEFAULT_DEPLOY,
   SECURE_FOUNDATION_DEFAULT_SECRETS,
   SECURE_FOUNDATION_DEFAULT_SHELL,
+  SECURE_FOUNDATION_NO_DEV_PREVIEW,
   SECURE_FOUNDATION_REPOSITORY_MODE,
   SECURE_FOUNDATION_SETUP_AUTONOMY,
   SecureFoundationConnections,
+  SecureFoundationDevPreview,
   SecureFoundationFinish,
   SecureFoundationLogin,
   SecureFoundationOptions,
@@ -35,6 +37,11 @@ export interface SecureFoundationApi {
   finish(projectId: string): Promise<SecureFoundationFinish>;
   /** Whether the project is a quiet Secure Foundation project, as the server knows it. */
   quiet(projectId: string): Promise<SecureFoundationQuiet>;
+  /**
+   * What the dev preview's settings form is filled with for a project Secure Foundation set up.
+   * A suggestion only: storing it is the form's own Save and confirmation.
+   */
+  devPreview(projectId: string): Promise<SecureFoundationDevPreview>;
   /** Whether this computer is signed in to each service (this computer only). */
   connections(services: SecureFoundationService[]): Promise<SecureFoundationConnections>;
   /** Start a service's own login, or join the one running. */
@@ -62,6 +69,10 @@ export function httpSecureFoundationApi(http: Fetcher): SecureFoundationApi {
     quiet: (projectId) =>
       http.get(`${base}/projects/${encodeURIComponent(projectId)}/quiet`, (v) =>
         SecureFoundationQuiet.parse(v),
+      ),
+    devPreview: (projectId) =>
+      http.get(`${base}/projects/${encodeURIComponent(projectId)}/dev-preview`, (v) =>
+        SecureFoundationDevPreview.parse(v),
       ),
     connections: (services) =>
       http.get(`${base}/connections?services=${services.join(",")}`, (v) =>
@@ -104,6 +115,7 @@ export function mockSecureFoundationApi(): SecureFoundationApi {
     create: off,
     finish: async () => ({ clerkClaimUrl: null, deployedUrl: null }),
     quiet: async () => ({ quiet: false }),
+    devPreview: async () => SECURE_FOUNDATION_NO_DEV_PREVIEW,
     connections: async () => ({ connections: [] }),
     startLogin: off,
     login: off,

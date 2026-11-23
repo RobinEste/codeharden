@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -27,6 +28,7 @@ import {
   type SecureFoundationDeps,
   SecureFoundationService,
 } from "../src/services/secure-foundation/secure-foundation-service";
+import { SecureFoundationSetups } from "../src/services/secure-foundation/setups";
 import { removeTree } from "./support/remove-tree";
 import { makeTemplateFixture, type TemplateFixture } from "./support/secure-foundation-fixture";
 
@@ -609,5 +611,100 @@ describe("the finish state", () => {
     expect(s.finish("p1").deployedUrl).toBe("https://my-site.vercel.app");
     writeFileSync(join(dest, "docs/DEPLOYMENT-DEV.md"), "App: https://vercel.app.evil.test/x\n");
     expect(s.finish("p1").deployedUrl).toBeNull();
+  });
+});
+
+describe("what a dev preview of the new project depends on", () => {
+  const home = () => join(dir, "home");
+  const notAsked = { setUp: () => false, baseCheckout: null };
+
+  it("keeps the secrets mode and the Doppler names of the confirmed form, and nothing else", async () => {
+    const s = service({ setups: new SecureFoundationSetups(home()) });
+    await s.create(request());
+    const file = join(home(), "secure-foundation.json");
+    const kept = JSON.parse(readFileSync(file, "utf8"));
+    expect(kept).toEqual({
+      projects: {
+        p1: {
+          secrets: "doppler",
+          doppler: { project: "my-site", config: "dev" },
+          createdAt: expect.any(String),
+        },
+      },
+    });
+    expect(readFileSync(file, "utf8")).not.toContain(EMAIL);
+    // The form values come from what was kept, without asking for the setup session.
+    const offer = s.devPreview("p1", {
+      setUp: () => {
+        throw new Error("not needed");
+      },
+      baseCheckout: null,
+    });
+    expect(offer.settings?.command).toBe(
+      "doppler run --project my-site --config dev -- npm run dev",
+    );
+    expect(offer.settings?.prepareCommand).toBe("npm ci");
+    // Creating a project and offering values sets no dev preview up: only the dev preview's
+    // own settings do, and nothing was written to them.
+    expect(readdirSync(home())).toEqual(["secure-foundation.json"]);
+  });
+
+  it("offers the plain dev command for a project without Doppler", async () => {
+    const s = service({ setups: new SecureFoundationSetups(home()) });
+    await s.create(request({ secrets: "env_local" }));
+    const offer = s.devPreview("p1", { setUp: () => false, baseCheckout: "/base/my-site" });
+    expect(offer.secrets).toBe("env_local");
+    expect(offer.settings?.command).toBe("npm run dev");
+    expect(offer.notes.join(" ")).toContain("`/base/my-site`");
+  });
+
+  it("reads what was kept again after a restart, and skips an entry it can't read", async () => {
+    await service({ setups: new SecureFoundationSetups(home()) }).create(request());
+    const file = join(home(), "secure-foundation.json");
+    const kept = JSON.parse(readFileSync(file, "utf8"));
+    kept.projects.p2 = { secrets: "vault" };
+    writeFileSync(file, JSON.stringify(kept));
+    const again = new SecureFoundationSetups(home());
+    expect(again.get("p1")?.doppler).toEqual({ project: "my-site", config: "dev" });
+    expect(again.get("p2")).toBeNull();
+    expect(service({ setups: again }).devPreview("p2", notAsked).applies).toBe(false);
+  });
+
+  it("keeps nothing for a create that failed", async () => {
+    failAt = "session";
+    const setups = new SecureFoundationSetups(home());
+    await expect(service({ setups }).create(request())).rejects.toThrow();
+    expect(setups.get("p1")).toBeNull();
+    expect(existsSync(join(home(), "secure-foundation.json"))).toBe(false);
+  });
+
+  it("doesn't fail the setup when it can't be kept", async () => {
+    // The home is a file: nothing can be written inside it.
+    writeFileSync(home(), "not a folder");
+    const s = service({ setups: new SecureFoundationSetups(home()) });
+    const made = await s.create(request());
+    expect(made.sessionId).toBe("s1");
+    expect(archived).toEqual([]);
+    // Until the app restarts it still knows; after that the project counts as made earlier.
+    expect(s.devPreview("p1", notAsked).secrets).toBe("doppler");
+    expect(new SecureFoundationSetups(home()).get("p1")).toBeNull();
+  });
+
+  it("is nothing for a project Secure Foundation didn't set up", () => {
+    const s = service({ setups: new SecureFoundationSetups(home()) });
+    expect(s.devPreview("p-other", notAsked)).toEqual({
+      applies: false,
+      secrets: null,
+      settings: null,
+      notes: [],
+      convex: null,
+    });
+  });
+
+  it("offers the plain command to a project set up before anything was kept", () => {
+    const offer = service().devPreview("p1", { setUp: () => true, baseCheckout: null });
+    expect(offer.applies).toBe(true);
+    expect(offer.secrets).toBeNull();
+    expect(offer.settings?.command).toBe("npm run dev");
   });
 });

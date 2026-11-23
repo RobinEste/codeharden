@@ -520,6 +520,7 @@ export function createServices(opts: ServicesOptions): AppServices {
     }),
     secureFoundation: createSecureFoundation({
       exec,
+      home: opts.paths.home,
       projectsDir,
       projects,
       sessions: () => sessions as SessionService,

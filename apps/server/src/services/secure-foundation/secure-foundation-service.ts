@@ -16,6 +16,7 @@ import {
   SECURE_FOUNDATION_SETUP_AUTONOMY,
   SECURE_FOUNDATION_TEMPLATE_MOVED,
   SECURE_FOUNDATION_WORK_KEY,
+  type SecureFoundationDevPreview,
   SecureFoundationEmail,
   type SecureFoundationFinish,
   type SecureFoundationModule,
@@ -37,6 +38,7 @@ import type { Exec } from "../exec";
 import { setupBrief } from "./brief";
 import { ConnectionsService } from "./connections/connections-service";
 import { claimLink, deployedLink, isOwnFolder, removeCreated } from "./folders";
+import { devPreviewOffer, type SecureFoundationSetups } from "./setups";
 import {
   fetchTemplate,
   readModules,
@@ -73,6 +75,8 @@ export interface SecureFoundationDeps {
   repositoryMode?: SecureFoundationRepositoryMode;
   /** Sign-in state and logins of the services' CLIs (the verification view's sign-in rows). */
   connections?: ConnectionsService;
+  /** Where the answers a dev preview depends on are kept; without it nothing is kept. */
+  setups?: SecureFoundationSetups;
 }
 
 type Step = "fetch" | "files" | "project" | "session";
@@ -300,6 +304,8 @@ export class SecureFoundationService {
         if (started.status !== "started") throw new Error(`the session was ${started.status}`);
         return started.sessionId;
       });
+      // What a dev preview of the project depends on; the setup never fails over keeping it.
+      this.deps.setups?.record(project.id, req, new Date());
       return { project, sessionId, commit: fetched.commit };
     } catch (error) {
       if (projectId) {
@@ -314,6 +320,14 @@ export class SecureFoundationService {
     } finally {
       rmSync(work, { recursive: true, force: true });
     }
+  }
+
+  /** The values the dev preview's settings form is offered for this project (`devPreviewOffer`). */
+  devPreview(
+    projectId: string,
+    known: Parameters<typeof devPreviewOffer>[2],
+  ): SecureFoundationDevPreview {
+    return devPreviewOffer(this.deps.setups, projectId, known);
   }
 
   /** The Clerk claim link of a finished install, from the project's `docs/INSTALL.md`. */

@@ -1,8 +1,4 @@
-import {
-  DEV_PREVIEW_DEFAULT_PORT_VAR,
-  type DevPreviewConfig,
-  DevPreviewSettings,
-} from "@codeden/contracts";
+import { DEV_PREVIEW_DEFAULT_PORT_VAR, DevPreviewSettings } from "@codeden/contracts";
 
 /** The settings form as the person types it. */
 export interface PreviewForm {
@@ -15,7 +11,8 @@ export interface PreviewForm {
   pmEnabled: boolean;
 }
 
-export function formOf(config: DevPreviewConfig | null): PreviewForm {
+/** The form for stored settings, for values offered to fill it with, or empty. */
+export function formOf(config: DevPreviewSettings | null): PreviewForm {
   return {
     command: config?.command ?? "",
     prepareCommand: config?.prepareCommand ?? "",
@@ -55,7 +52,12 @@ export function settingsOf(
   return { ok: false, problem: `${field}: ${issue?.message ?? "not valid"}` };
 }
 
+/** Does the form hold these values already? The PM thread's switch is the person's own. */
+export function formHolds(form: PreviewForm, settings: DevPreviewSettings): boolean {
+  return !formChanged({ ...form, pmEnabled: settings.pmEnabled }, settings);
+}
+
 /** Does the form differ from what is stored? */
-export function formChanged(form: PreviewForm, config: DevPreviewConfig | null): boolean {
+export function formChanged(form: PreviewForm, config: DevPreviewSettings | null): boolean {
   return JSON.stringify(form) !== JSON.stringify(formOf(config));
 }

@@ -20,6 +20,7 @@ import {
   secureFoundationQuietUrl,
   secureFoundationRemovalUrl,
 } from "./copy";
+import { SecureFoundationDevPreviewLink } from "./dev-preview-offer";
 import { secureFoundationKey } from "./use-secure-foundation";
 
 const LABEL: Record<SecureFoundationPhase, string> = {
@@ -153,6 +154,7 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
           </span>
         </p>
       )}
+      {finished && <SecureFoundationDevPreviewLink projectId={projectId} />}
       {(finished || status.phase === "failed") && (
         <p className="mt-2 text-2xs text-muted-foreground" data-testid="secure-foundation-created">
           The setup session's first message lists everything it was allowed to create in your

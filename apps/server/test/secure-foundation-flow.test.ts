@@ -2,9 +2,11 @@ import { execFileSync } from "node:child_process";
 import {
   CreateSecureFoundationRequest,
   type CreateSecureFoundationResponse,
+  DevPreviewProject,
   isSecureFoundationSetup,
   RoleMessageResponse,
   SECURE_FOUNDATION_SETUP_AUTONOMY,
+  SecureFoundationDevPreview,
   SecureFoundationOptions,
   SecureFoundationQuiet,
   type Session,
@@ -60,6 +62,7 @@ describe("Secure Foundation with the Fake provider", () => {
     const s = h.server.services;
     const service = createSecureFoundation({
       exec: (await import("../src/services/exec")).runTool,
+      home: `${h.home}/made-home`,
       projectsDir: `${h.home}/made`,
       projects: s.projects,
       sessions: () => s.sessions,
@@ -84,6 +87,10 @@ describe("Secure Foundation with the Fake provider", () => {
       }),
     );
     made = result;
+    // The service that made it kept the answers a dev preview depends on.
+    const offer = service.devPreview(result.project.id, { setUp: () => false, baseCheckout: null });
+    expect(offer.secrets).toBe("env_local");
+    expect(offer.settings?.command).toBe("npm run dev");
     expect(result.project.name).toBe("Flow Site");
     expect(result.project.kind).toBe("local");
     // Quiet from the start: Manual mode, set before the setup session exists.
@@ -132,6 +139,23 @@ describe("Secure Foundation with the Fake provider", () => {
     expect(await quiet(projectId)).toEqual({ quiet: true });
     expect(await quiet(h.projectId)).toEqual({ quiet: false });
     expect(await quiet("no-such-project")).toEqual({ quiet: false });
+
+    // The dev preview's form is offered values for this project and for no other, and
+    // offering them sets nothing up: the project still has no dev preview.
+    const offer = async (id: string) =>
+      SecureFoundationDevPreview.parse(
+        (await h.api("GET", `/secure-foundation/projects/${id}/dev-preview`)).body,
+      );
+    // This server kept nothing for it (another service made it): its setup session tells.
+    const offered = await offer(projectId);
+    expect(offered.applies).toBe(true);
+    expect(offered.settings?.prepareCommand).toBe("npm ci");
+    expect((await offer(h.projectId)).applies).toBe(false);
+    expect((await offer("no-such-project")).applies).toBe(false);
+    const preview = DevPreviewProject.parse(
+      (await h.api("GET", `/dev-preview/projects/${projectId}`)).body,
+    );
+    expect(preview.config).toBeNull();
 
     // A session the person starts by hand runs its turn.
     const started = StartSessionResponse.parse(
