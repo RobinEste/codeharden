@@ -1,0 +1,30 @@
+# The new and changed test files on the new head (5bac05b7)
+$ pnpm exec vitest run apps/server/test/role-sessions-provider.test.ts apps/server/test/role-sessions-move.test.ts apps/server/test/api-routes.test.ts --reporter=verbose
+ ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > retires the PM when its role's provider changes, and starts a fresh one on next use 50ms
+ ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > leaves a session with a turn under way, and moves it when it is next used 32ms
+ ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > leaves a session whose turn is on its way to the runner 24ms
+ ✓ |@codeden/server| test/role-sessions-move.test.ts > role sessions: concurrent use just after the provider setting changed (§8.1) > gives two concurrent callers the same new session (the first one settled) 51ms
+ ✓ |@codeden/server| test/role-sessions-move.test.ts > role sessions: concurrent use just after the provider setting changed (§8.1) > gives two concurrent callers the same new session (the first one still starting) 33ms
+ ✓ |@codeden/server| test/role-sessions-move.test.ts > role sessions: concurrent use just after the provider setting changed (§8.1) > gives a caller that arrives while the settings change retires the session a new one 24ms
+ ✓ |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > moves the user's message, a message_pm task and an ask_pm question to the new session, each with its sender, and the ask is answered from there 38ms
+ ✓ |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > hands the queue over when the role is next used, ahead of the message that uses it 30ms
+ ✓ |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > keeps the messages in the old session when it can't be stopped or the new one can't start 26ms
+ ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > dismisses the retired session's failed runs, whose Retry would bring it back 29ms
+ ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > keeps the session for Auto, for the other role's setting and for a provider the runner lacks 29ms
+ ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > leaves the session while the runner is away, and moves it once the runner is back 27ms
+ ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > keeps the PM when the project's own default provider changes 25ms
+ ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > starts the PM's new session on the project's default when the role setting changes 20ms
+ ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > keeps a session from before the setting was recorded, until the setting next changes 24ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > validates bodies and maps service errors 81ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > fails a start cleanly when no runner is available and raises an inbox item 71ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > pins and reorders projects, and rejects an incomplete order 66ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > reports Claude Code support as ready from the workspace SDK 32ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > serves first-run setup status, login commands and completion 32ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > saves provider settings without waiting for role sessions to be retired 26ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > lists folders for the picker starting at home 30ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > reads and writes provider config files through the guard 29ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > serves artifacts with safe headers 30ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > stores secrets without ever returning them 33ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > searches transcripts behind the install token and validates the query 28ms
+ Test Files  3 passed (3)
+      Tests  26 passed (26)

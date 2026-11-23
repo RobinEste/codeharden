@@ -1,0 +1,99 @@
+# Role sessions moving provider, end to end (checkout 5bac05b7)
+A real server and runner process (the repository's startServer, as `pnpm dev` runs it), a fresh empty home, one local git project (demo).
+setup checks: claude=missing codex=missing opencode=missing cursor=missing gemini=missing gh=missing git=warning browser=ok node=ok
+No provider CLI is installed or signed in for this server, so the Fake provider (scripted) is the only one that can run a turn.
+The user's messages and the settings changes go through the HTTP API. The orchestrator's message_pm and ask_pm calls are made through the server's tool registry, where its MCP endpoint hands them: the Fake provider can't call MCP tools itself.
+
+# A. Queued messages move to the new session, and the settings save returns at once
+
+message_pm returned: Message queued to the PM of demo (session 6282f694). Its reply arrives as a later message.
+## A1. The PM started on Claude Code (Auto), which can't run here: its start failed, and three messages wait in its queue; the ask_pm call is waiting for its answer
+settings.providers: {"orchestrator":"fake","pm":"auto","agent":"auto"}
+roleSessions: orchestrator=8aef28e7 pms=["6282f694"]
+  session 8aef28e7 role=orchestrator provider=fake status=idle live queued=0
+  session 6282f694 role=pm provider=claude status=failed live queued=3
+      queued from=user: User: please check the README of demo
+      queued from=orchestrator: Message from the orchestrator: Task from the orchestrator: list the open work in demo
+      queued from=orchestrator: Question from the orchestrator (ask 51601375): Is anything running in demo right now? Answ…
+
+PATCH /api/settings {"providers":{"pm":{"provider":"fake"}}} -> 200 in 4 ms
+the PM sessions at the moment the response arrived: 6282f694 claude failed live
+
+## A2. Project managers set to Fake: the Claude Code session is retired, and a new PM session on Fake was started at once with the three messages (no new message was sent)
+settings.providers: {"orchestrator":"fake","pm":"fake","agent":"auto"}
+roleSessions: orchestrator=8aef28e7 pms=["1aacc9db"]
+  session 8aef28e7 role=orchestrator provider=fake status=idle live queued=0
+  session 6282f694 role=pm provider=claude status=failed archived queued=0
+  session 1aacc9db role=pm provider=fake status=starting live queued=3
+      queued from=user: User: please check the README of demo
+      queued from=orchestrator: Message from the orchestrator: Task from the orchestrator: list the open work in demo
+      queued from=orchestrator: Question from the orchestrator (ask 51601375): Is anything running in demo right now? Answ…
+
+## A3. The new PM ran the three messages, one turn each, in the order they were sent
+settings.providers: {"orchestrator":"fake","pm":"fake","agent":"auto"}
+roleSessions: orchestrator=8aef28e7 pms=["1aacc9db"]
+  session 8aef28e7 role=orchestrator provider=fake status=idle live queued=0
+  session 6282f694 role=pm provider=claude status=failed archived queued=0
+  session 1aacc9db role=pm provider=fake status=idle live queued=0
+
+turns of the new PM session 1aacc9db:
+  turn turn-1 from=user: User: please check the README of demo
+  turn turn-7 from=orchestrator: Message from the orchestrator: Task from the orchestrator: list the open work in demo
+  turn turn-13 from=orchestrator: Question from the orchestrator (ask 51601375): Is anything running in demo right now? Answer in your final message of th…
+
+ask_pm returned after 2084 ms (its limit was 300 s): isError=false
+  The PM of demo answered: Echo: Question from the orchestrator (ask 51601375): Is anything running in demo right now? Answer in your final message of this turn: it is returned to the orchestrator directly.
+
+PASS: three messages were waiting in the old PM session
+PASS: the queue held the user's message, the message_pm task and the ask_pm question, in that order
+PASS: the new PM session ran them in the same order, each with its sender
+PASS: the ask_pm call got its answer from the new session instead of timing out
+PASS: the settings save answered in under a second
+
+
+# B. Two uses of the PM at the same moment, just after its setting changed
+
+PATCH /api/settings {"providers":{"pm":{"provider":"gemini"}}} -> 200 in 5 ms (the PM is waiting on an approval)
+## B1. Project managers set to Gemini CLI while the PM (Fake) waits on an approval: the session is left as it is
+settings.providers: {"orchestrator":"fake","pm":"gemini","agent":"auto"}
+roleSessions: orchestrator=8aef28e7 pms=["1aacc9db"]
+  session 8aef28e7 role=orchestrator provider=fake status=idle live queued=0
+  session 6282f694 role=pm provider=claude status=failed archived queued=0
+  session 1aacc9db role=pm provider=fake status=waiting live queued=0
+
+message one -> 200 {"sessionId":"3412c768","status":"queued"}
+message two -> 200 {"sessionId":"3412c768","status":"queued"}
+
+## B2. Two PM messages sent at the same moment after that turn ended (Gemini CLI is not installed here, so a session on it fails to start and its messages wait)
+settings.providers: {"orchestrator":"fake","pm":"gemini","agent":"auto"}
+roleSessions: orchestrator=8aef28e7 pms=["3412c768"]
+  session 8aef28e7 role=orchestrator provider=fake status=idle live queued=0
+  session 6282f694 role=pm provider=claude status=failed archived queued=0
+  session 1aacc9db role=pm provider=fake status=stopped archived queued=0
+  session 3412c768 role=pm provider=gemini status=failed live queued=2
+      queued from=user: Concurrent message one
+      queued from=user: Concurrent message two
+
+PASS: both messages were accepted (no 409)
+PASS: both went to the same session
+PASS: exactly one live PM session, on the chosen provider
+PASS: both messages wait in that session's queue
+
+PATCH /api/settings {"providers":{"pm":{"provider":"fake"}}} -> 200 in 4 ms
+## B3. Project managers set back to Fake: the Gemini CLI session is retired, and its two waiting messages ran in a new PM session on Fake
+settings.providers: {"orchestrator":"fake","pm":"fake","agent":"auto"}
+roleSessions: orchestrator=8aef28e7 pms=["823714ca"]
+  session 8aef28e7 role=orchestrator provider=fake status=idle live queued=0
+  session 6282f694 role=pm provider=claude status=failed archived queued=0
+  session 1aacc9db role=pm provider=fake status=stopped archived queued=0
+  session 3412c768 role=pm provider=gemini status=failed archived queued=0
+  session 823714ca role=pm provider=fake status=idle live queued=0
+
+turns of the PM session 823714ca:
+  turn turn-1 from=user: Concurrent message one
+  turn turn-7 from=user: Concurrent message two
+
+PASS: the two messages ran in the new Fake session, and one PM session is live
+PASS: every settings save answered in under a second
+
+# Result: 11 of 11 checks passed
