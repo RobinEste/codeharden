@@ -25,7 +25,7 @@ const options: SecureFoundationOptions = {
     { id: "alpha", displayName: "Alpha", runsCommandFiles: true },
     { id: "beta", displayName: "Beta", runsCommandFiles: false },
   ],
-  defaults: { secrets: "doppler", shell: "minimal" },
+  defaults: { secrets: "doppler", shell: "minimal", deploy: false },
   repositoryMode: "fresh",
   autonomy: "full",
 };
@@ -47,6 +47,7 @@ const blank: FormAnswers = {
   shell: "minimal",
   modules: [],
   provider: "alpha",
+  deploy: false,
 };
 
 const clientWith = (sf: Partial<CodeDenClient["secureFoundation"]>): CodeDenClient => {
@@ -177,6 +178,19 @@ describe("the confirm step", () => {
     expect(local.join("\n")).toContain("Content modules installed: blog.");
     const reads = consentStatements({ ...input, provider: options.providers[1] as never });
     expect(reads.join("\n")).toContain("reads the template's install instructions");
+  });
+
+  it("with the deploy on, names the repository, the scope and what the session may do", () => {
+    const deploy = { owner: "acme-org", repository: "my-site", vercelScope: "acme-team" };
+    const text = consentStatements({ ...input, deploy }).join("\n");
+    expect(text).toContain("pushed to a new private GitHub repository, acme-org/my-site");
+    expect(text).toContain('a Vercel project named "my-site" in the scope "acme-team"');
+    expect(text).toContain("public on a vercel.app address");
+    expect(text).toContain("nothing is deployed with production keys");
+    expect(text).toContain("told to stop and ask if anything differs");
+    expect(text).toContain("A Doppler token is stored in the new repository");
+    expect(text).toContain("The deployed one stays up; the local one only works while");
+    expect(text).not.toContain("no GitHub repository");
   });
 
   it("lists what is created in the person's accounts and starts nothing until confirmed", () => {

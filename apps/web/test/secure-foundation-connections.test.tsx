@@ -18,9 +18,10 @@ const answers: FormAnswers = {
   shell: "minimal",
   modules: [],
   provider: "alpha",
+  deploy: false,
 };
 const connection = (
-  service: "convex" | "doppler",
+  service: SecureFoundationConnection["service"],
   patch: Partial<SecureFoundationConnection> = {},
 ): SecureFoundationConnection => ({
   service,
@@ -29,6 +30,10 @@ const connection = (
   message: "Signed in.",
   install: null,
   teams: [],
+  account: null,
+  owners: [],
+  missingScopes: [],
+  scopes: [],
   ...patch,
 });
 
@@ -163,5 +168,61 @@ describe("the Connections step", () => {
     );
     expect((await screen.findByRole("alert")).textContent).toContain("You can go on");
     expect(review().disabled).toBe(false);
+  });
+
+  describe("with the deploy option", () => {
+    const github = connection("github", {
+      account: "demo-person",
+      owners: ["demo-person", "acme-org"],
+    });
+    const vercel = connection("vercel", {
+      account: "demo-person",
+      scopes: [
+        { slug: "acme-team", name: "Acme Team" },
+        { slug: "side-team", name: "Side Team" },
+      ],
+    });
+    const on = { ...answers, secrets: "env_local" as const, deploy: true };
+    const all = (patch: SecureFoundationConnection[]) => async () => ({
+      connections: [connection("convex"), ...patch],
+    });
+
+    it("shows GitHub and Vercel only then, and prefills owner, name and scope", async () => {
+      const seen: FormAnswers[] = [];
+      const asked = vi.fn(all([github, vercel]));
+      renderWithClient(
+        <Step start={on} seen={(a) => seen.push(a)} />,
+        clientWith({ connections: asked }),
+      );
+      await screen.findByTestId("deploy-fields");
+      expect(asked).toHaveBeenCalledWith(["convex", "github", "vercel"]);
+      await waitFor(() =>
+        expect(seen.at(-1)).toMatchObject({ deployOwner: "demo-person", deployScope: "acme-team" }),
+      );
+      expect((screen.getByLabelText("Repository name") as HTMLInputElement).value).toBe("my-site");
+      expect(screen.getByTestId("deploy-fields").textContent).toContain("private");
+      await waitFor(() => expect(review().disabled).toBe(false));
+      // A name that can't be a repository holds Review.
+      fireEvent.change(screen.getByLabelText("Repository name"), { target: { value: "my site" } });
+      await waitFor(() => expect(review().disabled).toBe(true));
+    });
+
+    it("offers to add a missing GitHub permission and holds Review until it is there", async () => {
+      renderWithClient(
+        <Step start={on} />,
+        clientWith({ connections: all([{ ...github, missingScopes: ["workflow"] }, vercel]) }),
+      );
+      await screen.findByRole("button", { name: "Add the workflow permission" });
+      expect(review().disabled).toBe(true);
+    });
+
+    it("says so when Vercel lists no team, and holds Review", async () => {
+      renderWithClient(
+        <Step start={on} />,
+        clientWith({ connections: all([github, { ...vercel, scopes: [] }]) }),
+      );
+      await screen.findByText(/Vercel listed no team/);
+      expect(review().disabled).toBe(true);
+    });
   });
 });

@@ -27,6 +27,7 @@ import {
   SECURE_FOUNDATION_TITLE,
   secureFoundationDocsUrl,
 } from "./copy";
+import { deployOf } from "./deploy";
 import { type FormAnswers, FormStep } from "./form-step";
 import { useSecureFoundationPrefill, useSecureFoundationTemplate } from "./use-secure-foundation";
 
@@ -57,6 +58,7 @@ export function SecureFoundationDialog({
     shell: options.defaults.shell,
     modules: [],
     provider: options.providers[0]?.id ?? "",
+    deploy: options.defaults.deploy,
   });
   // The suggestion fills the field once, and only while the person hasn't typed in it.
   const suggested = prefill.data?.adminEmail;
@@ -77,6 +79,7 @@ export function SecureFoundationDialog({
           provider: answers.provider,
           commit: template.data?.commit,
           convexTeam: answers.convexTeam,
+          deploy: deployOf(answers) ?? undefined,
         }),
       ),
     onSuccess: ({ project, sessionId }) => {

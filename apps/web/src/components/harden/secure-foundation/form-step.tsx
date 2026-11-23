@@ -24,6 +24,12 @@ export interface FormAnswers {
   provider: string;
   /** The Convex team chosen in the Connections step; absent: the only one, or asked later. */
   convexTeam?: string;
+  /** Also create a GitHub repository and deploy to Vercel (the template's dev route). */
+  deploy: boolean;
+  /** Chosen in the Connections step, once signed in. */
+  deployOwner?: string;
+  deployRepository?: string;
+  deployScope?: string;
 }
 
 const SECRETS: Array<[SecureFoundationSecrets, string, string]> = [
@@ -218,6 +224,26 @@ export function FormStep({
             )}
           </div>
         )}
+      </Field>
+      <Field label="Deploy">
+        <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2.5">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={answers.deploy}
+            onChange={(e) => set({ deploy: e.target.checked })}
+          />
+          <span>
+            <span className="block text-[13px] font-medium">
+              Create a GitHub repository and deploy to Vercel
+            </span>
+            <span className="block text-2xs leading-snug text-muted-foreground">
+              A private repository and a Vercel project, with the site published on a public
+              vercel.app address running on the development Clerk and Convex. Needs the GitHub
+              command-line tool and a Vercel account. Off: the project stays on this computer.
+            </span>
+          </span>
+        </label>
       </Field>
       <Field label="Runs on" htmlFor="sf-provider">
         {options.providers.length > 1 ? (

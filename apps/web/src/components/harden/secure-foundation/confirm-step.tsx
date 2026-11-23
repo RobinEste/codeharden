@@ -1,6 +1,7 @@
 import type { SecureFoundationOptions, SecureFoundationTemplate } from "@codeden/contracts";
 import { Button } from "@/components/ui/button";
 import { CREATED_STAYS, consentCreates, consentStatements } from "./consent";
+import { deployOf } from "./deploy";
 import type { FormAnswers } from "./form-step";
 
 /** The modules a form's answers install, as the server will work them out. */
@@ -40,6 +41,7 @@ export function ConfirmStep({
     name: answers.name.trim(),
     secrets: answers.secrets,
     convexTeam: answers.convexTeam,
+    deploy: deployOf(answers) ?? undefined,
     modules: modulesOf(answers, template),
     provider,
     template,

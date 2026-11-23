@@ -10,10 +10,17 @@ import { Check, CircleAlert, ExternalLink, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useClient } from "@/lib/api";
+import { deployOf } from "./deploy";
+import { DeployFields } from "./deploy-fields";
 import type { FormAnswers } from "./form-step";
 import { secureFoundationKey } from "./use-secure-foundation";
 
-const LABEL: Record<SecureFoundationService, string> = { convex: "Convex", doppler: "Doppler" };
+const LABEL: Record<SecureFoundationService, string> = {
+  convex: "Convex",
+  doppler: "Doppler",
+  github: "GitHub",
+  vercel: "Vercel",
+};
 
 /** One service: its state, and its login while one runs. */
 function Row({
@@ -63,7 +70,7 @@ function Row({
     if (login)
       void client.secureFoundation.cancelLogin(login.id).then(setLogin, () => setLogin(null));
   };
-  const ok = connection.signedIn === true;
+  const ok = connection.signedIn === true && connection.missingScopes.length === 0;
   return (
     <li className="rounded-lg border border-border p-2.5" data-testid={`connection-${service}`}>
       <div className="flex items-center gap-2">
@@ -74,6 +81,11 @@ function Row({
         )}
         <span className="text-[13px] font-medium">{LABEL[service]}</span>
         <span className="text-2xs text-muted-foreground">{connection.message}</span>
+        {connection.signedIn === true && connection.missingScopes.length > 0 && !running && (
+          <Button size="sm" className="ml-auto" onClick={start}>
+            Add the {connection.missingScopes.join(", ")} permission
+          </Button>
+        )}
         {connection.cli === "ready" && connection.signedIn === false && !running && (
           <Button size="sm" className="ml-auto" onClick={start}>
             Sign in to {LABEL[service]}
@@ -166,7 +178,13 @@ export function ConnectionsStep({
   useEffect(() => {
     if (chosen !== answers.convexTeam) onChange({ ...answers, convexTeam: chosen });
   }, [chosen, answers, onChange]);
-  const blocked = connections.some((c) => c.cli === "missing" || c.signedIn === false);
+  const blocked =
+    connections.some(
+      (c) => c.cli === "missing" || c.signedIn === false || c.missingScopes.length > 0,
+    ) ||
+    // With the deploy on, its owner, name and scope have to be settled here.
+    (connections.length > 0 && deployOf(answers) === null);
+  const of = (service: SecureFoundationService) => connections.find((c) => c.service === service);
 
   return (
     <div className="space-y-4" data-testid="secure-foundation-connections">
@@ -213,6 +231,14 @@ export function ConnectionsStep({
             The Convex project is created in this team.
           </span>
         </label>
+      )}
+      {answers.deploy && (
+        <DeployFields
+          github={of("github")}
+          vercel={of("vercel")}
+          answers={answers}
+          onChange={onChange}
+        />
       )}
       <div className="flex items-center justify-end gap-2">
         {blocked && (

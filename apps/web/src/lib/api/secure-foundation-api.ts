@@ -1,6 +1,7 @@
 import {
   type CreateSecureFoundationRequestInit,
   CreateSecureFoundationResponse,
+  SECURE_FOUNDATION_DEFAULT_DEPLOY,
   SECURE_FOUNDATION_DEFAULT_SECRETS,
   SECURE_FOUNDATION_DEFAULT_SHELL,
   SECURE_FOUNDATION_REPOSITORY_MODE,
@@ -79,6 +80,7 @@ export function mockSecureFoundationApi(): SecureFoundationApi {
       defaults: {
         secrets: SECURE_FOUNDATION_DEFAULT_SECRETS,
         shell: SECURE_FOUNDATION_DEFAULT_SHELL,
+        deploy: SECURE_FOUNDATION_DEFAULT_DEPLOY,
       },
       repositoryMode: SECURE_FOUNDATION_REPOSITORY_MODE,
       autonomy: SECURE_FOUNDATION_SETUP_AUTONOMY,
@@ -86,7 +88,7 @@ export function mockSecureFoundationApi(): SecureFoundationApi {
     prefill: async () => ({ adminEmail: null }),
     template: off,
     create: off,
-    finish: async () => ({ clerkClaimUrl: null }),
+    finish: async () => ({ clerkClaimUrl: null, deployedUrl: null }),
     connections: async () => ({ connections: [] }),
     startLogin: off,
     login: off,

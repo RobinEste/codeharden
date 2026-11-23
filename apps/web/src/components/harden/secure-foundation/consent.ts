@@ -2,6 +2,7 @@ import {
   type AutonomyLevel,
   HARDEN_PRODUCT_NAME,
   type SecureFoundationCreated,
+  type SecureFoundationDeploy,
   type SecureFoundationRepositoryMode,
   type SecureFoundationSecrets,
   secureFoundationCreates,
@@ -15,6 +16,7 @@ export interface ConsentInput {
   pathSeparator: string;
   secrets: SecureFoundationSecrets;
   convexTeam?: string;
+  deploy?: Pick<SecureFoundationDeploy, "owner" | "repository" | "vercelScope">;
   modules: string[];
   provider: { displayName: string; runsCommandFiles: boolean };
   template: { repository: string; branch: string; commit: string; committedAt: string };
@@ -46,28 +48,40 @@ export function consentStatements(input: ConsentInput): string[] {
   const { template, provider } = input;
   const product = HARDEN_PRODUCT_NAME;
   const doppler = input.secrets === "doppler";
+  const { deploy } = input;
+  const repositoryLine = deploy
+    ? `The project is created in ${projectPath(input)} as a new git repository with one first commit and none of the template's history. It is then pushed to a new private GitHub repository, ${deploy.owner}/${deploy.repository}.`
+    : null;
   return [
-    input.repositoryMode === "fresh"
-      ? `The project is created in ${projectPath(input)} as a new local git repository with one first commit: no remote, no link back to the template, and no GitHub repository.`
-      : `The project is created in ${projectPath(input)} as a clone of the template, with its history and its remote.`,
+    repositoryLine
+      ? repositoryLine
+      : input.repositoryMode === "fresh"
+        ? `The project is created in ${projectPath(input)} as a new local git repository with one first commit: no remote, no link back to the template, and no GitHub repository.`
+        : `The project is created in ${projectPath(input)} as a clone of the template, with its history and its remote.`,
     `Its files come from ${template.repository}, branch ${template.branch}, commit ${template.commit.slice(0, 7)} of ${day(template.committedAt)}. Exactly that commit is installed.`,
     "Packages are installed from npm (npm install), which runs those packages' own install scripts.",
     "A Clerk app and a Convex project are created for you (listed below). The sign-ins were checked on the previous step; if one is missing when the setup starts, you are asked to sign in in a browser.",
     doppler
-      ? "Doppler: a Doppler project is created and the app's secrets are kept there instead of in a file. It needs the Doppler CLI, installed and signed in (checked on the previous step). The CI token step of the install is skipped, because this project has no GitHub repository to hold that token."
+      ? `Doppler: a Doppler project is created and the app's secrets are kept there instead of in a file. It needs the Doppler CLI, installed and signed in (checked on the previous step). ${deploy ? "A Doppler token is stored in the new repository as an Actions secret." : "The CI token step of the install is skipped, because this project has no GitHub repository to hold that token."}`
       : "The app's secrets are written to .env.local in the project folder, a file git ignores. Doppler is not used.",
     input.modules.length > 0
       ? `Content modules installed: ${input.modules.join(", ")}.`
       : "No content modules are installed (minimal shell). You can add them later.",
+    ...(deploy
+      ? [
+          `The site is deployed with the template's dev route to a Vercel project named "${deploy.repository}" in the scope "${deploy.vercelScope}". It is public on a vercel.app address and runs on the development Clerk and Convex. On Vercel this uses the project's production slot, as the template's dev route does; nothing is deployed with production keys.`,
+          "With the deploy on, the setup session pushes code and creates the repository and the Vercel project without asking for each command. It is given exactly the names listed below and told to stop and ask if anything differs: another owner, a public repository, a repository or project that already exists, a production deploy.",
+        ]
+      : []),
     `A setup session runs on ${provider.displayName} at the ${LEVEL[input.autonomy]} permission level: it runs commands inside the new project without asking for each one. ${provider.runsCommandFiles ? "It runs the template's /install command." : "It reads the template's install instructions and follows them."} ${product}'s protected areas and always-ask rules still apply, and it is told to refuse anything outside the project folder.`,
     "The setup first checks this computer again (Node, npm, git, the sign-ins). Only that part can ask you something, and it lands in the inbox. After it the setup runs without you.",
-    `At the end you get the app's local URL. It only works while the setup session's processes are running: stopping or archiving that session, or quitting ${product}, stops the app.`,
+    `At the end you get the app's local URL${deploy ? " and the deployed URL. The deployed one stays up; the local one" : ". It"} only works while the setup session's processes are running: stopping or archiving that session, or quitting ${product}, stops the app.`,
   ];
 }
 
 /** What will exist in the person's accounts afterwards (the same list the session is held to). */
 export function consentCreates(
-  input: Pick<ConsentInput, "name" | "secrets" | "convexTeam">,
+  input: Pick<ConsentInput, "name" | "secrets" | "convexTeam" | "deploy">,
 ): SecureFoundationCreated[] {
   return secureFoundationCreates(input);
 }
