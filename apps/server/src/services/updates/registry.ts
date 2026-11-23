@@ -17,6 +17,16 @@ export function updateRegistry(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 /**
+ * A package name as one path segment of a registry URL: every part percent-encoded, the scope's
+ * leading `@` kept and the slash after it written `%2f` (`@scope%2fname`), as the registry expects.
+ */
+export function registryPackagePath(name: string): string {
+  const scoped = name.startsWith("@");
+  const encoded = (scoped ? name.slice(1) : name).split("/").map(encodeURIComponent).join("%2f");
+  return scoped ? `@${encoded}` : encoded;
+}
+
+/**
  * `dist-tags.latest` of the channel's package (`HARDEN_PACKAGE_NAME`). Only the package name goes out: no ids, no
  * machine details, no usage data.
  */
@@ -24,9 +34,8 @@ export async function fetchLatestVersion(
   registry: string,
   doFetch: typeof fetch = fetch,
 ): Promise<string> {
-  // A scoped name keeps its `@` and escapes the slash, as the registry expects.
   const res = await doFetch(
-    `${registry}/-/package/${PACKAGE_NAME.replaceAll("/", "%2f")}/dist-tags`,
+    `${registry}/-/package/${registryPackagePath(PACKAGE_NAME)}/dist-tags`,
     {
       headers: { accept: "application/json" },
       signal: AbortSignal.timeout(TIMEOUT_MS),

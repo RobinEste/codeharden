@@ -25,6 +25,7 @@ import {
   DEFAULT_REGISTRY,
   fetchLatestVersion,
   fetchReleaseNotes,
+  registryPackagePath,
   updateRegistry,
 } from "../src/services/updates/registry";
 import { UpdateService } from "../src/services/updates/service";
@@ -68,6 +69,15 @@ describe("the self-update channel", () => {
     }) as unknown as typeof globalThis.fetch;
     expect(await fetchLatestVersion(DEFAULT_REGISTRY, fetch)).toBe(NEXT);
     expect(calls).toEqual(["https://registry.npmjs.org/-/package/codeharden/dist-tags"]);
+  });
+
+  it("writes a package name as one path segment of the registry URL", () => {
+    expect(registryPackagePath("codeharden")).toBe("codeharden");
+    expect(registryPackagePath("@acme/harden")).toBe("@acme%2fharden");
+    // Nothing in a name can add a path segment or a query, whatever it contains.
+    expect(registryPackagePath("@a/b/c")).toBe("@a%2fb%2fc");
+    expect(registryPackagePath("a b?c#d")).toBe("a%20b%3Fc%23d");
+    expect(registryPackagePath("../x")).toBe("..%2fx");
   });
 
   it("has no runtime override for the package, only the tests' registry URL", () => {
