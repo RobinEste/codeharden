@@ -27,6 +27,8 @@ import {
   type StartSessionResponse,
   secureFoundationCreates,
   secureFoundationFolder,
+  type VerifySecureFoundationRequest,
+  type VerifySecureFoundationResponse,
 } from "@codeden/contracts";
 import { badRequest, conflict, errorMessage, ServiceError } from "../errors";
 import type { Exec } from "../exec";
@@ -40,6 +42,7 @@ import {
   writeClone,
   writeFreshRepository,
 } from "./template";
+import { verifySetup } from "./verify";
 
 export interface SecureFoundationDeps {
   exec: Exec;
@@ -61,7 +64,7 @@ export interface SecureFoundationDeps {
   startSession: (req: StartSessionRequestInit) => Promise<StartSessionResponse>;
   /** `fresh` unless a fork flips `SECURE_FOUNDATION_REPOSITORY_MODE`. */
   repositoryMode?: SecureFoundationRepositoryMode;
-  /** Sign-in state and logins of the services' CLIs (the Connections step). */
+  /** Sign-in state and logins of the services' CLIs (the verification view's sign-in rows). */
   connections?: ConnectionsService;
 }
 
@@ -78,7 +81,7 @@ const STEP_LABEL: Record<Step, string> = {
  * (`packages/contracts/src/secure-foundation.ts`, `docs/secure-foundation.md`).
  */
 export class SecureFoundationService {
-  /** The Connections step: sign-in state and logins of the services' own CLIs. */
+  /** Sign-in state and logins of the services' own CLIs. */
   readonly connections: ConnectionsService;
 
   constructor(private readonly deps: SecureFoundationDeps) {
@@ -190,6 +193,22 @@ export class SecureFoundationService {
     } finally {
       rmSync(work, { recursive: true, force: true });
     }
+  }
+
+  /**
+   * What "Go" checks before it asks for the project: the fields, the folder, the template's
+   * commit and the provider. Read-only; `create` checks all of it again.
+   */
+  async verify(req: VerifySecureFoundationRequest): Promise<VerifySecureFoundationResponse> {
+    this.requireTemplate();
+    return verifySetup(
+      {
+        projectsDir: this.deps.projectsDir,
+        providers: () => this.providers(),
+        template: () => this.template(),
+      },
+      req,
+    );
   }
 
   /**

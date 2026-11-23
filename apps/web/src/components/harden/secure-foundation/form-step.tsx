@@ -2,102 +2,24 @@ import {
   SecureFoundationEmail,
   SecureFoundationName,
   type SecureFoundationOptions,
-  type SecureFoundationSecrets,
-  type SecureFoundationShell,
   type SecureFoundationTemplate,
 } from "@codeden/contracts";
-import type { ReactNode } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
-import { projectPath } from "./consent";
+import type { FormAnswers } from "./answers";
+import { Choice, Field, SECRETS, SHELLS } from "./choices";
+import { consentSummary, projectPath } from "./consent";
+import { GoButton } from "./go-button";
+import type { Go } from "./use-go";
 
-export interface FormAnswers {
-  name: string;
-  adminEmail: string;
-  /** The person typed in the email field: a late suggestion must not replace it. */
-  emailTouched: boolean;
-  secrets: SecureFoundationSecrets;
-  shell: SecureFoundationShell;
-  modules: string[];
-  provider: string;
-  /** The Convex team chosen in the Connections step; absent: the only one, or asked later. */
-  convexTeam?: string;
-  /** Also create a GitHub repository and deploy to Vercel (the template's dev route). */
-  deploy: boolean;
-  /** Chosen in the Connections step, once signed in. */
-  deployOwner?: string;
-  deployRepository?: string;
-  deployScope?: string;
-}
+export type { FormAnswers } from "./answers";
 
-const SECRETS: Array<[SecureFoundationSecrets, string, string]> = [
-  [
-    "doppler",
-    "Doppler",
-    "Secrets live in a Doppler project. Needs the Doppler CLI installed and signed in on this computer.",
-  ],
-  [
-    "env_local",
-    ".env.local",
-    "Secrets are written to a file in the project folder that git ignores. Nothing else to set up.",
-  ],
-];
-
-const SHELLS: Array<[SecureFoundationShell, string, string]> = [
-  ["minimal", "Minimal", "Login homepage and a blank dashboard. Add modules later."],
-  ["all", "All modules", "Every content module the template has."],
-  ["pick", "Pick", "Choose the content modules to install now."],
-];
-
-function Choice({
-  name,
-  checked,
-  onSelect,
-  title,
-  children,
-}: {
-  name: string;
-  checked: boolean;
-  onSelect: () => void;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <label
-      className={cn(
-        "flex cursor-pointer gap-2 rounded-lg border p-2.5 text-left transition-colors",
-        checked ? "border-primary/50 bg-primary/[0.06]" : "border-border hover:bg-accent/40",
-      )}
-    >
-      <input type="radio" name={name} checked={checked} onChange={onSelect} className="mt-0.5" />
-      <span>
-        <span className="block text-[13px] font-medium">{title}</span>
-        <span className="block text-2xs leading-snug text-muted-foreground">{children}</span>
-      </span>
-    </label>
-  );
-}
-
-const Field = ({
-  label,
-  htmlFor,
-  children,
-}: {
-  label: string;
-  htmlFor?: string;
-  children: ReactNode;
-}) => (
-  <div className="space-y-1.5">
-    <Label htmlFor={htmlFor} className="text-xs">
-      {label}
-    </Label>
-    {children}
-  </div>
-);
-
-/** Step 1: everything the install would otherwise ask, collected up front. */
+/**
+ * The one form: everything the install would otherwise ask, with what pressing Go will do said
+ * right above the buttons. Go is there as soon as the required answers are valid; Verify
+ * Settings shows every check without starting anything.
+ */
 export function FormStep({
   options,
   template,
@@ -105,7 +27,9 @@ export function FormStep({
   onRetryTemplate,
   answers,
   onChange,
-  onNext,
+  busy,
+  onGo,
+  onVerify,
   onCancel,
 }: {
   options: SecureFoundationOptions;
@@ -113,17 +37,19 @@ export function FormStep({
   templateError: string | null;
   onRetryTemplate: () => void;
   answers: FormAnswers;
-  onChange: (next: FormAnswers) => void;
-  onNext: () => void;
+  onChange: Dispatch<SetStateAction<FormAnswers>>;
+  busy: Go["busy"];
+  onGo: () => void;
+  /** Open the verification view (also the consent lines' "Details"). */
+  onVerify: () => void;
   onCancel: () => void;
 }) {
-  const set = (patch: Partial<FormAnswers>) => onChange({ ...answers, ...patch });
+  // On the answers as they are then: a suggestion that arrives while typing isn't lost.
+  const set = (patch: Partial<FormAnswers>) => onChange((a) => ({ ...a, ...patch }));
   const name = SecureFoundationName.safeParse(answers.name);
   const email = SecureFoundationEmail.safeParse(answers.adminEmail);
   const path = name.success ? projectPath({ ...options, name: name.data }) : "";
-  const pickOk = answers.shell !== "pick" || Boolean(template);
-  const ready =
-    name.success && email.success && Boolean(answers.provider) && Boolean(template) && pickOk;
+  const ready = name.success && email.success && Boolean(answers.provider) && Boolean(template);
   const provider = options.providers.find((p) => p.id === answers.provider);
 
   return (
@@ -131,7 +57,7 @@ export function FormStep({
       className="space-y-4"
       onSubmit={(e) => {
         e.preventDefault();
-        if (ready) onNext();
+        if (ready && !busy) onGo();
       }}
     >
       <Field label="Project name" htmlFor="sf-name">
@@ -225,51 +151,64 @@ export function FormStep({
           </div>
         )}
       </Field>
-      <Field label="Deploy">
-        <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2.5">
-          <input
-            type="checkbox"
-            className="mt-0.5"
-            checked={answers.deploy}
-            onChange={(e) => set({ deploy: e.target.checked })}
-          />
-          <span>
-            <span className="block text-[13px] font-medium">
-              Create a GitHub repository and deploy to Vercel
-            </span>
-            <span className="block text-2xs leading-snug text-muted-foreground">
-              A private repository and a Vercel project, with the site published on a public
-              vercel.app address running on the development Clerk and Convex. Needs the GitHub
-              command-line tool and a Vercel account. Off: the project stays on this computer.
-            </span>
+      <details className="rounded-lg border border-border p-2.5" data-testid="sf-advanced">
+        <summary className="cursor-pointer text-xs font-medium">
+          Advanced{" "}
+          <span className="font-normal text-muted-foreground">
+            Deploy {answers.deploy ? "on" : "off"} · runs on{" "}
+            {provider?.displayName ?? "no signed-in provider"}
           </span>
-        </label>
-      </Field>
-      <Field label="Runs on" htmlFor="sf-provider">
-        {options.providers.length > 1 ? (
-          <select
-            id="sf-provider"
-            value={answers.provider}
-            onChange={(e) => set({ provider: e.target.value })}
-            className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-[13px]"
-          >
-            {options.providers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.displayName}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <p className="text-[13px]">{provider?.displayName ?? "No signed-in provider"}</p>
-        )}
-        <p className="text-2xs text-muted-foreground">
-          {!provider
-            ? "Sign an agent provider in under Settings › Providers first."
-            : provider.runsCommandFiles
-              ? "The setup session runs the template's /install command."
-              : "This provider doesn't run command files: the setup session reads the template's install instructions and follows them."}
-        </p>
-      </Field>
+        </summary>
+        <div className="space-y-4 pt-3">
+          <Field label="Deploy">
+            <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2.5">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                checked={answers.deploy}
+                onChange={(e) => set({ deploy: e.target.checked })}
+              />
+              <span>
+                <span className="block text-[13px] font-medium">
+                  Create a GitHub repository and deploy to Vercel
+                </span>
+                <span className="block text-2xs leading-snug text-muted-foreground">
+                  A private repository and a Vercel project, with the site published on a public
+                  vercel.app address running on the development Clerk and Convex. Needs the GitHub
+                  command-line tool and a Vercel account; the repository's owner and name and the
+                  Vercel scope are shown for you to check before anything is created. Off: the
+                  project stays on this computer.
+                </span>
+              </span>
+            </label>
+          </Field>
+          <Field label="Runs on" htmlFor="sf-provider">
+            {options.providers.length > 1 ? (
+              <select
+                id="sf-provider"
+                value={answers.provider}
+                onChange={(e) => set({ provider: e.target.value })}
+                className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-[13px]"
+              >
+                {options.providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.displayName}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-[13px]">{provider?.displayName ?? "No signed-in provider"}</p>
+            )}
+            <p className="text-2xs text-muted-foreground">
+              {!provider
+                ? "Sign an agent provider in under Settings › Providers first."
+                : provider.runsCommandFiles
+                  ? "The setup session runs the template's /install command."
+                  : "This provider doesn't run command files: the setup session reads the template's install instructions and follows them."}
+            </p>
+          </Field>
+        </div>
+      </details>
       {templateError ? (
         <p className="text-xs text-destructive" role="alert">
           The template couldn't be reached: {templateError}{" "}
@@ -278,17 +217,46 @@ export function FormStep({
           </button>
         </p>
       ) : (
-        !template && (
-          <p className="text-2xs text-muted-foreground">Looking up the template's latest commit…</p>
-        )
+        <p className="text-2xs text-muted-foreground" data-testid="secure-foundation-template">
+          {template
+            ? `Installs ${template.repository}, branch ${template.branch}, at commit ${template.commit.slice(0, 7)} of ${template.committedAt.slice(0, 10)}.`
+            : "Looking up the template's latest commit…"}
+        </p>
       )}
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onCancel}>
+      <div
+        className="rounded-lg border border-border bg-muted/40 p-2.5"
+        data-testid="secure-foundation-consent"
+      >
+        <p className="mb-1 text-xs font-medium">Pressing Go</p>
+        <ul className="list-disc space-y-0.5 pl-4 text-2xs leading-snug">
+          {consentSummary(answers, options.autonomy).map((line) => (
+            <li key={line}>{line}</li>
+          ))}
+        </ul>
+        <p className="mt-1 text-2xs text-muted-foreground">
+          Nothing is created before every check has passed.{" "}
+          <button
+            type="button"
+            className="underline underline-offset-2 hover:text-foreground"
+            onClick={onVerify}
+          >
+            Details
+          </button>
+        </p>
+      </div>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {!provider && (
+          <span className="mr-auto text-2xs text-muted-foreground">
+            Sign an agent provider in under Settings › Providers first.
+          </span>
+        )}
+        <Button type="button" variant="ghost" onClick={onCancel} disabled={busy === "creating"}>
           Cancel
         </Button>
-        <Button type="submit" disabled={!ready}>
-          Next
+        <Button type="button" variant="outline" onClick={onVerify} disabled={busy !== null}>
+          Verify Settings
         </Button>
+        <GoButton type="submit" busy={busy} disabled={!ready} />
       </div>
     </form>
   );

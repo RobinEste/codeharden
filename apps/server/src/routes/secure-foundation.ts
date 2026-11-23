@@ -9,6 +9,8 @@ import {
   type SecureFoundationPrefill,
   SecureFoundationService,
   type SecureFoundationTemplate,
+  VerifySecureFoundationRequest,
+  type VerifySecureFoundationResponse,
 } from "@codeden/contracts";
 import { type Context, Hono } from "hono";
 import { isRemoteRequest } from "../security";
@@ -33,42 +35,48 @@ function requireLocal(c: Context): void {
 export function secureFoundationRoutes(s: AppServices) {
   const sf = s.secureFoundation;
   const connections = sf.connections;
-  return new Hono()
-    .get("/connections", queryOf(SecureFoundationConnectionsQuery), async (c) => {
-      requireLocal(c);
-      return c.json<SecureFoundationConnections>({
-        connections: await connections.states(c.req.valid("query").services),
-      });
-    })
-    .post("/connections/:service/login", async (c) => {
-      requireLocal(c);
-      const service = SecureFoundationService.safeParse(c.req.param("service"));
-      if (!service.success) throw forbidden("Unknown service", "unknown_service");
-      return c.json<SecureFoundationLogin>(await connections.startLogin(service.data), 201);
-    })
-    .get("/connections/logins/:id", (c) => {
-      requireLocal(c);
-      return c.json<SecureFoundationLogin>(connections.login(c.req.param("id")));
-    })
-    .delete("/connections/logins/:id", (c) => {
-      requireLocal(c);
-      return c.json<SecureFoundationLogin>(connections.cancel(c.req.param("id")));
-    })
-    .get("/", async (c) => c.json<SecureFoundationOptions>(await sf.options()))
-    .get("/prefill", async (c) =>
-      c.json<SecureFoundationPrefill>(
-        isRemoteRequest(c) ? { adminEmail: null } : await sf.prefill(),
-      ),
-    )
-    .post("/template", async (c) => c.json<SecureFoundationTemplate>(await sf.template()))
-    .post("/projects", jsonBody(CreateSecureFoundationRequest), async (c) =>
-      c.json<CreateSecureFoundationResponse>(await sf.create(c.req.valid("json")), 201),
-    )
-    .get("/projects/:id/finish", (c) =>
-      c.json<SecureFoundationFinish>(
-        isRemoteRequest(c)
-          ? { clerkClaimUrl: null, deployedUrl: null }
-          : sf.finish(c.req.param("id")),
-      ),
-    );
+  return (
+    new Hono()
+      .get("/connections", queryOf(SecureFoundationConnectionsQuery), async (c) => {
+        requireLocal(c);
+        return c.json<SecureFoundationConnections>({
+          connections: await connections.states(c.req.valid("query").services),
+        });
+      })
+      .post("/connections/:service/login", async (c) => {
+        requireLocal(c);
+        const service = SecureFoundationService.safeParse(c.req.param("service"));
+        if (!service.success) throw forbidden("Unknown service", "unknown_service");
+        return c.json<SecureFoundationLogin>(await connections.startLogin(service.data), 201);
+      })
+      .get("/connections/logins/:id", (c) => {
+        requireLocal(c);
+        return c.json<SecureFoundationLogin>(connections.login(c.req.param("id")));
+      })
+      .delete("/connections/logins/:id", (c) => {
+        requireLocal(c);
+        return c.json<SecureFoundationLogin>(connections.cancel(c.req.param("id")));
+      })
+      .get("/", async (c) => c.json<SecureFoundationOptions>(await sf.options()))
+      .get("/prefill", async (c) =>
+        c.json<SecureFoundationPrefill>(
+          isRemoteRequest(c) ? { adminEmail: null } : await sf.prefill(),
+        ),
+      )
+      .post("/template", async (c) => c.json<SecureFoundationTemplate>(await sf.template()))
+      // What "Go" checks first. The sign-in checks are not part of it: they stay the routes above.
+      .post("/verify", jsonBody(VerifySecureFoundationRequest), async (c) =>
+        c.json<VerifySecureFoundationResponse>(await sf.verify(c.req.valid("json"))),
+      )
+      .post("/projects", jsonBody(CreateSecureFoundationRequest), async (c) =>
+        c.json<CreateSecureFoundationResponse>(await sf.create(c.req.valid("json")), 201),
+      )
+      .get("/projects/:id/finish", (c) =>
+        c.json<SecureFoundationFinish>(
+          isRemoteRequest(c)
+            ? { clerkClaimUrl: null, deployedUrl: null }
+            : sf.finish(c.req.param("id")),
+        ),
+      )
+  );
 }

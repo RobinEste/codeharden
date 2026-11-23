@@ -7,6 +7,7 @@ import {
   hardenTemplateUrl,
   isSecureFoundationSetup,
   ProviderCapabilities,
+  SECURE_FOUNDATION_DEFAULT_DEPLOY,
   SECURE_FOUNDATION_DEFAULT_SECRETS,
   SECURE_FOUNDATION_DEFAULT_SHELL,
   SECURE_FOUNDATION_REPOSITORY_MODE,
@@ -20,8 +21,11 @@ import {
   SecureFoundationTemplate,
   type Session,
   secureFoundationCreates,
+  secureFoundationCreatesLine,
   secureFoundationFolder,
   secureFoundationStatus,
+  VerifySecureFoundationRequest,
+  VerifySecureFoundationResponse,
   WorkKey,
 } from "../src/index";
 import { sampleProject } from "./fixtures";
@@ -73,11 +77,13 @@ describe("the template in the fork's configuration", () => {
 });
 
 describe("the defaults a fork owner can flip", () => {
-  it("are Doppler, an unattended session, a fresh repository and the minimal shell", () => {
+  it("are Doppler, an unattended session, a fresh repository and every module", () => {
     expect(SECURE_FOUNDATION_DEFAULT_SECRETS).toBe("doppler");
     expect(SECURE_FOUNDATION_SETUP_AUTONOMY).toBe("full");
     expect(SECURE_FOUNDATION_REPOSITORY_MODE).toBe("fresh");
-    expect(SECURE_FOUNDATION_DEFAULT_SHELL).toBe("minimal");
+    expect(SECURE_FOUNDATION_DEFAULT_SHELL).toBe("all");
+    // Nothing that creates more than before starts ticked.
+    expect(SECURE_FOUNDATION_DEFAULT_DEPLOY).toBe(false);
     expect(WorkKey.safeParse(SECURE_FOUNDATION_WORK_KEY).success).toBe(true);
   });
 
@@ -94,7 +100,7 @@ describe("the route shapes round-trip", () => {
       projectsDir: "/projects",
       pathSeparator: "/",
       providers: [{ id: "fake", displayName: "Fake", runsCommandFiles: false }],
-      defaults: { secrets: "doppler", shell: "minimal", deploy: false },
+      defaults: { secrets: "doppler", shell: "all", deploy: false },
       repositoryMode: "fresh",
       autonomy: "full",
     };
@@ -125,7 +131,7 @@ describe("the route shapes round-trip", () => {
       name: "My Site",
       adminEmail: "person@site.test",
       secrets: "doppler",
-      shell: "minimal",
+      shell: "all",
       modules: [],
       provider: "fake",
       commit: COMMIT,
@@ -372,5 +378,61 @@ describe("the deploy option", () => {
     const doppler = secureFoundationCreates({ name: "My Site", secrets: "doppler", deploy });
     expect(doppler[3]?.item).toContain("Actions secret DOPPLER_TOKEN");
     expect(doppler[4]?.item).toContain("a Doppler token as its only environment variable");
+  });
+});
+
+describe("what Go checks first", () => {
+  it("takes the form as it stands, right or wrong, but nothing unbounded", () => {
+    const wrong = { name: "../x", adminEmail: "nobody", provider: "", deploy: {} };
+    expect(roundTrip(VerifySecureFoundationRequest, wrong)).toEqual({ ...wrong, modules: [] });
+    expect(
+      VerifySecureFoundationRequest.safeParse({ ...wrong, name: "x".repeat(201) }).success,
+    ).toBe(false);
+    // No field names a URL or a path the server would read.
+    const parsed = VerifySecureFoundationRequest.parse({ ...wrong, url: "https://example.org/x" });
+    expect(parsed).not.toHaveProperty("url");
+  });
+
+  it("answers every check with what to do about it, and the commit resolved", () => {
+    const response = {
+      checks: [
+        { id: "fields", status: "passed", message: "The form's answers are valid.", fix: null },
+        {
+          id: "folder",
+          status: "failed",
+          message: "/projects/my-site already exists.",
+          fix: "Choose another project name.",
+        },
+      ],
+      template: null,
+    };
+    expect(roundTrip(VerifySecureFoundationResponse, response)).toEqual(response);
+    expect(
+      VerifySecureFoundationResponse.safeParse({
+        checks: [{ id: "signins", status: "passed", message: "", fix: null }],
+        template: null,
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("the one line that names what is created", () => {
+  const deploy = { owner: "acme-org", repository: "my-site", vercelScope: "acme-team" };
+
+  it("is made from the list the setup session is held to", () => {
+    expect(
+      secureFoundationCreatesLine(secureFoundationCreates({ name: "My Site", secrets: "doppler" })),
+    ).toBe("Creates a Clerk app, a Convex project and a Doppler project in your accounts.");
+    expect(
+      secureFoundationCreatesLine(
+        secureFoundationCreates({ name: "My Site", secrets: "env_local" }),
+      ),
+    ).toBe("Creates a Clerk app and a Convex project in your accounts.");
+    const all = secureFoundationCreates({ name: "My Site", secrets: "doppler", deploy });
+    expect(secureFoundationCreatesLine(all)).toBe(
+      "Creates a Clerk app, a Convex project, a Doppler project, a private GitHub repository and a Vercel project with a public site in your accounts.",
+    );
+    // One short name per thing created: none is left out of the line.
+    for (const created of all) expect(secureFoundationCreatesLine(all)).toContain(created.short);
   });
 });

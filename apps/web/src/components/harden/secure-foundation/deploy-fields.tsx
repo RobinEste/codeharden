@@ -1,8 +1,8 @@
 import type { SecureFoundationConnection } from "@codeden/contracts";
 import { useEffect } from "react";
 import { Input } from "@/components/ui/input";
+import type { FormAnswers } from "./answers";
 import { deployOf, suggestedRepository } from "./deploy";
-import type { FormAnswers } from "./form-step";
 
 const SELECT = "h-8 w-full rounded-md border border-input bg-transparent px-2 text-[13px]";
 

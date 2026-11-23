@@ -1,59 +1,24 @@
-import type { SecureFoundationOptions, SecureFoundationTemplate } from "@codeden/contracts";
+import {
+  type SecureFoundationSecrets,
+  secureFoundationCreates,
+  secureFoundationCreatesLine,
+} from "@codeden/contracts";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { ConfirmStep } from "@/components/harden/secure-foundation/confirm-step";
 import {
-  CREATED_STAYS,
   consentStatements,
+  consentSummary,
+  createsOf,
   projectPath,
 } from "@/components/harden/secure-foundation/consent";
 import { type FormAnswers, FormStep } from "@/components/harden/secure-foundation/form-step";
 import { SecureFoundationSlot } from "@/components/harden/secure-foundation/slot";
-import type { CodeDenClient } from "@/lib/api";
 import { createMockClient } from "@/lib/api/mock";
+import { blank, clientWith, goButton, options, template } from "./secure-foundation-fixtures";
 import { renderWithClient } from "./utils";
 
-/** The Secure Foundation option, its form and what the confirm step says. */
-
-const options: SecureFoundationOptions = {
-  enabled: true,
-  template: { repository: "acme/starter", branch: "main" },
-  projectsDir: "/work/projects",
-  pathSeparator: "/",
-  providers: [
-    { id: "alpha", displayName: "Alpha", runsCommandFiles: true },
-    { id: "beta", displayName: "Beta", runsCommandFiles: false },
-  ],
-  defaults: { secrets: "doppler", shell: "minimal", deploy: false },
-  repositoryMode: "fresh",
-  autonomy: "full",
-};
-const template: SecureFoundationTemplate = {
-  repository: "acme/starter",
-  branch: "main",
-  commit: "0123456789abcdef0123456789abcdef01234567",
-  committedAt: "2026-01-05T10:00:00.000Z",
-  modules: [
-    { name: "blog", title: "Blog", description: "A blog" },
-    { name: "pricing", title: "Pricing", description: "A pricing page" },
-  ],
-};
-const blank: FormAnswers = {
-  name: "",
-  adminEmail: "",
-  emailTouched: false,
-  secrets: "doppler",
-  shell: "minimal",
-  modules: [],
-  provider: "alpha",
-  deploy: false,
-};
-
-const clientWith = (sf: Partial<CodeDenClient["secureFoundation"]>): CodeDenClient => {
-  const client = createMockClient();
-  return { ...client, secureFoundation: { ...client.secureFoundation, ...sf } };
-};
+/** The Secure Foundation option, its one form and what the form says pressing Go will do. */
 
 describe("the option in the add-project dialog", () => {
   it("is hidden in a build without a template", async () => {
@@ -88,7 +53,15 @@ describe("the option in the add-project dialog", () => {
   });
 });
 
-function Form({ start = blank, onNext = () => {} }: { start?: FormAnswers; onNext?: () => void }) {
+function Form({
+  start = blank,
+  onGo = () => {},
+  onVerify = () => {},
+}: {
+  start?: FormAnswers;
+  onGo?: () => void;
+  onVerify?: () => void;
+}) {
   const [answers, setAnswers] = useState(start);
   return (
     <FormStep
@@ -98,32 +71,53 @@ function Form({ start = blank, onNext = () => {} }: { start?: FormAnswers; onNex
       onRetryTemplate={() => {}}
       answers={answers}
       onChange={setAnswers}
-      onNext={onNext}
+      busy={null}
+      onGo={onGo}
+      onVerify={onVerify}
       onCancel={() => {}}
     />
   );
 }
 
 describe("the form", () => {
-  const review = () => screen.getByRole("button", { name: "Next" }) as HTMLButtonElement;
-
-  it("works with nothing prefilled: Doppler and Minimal preselected, the path shown", () => {
-    const onNext = vi.fn();
-    renderWithClient(<Form onNext={onNext} />, createMockClient());
-    expect(review().disabled).toBe(true);
+  it("has Go as soon as the name and the email are valid, with All modules preselected", () => {
+    const onGo = vi.fn();
+    renderWithClient(<Form onGo={onGo} />, createMockClient());
+    expect(goButton().disabled).toBe(true);
     expect((screen.getByLabelText(/Doppler/) as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByLabelText(/Minimal/) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByLabelText(/All modules/) as HTMLInputElement).checked).toBe(true);
     fireEvent.change(screen.getByLabelText("Project name"), { target: { value: "My Site" } });
     expect(screen.getByTestId("secure-foundation-path").textContent).toContain(
       "/work/projects/my-site",
     );
-    expect(review().disabled).toBe(true);
+    expect(goButton().disabled).toBe(true);
     fireEvent.change(screen.getByLabelText("Admin email"), {
       target: { value: "person@site.test" },
     });
-    expect(review().disabled).toBe(false);
-    fireEvent.click(review());
-    expect(onNext).toHaveBeenCalledTimes(1);
+    expect(goButton().disabled).toBe(false);
+    expect(goButton().textContent).toBe("Go");
+    fireEvent.click(goButton());
+    expect(onGo).toHaveBeenCalledTimes(1);
+  });
+
+  it("makes Go green from the design system's status colour, never a fixed one", () => {
+    renderWithClient(<Form />, createMockClient());
+    const classes = goButton().className.split(" ");
+    expect(classes).toContain("bg-status-done");
+    // The label is the theme's dark text colour in both themes: white falls short on this green.
+    expect(classes).toContain("text-foreground");
+    expect(classes).toContain("dark:text-background");
+    expect(goButton().className).not.toMatch(/#[0-9a-f]{3,8}|rgb|oklch|emerald|green-/i);
+  });
+
+  it("offers Verify Settings whatever the fields hold, and keeps Advanced closed", () => {
+    const onVerify = vi.fn();
+    renderWithClient(<Form onVerify={onVerify} />, createMockClient());
+    expect((screen.getByTestId("sf-advanced") as HTMLDetailsElement).open).toBe(false);
+    expect(screen.getByTestId("sf-advanced").textContent).toContain("Deploy off · runs on Alpha");
+    fireEvent.click(screen.getByRole("button", { name: "Verify Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    expect(onVerify).toHaveBeenCalledTimes(2);
   });
 
   it("refuses a name that is a path and an address the install refuses", () => {
@@ -131,7 +125,7 @@ describe("the form", () => {
       <Form start={{ ...blank, name: "../x", adminEmail: "admin@example.com" }} />,
       createMockClient(),
     );
-    expect(review().disabled).toBe(true);
+    expect(goButton().disabled).toBe(true);
     expect(screen.getByTestId("secure-foundation-path").textContent).toContain("Use letters");
     expect(screen.getByText(/the install refuses placeholders/)).toBeTruthy();
   });
@@ -145,9 +139,81 @@ describe("the form", () => {
     fireEvent.change(screen.getByLabelText("Runs on"), { target: { value: "beta" } });
     expect(screen.getByText(/reads the template's install instructions/)).toBeTruthy();
   });
+
+  it("shows the commit that will be installed", () => {
+    renderWithClient(<Form />, createMockClient());
+    expect(screen.getByTestId("secure-foundation-template").textContent).toContain(
+      "acme/starter, branch main, at commit 0123456 of 2026-01-05",
+    );
+  });
 });
 
-describe("the confirm step", () => {
+describe("the lines above the buttons", () => {
+  const consent = () => screen.getByTestId("secure-foundation-consent").textContent ?? "";
+
+  it("are always there and say what is created, that it runs unattended and what the URL is", () => {
+    renderWithClient(<Form />, createMockClient());
+    expect(consent()).toContain(
+      "Creates a Clerk app, a Convex project and a Doppler project in your accounts.",
+    );
+    expect(consent()).toContain(
+      "The setup session runs commands inside the new project without asking for each one (Full permission level).",
+    );
+    expect(consent()).toContain(
+      "The app's URL only works while the setup session's processes are running.",
+    );
+    // They follow the answers: without Doppler nothing is said to be created there.
+    fireEvent.click(screen.getByLabelText(/\.env\.local/));
+    expect(consent()).toContain("Creates a Clerk app and a Convex project in your accounts.");
+    expect(consent()).not.toContain("Doppler");
+  });
+
+  it("name the repository and the site as soon as Deploy is ticked", () => {
+    renderWithClient(<Form />, createMockClient());
+    fireEvent.click(screen.getByLabelText(/Create a GitHub repository and deploy to Vercel/));
+    expect(consent()).toContain(
+      "Creates a Clerk app, a Convex project, a Doppler project, a private GitHub repository and a Vercel project with a public site in your accounts.",
+    );
+    expect(consent()).toContain("the deployed one stays up");
+  });
+
+  it.each([
+    ["doppler", false],
+    ["doppler", true],
+    ["env_local", false],
+    ["env_local", true],
+  ] as Array<[SecureFoundationSecrets, boolean]>)(
+    "name exactly what the setup session is held to (%s, deploy %s)",
+    (secrets, deploy) => {
+      const answers = {
+        ...blank,
+        name: "My Site",
+        secrets,
+        deploy,
+        deployOwner: "acme-org",
+        deployScope: "acme-team",
+      };
+      // The list the server gives the session's brief, from the request's own fields.
+      const held = secureFoundationCreates({
+        name: "My Site",
+        secrets,
+        deploy: deploy
+          ? { owner: "acme-org", repository: "my-site", vercelScope: "acme-team" }
+          : undefined,
+      });
+      expect(createsOf(answers)).toEqual(held);
+      expect(consentSummary(answers, "full")[0]).toBe(secureFoundationCreatesLine(held));
+      for (const created of held) {
+        expect(consentSummary(answers, "full")[0]).toContain(created.short);
+      }
+      // A deploy whose names aren't chosen yet is still named.
+      const early = { ...answers, deployOwner: undefined, deployScope: undefined };
+      expect(consentSummary(early, "full")[0]).toBe(secureFoundationCreatesLine(held));
+    },
+  );
+});
+
+describe("what the verification view says will happen", () => {
   const input = {
     ...options,
     name: "My Site",
@@ -170,6 +236,8 @@ describe("the confirm step", () => {
     expect(text).toContain("runs commands inside the new project without asking for each one");
     expect(text).toContain("Alpha at the Full permission level");
     expect(text).toContain("It only works while the setup session's processes are running");
+    // No step comes before this one any more.
+    expect(text).not.toContain("previous step");
   });
 
   it("changes with the answers", () => {
@@ -196,52 +264,5 @@ describe("the confirm step", () => {
     const clone = consentStatements({ ...input, deploy, repositoryMode: "clone" }).join("\n");
     expect(clone).toContain("as a clone of the template, with its history");
     expect(clone).not.toContain("none of the template's history");
-  });
-
-  it("lists what is created in the person's accounts and starts nothing until confirmed", () => {
-    const onConfirm = vi.fn();
-    renderWithClient(
-      <ConfirmStep
-        options={options}
-        template={template}
-        answers={{ ...blank, name: "My Site", adminEmail: "person@site.test" }}
-        moved={false}
-        busy={false}
-        error={null}
-        onBack={() => {}}
-        onCancel={() => {}}
-        onConfirm={onConfirm}
-      />,
-      createMockClient(),
-    );
-    const step = screen.getByTestId("secure-foundation-confirm");
-    for (const service of ["Clerk:", "Convex:", "Doppler:"]) {
-      expect(step.textContent).toContain(service);
-    }
-    expect(step.textContent).toContain('a Doppler project named "my-site"');
-    expect(step.textContent).toContain(CREATED_STAYS);
-    // The email is not repeated on the page.
-    expect(step.textContent).not.toContain("person@site.test");
-    expect(onConfirm).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId("secure-foundation-confirm-button"));
-    expect(onConfirm).toHaveBeenCalledTimes(1);
-  });
-
-  it("asks again when the template moved", () => {
-    renderWithClient(
-      <ConfirmStep
-        options={options}
-        template={template}
-        answers={{ ...blank, name: "My Site" }}
-        moved
-        busy={false}
-        error={null}
-        onBack={() => {}}
-        onCancel={() => {}}
-        onConfirm={() => {}}
-      />,
-      createMockClient(),
-    );
-    expect(screen.getByRole("alert").textContent).toContain("check it and confirm again");
   });
 });

@@ -67,8 +67,8 @@ export type SecureFoundationDeploy = z.infer<typeof SecureFoundationDeploy>;
 export const SecureFoundationShell = z.enum(["minimal", "all", "pick"]);
 export type SecureFoundationShell = z.infer<typeof SecureFoundationShell>;
 
-/** The app shell the form starts with. */
-export const SECURE_FOUNDATION_DEFAULT_SHELL: SecureFoundationShell = "minimal";
+/** The app shell the form starts with: every content module the template has. */
+export const SECURE_FOUNDATION_DEFAULT_SHELL: SecureFoundationShell = "all";
 
 /**
  * The project's name: also the site name, and the folder name is made from it
@@ -182,7 +182,7 @@ export type SecureFoundationPrefill = z.infer<typeof SecureFoundationPrefill>;
 
 /**
  * `POST /api/secure-foundation/template`: the commit the template's branch points at now, with
- * its content modules. This is the commit the consent step shows and `create` installs.
+ * its content modules. This is the commit the form shows and `create` installs.
  */
 export const SecureFoundationTemplate = z.object({
   repository: z.string(),
@@ -207,7 +207,7 @@ export const CreateSecureFoundationRequest = z.object({
   /** The commit the person saw and confirmed; another commit on the branch is refused. */
   commit: SecureFoundationCommit,
   /**
-   * The Convex team the project is created in, chosen in the Connections step. Omitted: the
+   * The Convex team the project is created in, chosen in the verification view. Omitted: the
    * account's only team, or the setup session asks when there are several.
    */
   convexTeam: z
@@ -257,6 +257,8 @@ export type SecureFoundationFinish = z.infer<typeof SecureFoundationFinish>;
 /** One thing a setup creates in the person's accounts, and where it is removed again. */
 export interface SecureFoundationCreated {
   service: "Clerk" | "Convex" | "Doppler" | "GitHub" | "Vercel";
+  /** What it is in a few words, for the one line above the form's buttons. */
+  short: string;
   /** What it is and its name, as one phrase. */
   item: string;
   /** Where the person removes it. */
@@ -264,9 +266,9 @@ export interface SecureFoundationCreated {
 }
 
 /**
- * Everything a setup with these answers creates outside the project folder. The consent step
- * lists it and the setup session's brief is held to it, both from this one function, so the list
- * the person confirms is the list the session may create.
+ * Everything a setup with these answers creates outside the project folder. The form's line
+ * above its buttons, the verification view's list and the setup session's brief all come from
+ * this one function, so what the person confirms with Go is what the session may create.
  */
 export function secureFoundationCreates(answers: {
   name: string;
@@ -278,11 +280,13 @@ export function secureFoundationCreates(answers: {
   const created: SecureFoundationCreated[] = [
     {
       service: "Clerk",
+      short: "a Clerk app",
       item: "an accountless Clerk app (yours once you claim it), with a JWT template and a webhook endpoint",
       removeAt: "the Clerk dashboard, after claiming it; unclaimed apps expire by themselves",
     },
     {
       service: "Convex",
+      short: "a Convex project",
       item: `a Convex project named "${slug}" with a cloud dev deployment, in ${answers.convexTeam ? `your Convex team "${answers.convexTeam}"` : "your Convex team"}`,
       removeAt: "the Convex dashboard, in the project's settings",
     },
@@ -290,6 +294,7 @@ export function secureFoundationCreates(answers: {
   if (answers.secrets === "doppler") {
     created.push({
       service: "Doppler",
+      short: "a Doppler project",
       item: `a Doppler project named "${slug}" with the configs dev and prd, holding the app's secrets`,
       removeAt: "the Doppler dashboard, in the project's settings",
     });
@@ -300,11 +305,13 @@ export function secureFoundationCreates(answers: {
     created.push(
       {
         service: "GitHub",
+        short: "a private GitHub repository",
         item: `a private repository ${deploy.owner}/${deploy.repository}, with this project's code pushed to it${doppler ? ", and a Doppler token stored as its Actions secret DOPPLER_TOKEN" : ""}`,
         removeAt: "the repository's settings on GitHub (Danger Zone)",
       },
       {
         service: "Vercel",
+        short: "a Vercel project with a public site",
         item: `a Vercel project named "${deploy.repository}" in the scope "${deploy.vercelScope}", connected to that repository, with ${doppler ? "a Doppler token as its only environment variable" : "the app's environment variables (its development keys) copied to it"}, and the site published on a public vercel.app address running on the development Clerk and Convex`,
         removeAt: "the project's settings on Vercel",
       },
