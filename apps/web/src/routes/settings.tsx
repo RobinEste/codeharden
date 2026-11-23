@@ -11,6 +11,7 @@ import {
   Keyboard,
   type LucideIcon,
   Mic,
+  MonitorPlay,
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
@@ -18,6 +19,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { DevPreviewLimitsSettings } from "@/components/harden/dev-preview/limits-settings";
 import {
   AutonomySettings,
   GeneralSettings,
@@ -86,6 +88,12 @@ const SECTIONS: { id: string; label: string; icon: LucideIcon; render: () => Rea
     render: () => <NotificationSettings />,
   },
   { id: "network", label: "Network access", icon: Smartphone, render: () => <NetworkSettings /> },
+  {
+    id: "dev-previews",
+    label: "Dev previews",
+    icon: MonitorPlay,
+    render: () => <DevPreviewLimitsSettings />,
+  },
   ...(platform.capabilities.osIntegration
     ? [{ id: "desktop", label: "App", icon: AppWindow, render: () => <DesktopSettings /> }]
     : []),
