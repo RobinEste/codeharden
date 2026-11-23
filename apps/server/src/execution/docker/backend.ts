@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import {
   type BackendStatus,
   CODEDEN_VERSION,
+  HARDEN_APP_SLUG,
   type SandboxRef,
   type SandboxSpec,
   type SandboxSummary,
@@ -76,9 +77,9 @@ export function installId(home: string): string {
   return id;
 }
 
-/** The container name for a runner record: `codeden-<record id>`. */
+/** The container name for a runner record: `codeharden-<record id>` (its volume adds `-data`). */
 export function containerNameFor(recordId: string): string {
-  return `codeden-${recordId}`;
+  return `${HARDEN_APP_SLUG}-${recordId}`;
 }
 
 /**
