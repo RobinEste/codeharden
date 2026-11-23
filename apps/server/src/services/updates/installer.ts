@@ -42,6 +42,9 @@ const inheritedNpmConfig = new Set([
   "ca",
   "strict_ssl",
   "userconfig",
+  // Settings that only restrict what an install may do, so a person's own stay in force.
+  "ignore_scripts",
+  "min_release_age",
 ]);
 
 /**
