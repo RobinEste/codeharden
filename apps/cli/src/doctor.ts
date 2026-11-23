@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import { formatHardenVersion, type SetupCheck } from "@codeden/contracts";
+import { formatHardenVersion, HARDEN_UPDATE_COMMAND, type SetupCheck } from "@codeden/contracts";
 import {
   CLAUDE_SDK_VERSION,
   claudeSdkSource,
@@ -166,7 +166,7 @@ function versionRows(home: string, launch?: LaunchInfo): Array<[string, string, 
         ? [
             "xx",
             "Current version",
-            `${pointer.version} can't start: ${problem}; run \`codeden update\``,
+            `${pointer.version} can't start: ${problem}; run \`${HARDEN_UPDATE_COMMAND}\``,
           ]
         : [
             "ok",

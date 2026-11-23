@@ -1,12 +1,12 @@
 # The CodeDen desktop app
 
-The desktop app is CodeDen as an app on your computer: its own window, a tray (menu bar) icon that shows what your agents are doing, notifications, a badge for things waiting on you, and automatic updates. It runs the same server, runner and UI as `npx codeden`, on the same data, so you can use either and switch whenever you like.
+The desktop app is CodeDen as an app on your computer: its own window, a tray (menu bar) icon that shows what your agents are doing, notifications, a badge for things waiting on you, and automatic updates. It runs the same server, runner and UI as `npx codeharden`, on the same data, so you can use either and switch whenever you like.
 
-You don't need Node.js or npm for the desktop app. You still need the tools your agents use (git, and Claude Code and/or Codex), exactly as with `npx codeden`.
+You don't need Node.js or npm for the desktop app. You still need the tools your agents use (git, and Claude Code and/or Codex), exactly as with `npx codeharden`.
 
 ## Install
 
-Download the installer for your system from the [latest GitHub Release](https://github.com/leonvanzyl/codeden/releases/latest):
+Download the installer for your system from the [latest GitHub Release](https://github.com/harperaa/codeharden/releases/latest):
 
 | System | File | Notes |
 |---|---|---|
@@ -46,13 +46,13 @@ After that CodeDen opens normally. On macOS 14 and earlier you can instead Contr
 
 3. Open CodeDen again.
 
-**A macOS app without a Developer ID can't update itself:** macOS only installs updates into an app signed with a Developer ID, so download new versions from the [latest GitHub Release](https://github.com/leonvanzyl/codeden/releases/latest) and drag them over the old one. **Settings › About** says when this applies.
+**A macOS app without a Developer ID can't update itself:** macOS only installs updates into an app signed with a Developer ID, so download new versions from the [latest GitHub Release](https://github.com/harperaa/codeharden/releases/latest) and drag them over the old one. **Settings › About** says when this applies.
 
 ## First launch
 
-The app uses the same data folder as `npx codeden`: `~/.codeden` (or `CODEDEN_HOME`). On launch it:
+The app uses the same data folder as `npx codeharden`: `~/.codeden` (or `CODEDEN_HOME`). On launch it:
 
-1. **Attaches** to a CodeDen server that is already running for that folder (for example one you started with `npx codeden`), or
+1. **Attaches** to a CodeDen server that is already running for that folder (for example one you started with `npx codeharden`), or
 2. **starts its own** server on port 4317 (or any free port if 4317 is taken), which starts the runner as usual.
 
 Then the window opens on the UI, already signed in. A first launch shows the same setup checklist as the browser; it reports Node.js as "built into the app".
@@ -63,7 +63,7 @@ The app's server and runner keep running between windows, so they may have start
 
 - **Closing the window** keeps CodeDen running in the tray (Windows, Linux) or menu bar (macOS), so agents, automations and notifications carry on. Click the tray icon (or choose **Open CodeDen**) to bring it back. Turn this off under **Settings > App > Keep running in the tray**.
 - **The tray** shows how many agents are running and how many are waiting on you, plus the inbox count, and has **Open the inbox**, the next update step when there is one, and **Quit CodeDen**.
-- **Quit** really quits: it closes the window and the server. Like stopping `codeden` with Ctrl+C, the **runner keeps running**, so agents in the middle of a turn finish it, and the next launch picks everything up again. Open session browsers move to the runner's own browser first (see [The session browser](#the-session-browser)). To stop the agents too, run `npx codeden stop` (or stop the sessions first).
+- **Quit** really quits: it closes the window and the server. Like stopping `codeharden` with Ctrl+C, the **runner keeps running**, so agents in the middle of a turn finish it, and the next launch picks everything up again. Open session browsers move to the runner's own browser first (see [The session browser](#the-session-browser)). To stop the agents too, run `npx codeharden stop` (or stop the sessions first).
 - **Badge.** The number of things waiting on you appears on the app icon (the dock on macOS, a dot on the taskbar button on Windows, the launcher on Linux desktops that support it).
 - **Notifications** are the system's own (Settings > Notifications > System notifications). Clicking one brings the window to the front on the right page. A burst of updates is one notification that updates in place rather than a stack.
 - **Keep awake.** While an agent is running, CodeDen keeps the computer from going to sleep (the screen can still turn off). Settings > App > Keep the computer awake.
@@ -110,13 +110,13 @@ In the desktop app the browser panel is a real browser: each tab of a session's 
 
 The desktop app updates itself from GitHub Releases, following **Settings > General > Updates**:
 
-- **Notify me** (default): CodeDen checks on start and every 6 hours (only the release metadata is fetched). The update banner offers the new version with **What's new**, **Update now** and **Later**. **Update now** downloads it with progress, then stops the runner gracefully (as `codeden stop` does), installs the update and starts the new version; running sessions resume where they left off.
+- **Notify me** (default): CodeDen checks on start and every 6 hours (only the release metadata is fetched). The update banner offers the new version with **What's new**, **Update now** and **Later**. **Update now** downloads it with progress, then stops the runner gracefully (as `codeharden stop` does), installs the update and starts the new version; running sessions resume where they left off.
 - **Install automatically**: new versions download in the background and install when you quit CodeDen (or right away with **Restart now** in the banner, or **Restart to update** in the tray).
 - **Off**: no checks.
 
 Notes:
 
-- The npm self-update (`codeden update`, side-by-side versions in `~/.codeden/app`) is off in the desktop app; the app replaces itself instead. If the app attached to a server you started with `npx codeden`, the banner is about that npm install, and the app updates itself on its own (with a notification and the tray menu).
+- The npm self-update (`codeharden update`, side-by-side versions in `~/.codeden/app`) is off in the desktop app; the app replaces itself instead. If the app attached to a server you started with `npx codeharden`, the banner is about that npm install, and the app updates itself on its own (with a notification and the tray menu).
 - macOS needs an app signed with a Developer ID to update (see [Unsigned builds](#unsigned-builds)). The Debian package updates through the downloaded `.deb` (it asks for your password); the AppImage replaces itself.
 - If an update fails, the banner shows why, with **Retry**. You can always install a newer release by hand over the old one.
 
@@ -124,7 +124,7 @@ Notes:
 
 | What | Where |
 |---|---|
-| Your data (database, settings, worktrees, logs) | `~/.codeden` (shared with `npx codeden`; `CODEDEN_HOME` or `--home` to change it) |
+| Your data (database, settings, worktrees, logs) | `~/.codeden` (shared with `npx codeharden`; `CODEDEN_HOME` or `--home` to change it) |
 | The app's own profile (window state, cookies, cache) | `~/.codeden/desktop` |
 | Session browser cookies and storage (native views) | In memory only, per session; gone when the session's browser closes or the app quits (after the hand-off) |
 | Downloads from the session browser | Your Downloads folder |
@@ -153,4 +153,4 @@ The window shows only the local server's UI: it is sandboxed and isolated from N
 
 ## Phones and tablets
 
-**Settings › Network access** works the same in the desktop app as with `npx codeden`: set a password, switch it on, and scan the QR code with your phone. Switching it on or off moves only the server's web listener; the window, the tray and running agents carry on. The app's own window always uses this computer's address and the install token. See [Phones, tablets and network access](remote-access.md).
+**Settings › Network access** works the same in the desktop app as with `npx codeharden`: set a password, switch it on, and scan the QR code with your phone. Switching it on or off moves only the server's web listener; the window, the tray and running agents carry on. The app's own window always uses this computer's address and the install token. See [Phones, tablets and network access](remote-access.md).

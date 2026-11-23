@@ -36,6 +36,7 @@ export * from "./factory-scorecard";
 export * from "./factory-spot-checks";
 export * from "./form-answers";
 export * from "./github";
+export * from "./harden-channel";
 export * from "./harden-version";
 export * from "./hook-output";
 export * from "./images-api";

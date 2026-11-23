@@ -1,3 +1,4 @@
+import { HARDEN_NPX_COMMAND } from "@codeden/contracts";
 import { KeyRound, TerminalSquare } from "lucide-react";
 import { Logo } from "./logo";
 
@@ -26,7 +27,9 @@ export function UnauthorizedScreen() {
             <TerminalSquare className="mt-0.5 size-4 shrink-0 text-primary" />
             <span>
               Run{" "}
-              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">npx codeden</code>{" "}
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                {HARDEN_NPX_COMMAND}
+              </code>{" "}
               again. It finds the running server and opens an authenticated tab.
             </span>
           </div>

@@ -12,6 +12,14 @@
 import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
+// The update channel (package name, command): a module without imports, safe to load here.
+import {
+  HARDEN_COMMAND,
+  HARDEN_NPX_COMMAND,
+  HARDEN_PACKAGE_NAME,
+  HARDEN_PACKAGE_SEGMENTS,
+  HARDEN_UPDATE_COMMAND,
+} from "@codeden/contracts/harden-channel";
 
 /** How the running CLI was launched; set on `globalThis` for the rest of the bundle. */
 export interface LaunchInfo {
@@ -79,15 +87,20 @@ export function readPinnedVersion(home: string): string | null {
 
 /** The CLI entry of an installed version. */
 export function managedEntry(home: string, version: string): string {
-  return join(home, "app", version, "node_modules", "codeden", "dist", "cli.js");
+  return join(home, "app", version, "node_modules", ...HARDEN_PACKAGE_SEGMENTS, "dist", "cli.js");
 }
 
 /** Why the installed `version` can't start, or null when it looks complete. */
 export function managedProblem(home: string, version: string): string | null {
-  const root = join(home, "app", version, "node_modules", "codeden");
+  const root = join(home, "app", version, "node_modules", ...HARDEN_PACKAGE_SEGMENTS);
   let pkgVersion: unknown;
   try {
-    pkgVersion = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
+    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    // Only the channel's own package is ever switched to (same rule as the server's check).
+    if (pkg.name !== HARDEN_PACKAGE_NAME) {
+      return `it is the package ${String(pkg.name)}, not ${HARDEN_PACKAGE_NAME}`;
+    }
+    pkgVersion = pkg.version;
   } catch {
     return "its package.json is missing";
   }
@@ -122,7 +135,7 @@ export function decideLaunch(input: {
       kind: "self",
       warning:
         `CodeDen ${pinned} in ${join(input.home, "app", pinned)} can't start (${problem}); ` +
-        `running ${input.selfVersion} instead. Run \`codeden update\` to reinstall it.`,
+        `running ${input.selfVersion} instead. Run \`${HARDEN_UPDATE_COMMAND}\` to reinstall it.`,
     };
   }
   return { kind: "switch", version: pinned, entry };
@@ -154,9 +167,9 @@ export function parseLaunchedBy(raw: string | undefined, home: string): LaunchIn
 
 /** The command that starts this copy again. */
 export function restartCommandFor(kind: LaunchInfo["kind"], entry: string): string {
-  if (kind === "npx") return "npx codeden";
+  if (kind === "npx") return HARDEN_NPX_COMMAND;
   if (kind === "source") return `node ${entry}`;
-  return "codeden";
+  return HARDEN_COMMAND;
 }
 
 /** `x.y.z[-pre]` comparison (same rules as `compareVersions` in contracts). */

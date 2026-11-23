@@ -4,7 +4,7 @@
  * `runner-link` never loads the server.
  */
 import { join } from "node:path";
-import { CODEDEN_VERSION, formatHardenVersion } from "@codeden/contracts";
+import { CODEDEN_VERSION, formatHardenVersion, HARDEN_COMMAND } from "@codeden/contracts";
 import {
   ensureHome,
   ensureInstallToken,
@@ -31,7 +31,7 @@ function launchInfo(home: string): LaunchInfo {
       binVersion: CODEDEN_VERSION,
       kind: "source",
       source: "source",
-      restartCommand: "codeden",
+      restartCommand: HARDEN_COMMAND,
       home,
       warning: null,
     }

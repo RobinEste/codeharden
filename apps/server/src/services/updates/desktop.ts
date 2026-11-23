@@ -2,6 +2,7 @@ import {
   CODEDEN_VERSION,
   type DesktopUpdateCommand,
   type DesktopUpdateState,
+  hardenLatestReleaseUrl,
   isNewerVersion,
   type ReleaseNotes,
   type UpdateMode,
@@ -38,7 +39,7 @@ export interface DesktopUpdateServiceDeps {
 }
 
 const SIX_HOURS = 6 * 3600_000;
-export const DESKTOP_RELEASES_URL = "https://github.com/leonvanzyl/codeden/releases/latest";
+export const DESKTOP_RELEASES_URL = hardenLatestReleaseUrl();
 
 /**
  * Update checks for the desktop app (§17). Same contract and policy as the npm self-update

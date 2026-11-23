@@ -9,8 +9,8 @@ Thanks for helping. CodeDen is plain TypeScript in a pnpm workspace, and most of
 You need **Node.js 24+**, **git**, and **pnpm 10** (`corepack enable` gives you the pinned version).
 
 ```sh
-git clone https://github.com/leonvanzyl/codeden.git
-cd codeden
+git clone https://github.com/harperaa/codeharden.git
+cd codeharden
 pnpm install
 pnpm dev
 ```
@@ -41,7 +41,7 @@ apps/
               orchestration, MCP tools, automations, factory, GitHub sync
   runner/     Runner process: provider sessions, event journal, terminals, browser, git
   web/        React 19 + Vite SPA (Tailwind v4, shadcn/ui, TanStack Router + Query, Zustand)
-  cli/        The published `codeden` package: CLI entry, bundles server + runner + web
+  cli/        The published `codeharden` package: CLI entry, bundles server + runner + web
 packages/
   contracts/  zod schemas for everything that crosses a boundary
   providers/  Provider adapters (Claude, Codex, Fake, Replay) and image engines
@@ -66,7 +66,7 @@ Package READMEs go deeper: [apps/server](apps/server/README.md), [packages/provi
 | `pnpm e2e` | Build the web app, then Playwright against a real server + runner with an isolated home and the Fake provider; not in CI |
 | `pnpm db:generate` | Generate a Drizzle migration after editing `apps/server/src/db/schema-*.ts`. If `main` gained a migration since you generated yours, delete your migration's folder after rebasing and generate it again, so the migrations stay one chain (`pnpm test` checks it) |
 
-Before you push: **`pnpm typecheck && pnpm lint && pnpm test`** must pass. CI runs the same in one Linux job, then builds, packs the npm tarball, installs it, runs `codeden doctor` and starts it to check the API and the web UI are served. Pull requests that only touch documentation skip it. The **CI result** check sums it up. The slow suites, the Playwright e2e suite and the desktop smoke test aren't part of CI; run them when you work in those areas. The release workflow builds and checks the desktop installers on Windows, macOS and Linux.
+Before you push: **`pnpm typecheck && pnpm lint && pnpm test`** must pass. CI runs the same in one Linux job, then builds, packs the npm tarball, installs it, runs `codeharden doctor` and starts it to check the API and the web UI are served. Pull requests that only touch documentation skip it. The **CI result** check sums it up. The slow suites, the Playwright e2e suite and the desktop smoke test aren't part of CI; run them when you work in those areas. The release workflow builds and checks the desktop installers on Windows, macOS and Linux.
 
 ## Conventions
 

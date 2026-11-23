@@ -4,6 +4,7 @@ import {
   type DesktopUpdateCommand,
   deepLinkPath,
   formatHardenVersion,
+  hardenDocsUrl,
   parseDeepLink,
 } from "@codeden/contracts";
 import { app, dialog, Menu, Notification, shell } from "electron";
@@ -33,7 +34,7 @@ import { loadUpdater, waitForRunnerExit } from "./updates/updater";
 import { MainWindow } from "./window";
 import { windowShot } from "./window-shot";
 
-const DOCS_URL = "https://github.com/leonvanzyl/codeden/blob/main/docs/desktop.md";
+const DOCS_URL = hardenDocsUrl("desktop.md");
 /** Longest a quit may take (browser hand-off 15 s + server stop up to 30 s) before it's forced. */
 const QUIT_LIMIT_MS = 45_000;
 
