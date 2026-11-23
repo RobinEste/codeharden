@@ -5,9 +5,12 @@ import {
   SECURE_FOUNDATION_DEFAULT_SHELL,
   SECURE_FOUNDATION_REPOSITORY_MODE,
   SECURE_FOUNDATION_SETUP_AUTONOMY,
+  SecureFoundationConnections,
   SecureFoundationFinish,
+  SecureFoundationLogin,
   SecureFoundationOptions,
   SecureFoundationPrefill,
+  type SecureFoundationService,
   SecureFoundationTemplate,
 } from "@codeden/contracts";
 import type { Fetcher } from "./http";
@@ -24,6 +27,14 @@ export interface SecureFoundationApi {
   create(input: CreateSecureFoundationRequestInit): Promise<CreateSecureFoundationResponse>;
   /** What a finished install left for the person (the Clerk claim link). */
   finish(projectId: string): Promise<SecureFoundationFinish>;
+  /** Whether this computer is signed in to each service (this computer only). */
+  connections(services: SecureFoundationService[]): Promise<SecureFoundationConnections>;
+  /** Start a service's own login, or join the one running. */
+  startLogin(service: SecureFoundationService): Promise<SecureFoundationLogin>;
+  /** A login as it stands now. */
+  login(id: string): Promise<SecureFoundationLogin>;
+  /** Stop a login. */
+  cancelLogin(id: string): Promise<SecureFoundationLogin>;
 }
 
 export function httpSecureFoundationApi(http: Fetcher): SecureFoundationApi {
@@ -37,6 +48,20 @@ export function httpSecureFoundationApi(http: Fetcher): SecureFoundationApi {
     finish: (projectId) =>
       http.get(`${base}/projects/${encodeURIComponent(projectId)}/finish`, (v) =>
         SecureFoundationFinish.parse(v),
+      ),
+    connections: (services) =>
+      http.get(`${base}/connections?services=${services.join(",")}`, (v) =>
+        SecureFoundationConnections.parse(v),
+      ),
+    startLogin: (service) =>
+      http.post(`${base}/connections/${service}/login`, {}, (v) => SecureFoundationLogin.parse(v)),
+    login: (id) =>
+      http.get(`${base}/connections/logins/${encodeURIComponent(id)}`, (v) =>
+        SecureFoundationLogin.parse(v),
+      ),
+    cancelLogin: (id) =>
+      http.call("DELETE", `${base}/connections/logins/${encodeURIComponent(id)}`, undefined, (v) =>
+        SecureFoundationLogin.parse(v),
       ),
   };
 }
@@ -62,5 +87,9 @@ export function mockSecureFoundationApi(): SecureFoundationApi {
     template: off,
     create: off,
     finish: async () => ({ clerkClaimUrl: null }),
+    connections: async () => ({ connections: [] }),
+    startLogin: off,
+    login: off,
+    cancelLogin: off,
   };
 }

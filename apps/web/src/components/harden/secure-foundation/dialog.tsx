@@ -21,6 +21,7 @@ import { snapshotKey } from "@/lib/queries";
 import { withCreatedProject } from "@/lib/snapshot-reducer";
 import { useUiStore } from "@/stores/ui";
 import { ConfirmStep } from "./confirm-step";
+import { ConnectionsStep } from "./connections-step";
 import {
   SECURE_FOUNDATION_SUBTITLE,
   SECURE_FOUNDATION_TITLE,
@@ -46,7 +47,7 @@ export function SecureFoundationDialog({
   const closeAddProject = useUiStore((s) => s.setAddProjectOpen);
   const template = useSecureFoundationTemplate(true);
   const prefill = useSecureFoundationPrefill(true);
-  const [step, setStep] = useState<"form" | "confirm">("form");
+  const [step, setStep] = useState<"form" | "connections" | "confirm">("form");
   const [moved, setMoved] = useState(false);
   const [answers, setAnswers] = useState<FormAnswers>({
     name: "",
@@ -75,6 +76,7 @@ export function SecureFoundationDialog({
           modules: answers.shell === "pick" ? answers.modules : [],
           provider: answers.provider,
           commit: template.data?.commit,
+          convexTeam: answers.convexTeam,
         }),
       ),
     onSuccess: ({ project, sessionId }) => {
@@ -122,11 +124,19 @@ export function SecureFoundationDialog({
             onRetryTemplate={() => void template.refetch()}
             answers={answers}
             onChange={setAnswers}
+            onNext={() => setStep("connections")}
+            onCancel={onClose}
+          />
+        ) : step === "connections" ? (
+          <ConnectionsStep
+            answers={answers}
+            onChange={setAnswers}
+            onBack={() => setStep("form")}
+            onCancel={onClose}
             onNext={() => {
               create.reset();
               setStep("confirm");
             }}
-            onCancel={onClose}
           />
         ) : (
           template.data && (
@@ -137,7 +147,7 @@ export function SecureFoundationDialog({
               moved={moved}
               busy={create.isPending || template.isFetching}
               error={moved ? null : (create.error?.message ?? null)}
-              onBack={() => setStep("form")}
+              onBack={() => setStep("connections")}
               onCancel={onClose}
               onConfirm={() => {
                 setMoved(false);
