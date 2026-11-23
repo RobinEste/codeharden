@@ -80,7 +80,7 @@ export function setupBrief(input: SetupBriefInput): string {
       : []),
     "",
     "## What the person agreed will be created (and nothing else)",
-    ...input.creates.map((c) => `- ${c.service}: ${c.item}`),
+    ...input.creates.map((c) => `- ${c.service}: ${c.item}. Removed in: ${c.removeAt}.`),
     "",
     `If a step is about to create anything else in an account (another name, another owner, another kind of resource${deploy ? ", a public repository, a production deploy" : ", a GitHub repository, a deploy"}), or to overwrite something that already exists there, stop and ask the person first, whatever part you are in.`,
     "",
@@ -133,6 +133,7 @@ export function setupBrief(input: SetupBriefInput): string {
     "## Your final message (short)",
     `First line: the app's local URL.${deploy ? " Second line: the deployed URL the deploy returned (prefer its short vercel.app address), which stays up when this session stops." : ""}`,
     'Then: the Clerk claim URL from `docs/INSTALL.md` with this warning: click Claim only and skip the setup checklist on that page, the install already did all of it. Then how to stop the app (stop this session, or ask here to stop the two processes) and how to start it again (send "start the app" here, or run the two commands in a terminal in this folder), and that the URL only works while those processes run. Then anything left for later.',
+    'Last, under the heading "What was created": each item of the list above that now exists, by name, with where it is removed, and one line saying that archiving the project or deleting its folder removes none of them. If you stopped early, list only what was created before you stopped.',
   ];
   return lines.join("\n");
 }

@@ -8,7 +8,7 @@ import { Link } from "@tanstack/react-router";
 import { ExternalLink, ShieldCheck } from "lucide-react";
 import { useClient } from "@/lib/api";
 import { useSnapshot } from "@/lib/queries";
-import { secureFoundationDocsUrl } from "./copy";
+import { secureFoundationDocsUrl, secureFoundationRemovalUrl } from "./copy";
 import { secureFoundationKey } from "./use-secure-foundation";
 
 const LABEL: Record<SecureFoundationPhase, string> = {
@@ -111,6 +111,20 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
           <span className="text-muted-foreground">
             Public, on the development Clerk and Convex. It stays up when the setup session stops.
           </span>
+        </p>
+      )}
+      {(finished || status.phase === "failed") && (
+        <p className="mt-2 text-2xs text-muted-foreground" data-testid="secure-foundation-created">
+          What was created in your accounts is listed at the end of the setup session, with where to
+          remove each item. Archiving the project or deleting its folder removes none of it.{" "}
+          <a
+            href={secureFoundationRemovalUrl()}
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2"
+          >
+            Removing the project
+          </a>
         </p>
       )}
       {claim && (

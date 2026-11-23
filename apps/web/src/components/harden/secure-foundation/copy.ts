@@ -7,3 +7,6 @@ export const SECURE_FOUNDATION_SUBTITLE =
 
 /** The user guide. */
 export const secureFoundationDocsUrl = () => hardenDocsUrl("secure-foundation.md");
+
+/** The guide's section on removing the project and what stays in the person's accounts. */
+export const secureFoundationRemovalUrl = () => `${secureFoundationDocsUrl()}#removing-the-project`;

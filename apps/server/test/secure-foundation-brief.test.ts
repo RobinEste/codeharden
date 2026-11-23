@@ -169,6 +169,22 @@ describe("the setup brief", () => {
     });
   });
 
+  it("has the session end with what was created and where each item is removed", () => {
+    const brief = setupBrief(
+      input({
+        doppler: true,
+        creates: secureFoundationCreates({ name: "My Site", secrets: "doppler" }),
+      }),
+    );
+    for (const created of secureFoundationCreates({ name: "My Site", secrets: "doppler" })) {
+      expect(brief).toContain(
+        `- ${created.service}: ${created.item}. Removed in: ${created.removeAt}.`,
+      );
+    }
+    expect(brief).toContain('under the heading "What was created"');
+    expect(brief).toContain("removes none of them");
+  });
+
   it("holds the session to the project folder, to the confirmed list and to its secrets", () => {
     const brief = setupBrief(input());
     expect(brief).toContain("Work only inside this project folder.");
