@@ -11,6 +11,7 @@ import {
   SecureFoundationLogin,
   SecureFoundationOptions,
   SecureFoundationPrefill,
+  SecureFoundationQuiet,
   type SecureFoundationService,
   SecureFoundationTemplate,
   type VerifySecureFoundationRequestInit,
@@ -32,6 +33,8 @@ export interface SecureFoundationApi {
   create(input: CreateSecureFoundationRequestInit): Promise<CreateSecureFoundationResponse>;
   /** What a finished install left for the person (the Clerk claim link). */
   finish(projectId: string): Promise<SecureFoundationFinish>;
+  /** Whether the project is a quiet Secure Foundation project, as the server knows it. */
+  quiet(projectId: string): Promise<SecureFoundationQuiet>;
   /** Whether this computer is signed in to each service (this computer only). */
   connections(services: SecureFoundationService[]): Promise<SecureFoundationConnections>;
   /** Start a service's own login, or join the one running. */
@@ -55,6 +58,10 @@ export function httpSecureFoundationApi(http: Fetcher): SecureFoundationApi {
     finish: (projectId) =>
       http.get(`${base}/projects/${encodeURIComponent(projectId)}/finish`, (v) =>
         SecureFoundationFinish.parse(v),
+      ),
+    quiet: (projectId) =>
+      http.get(`${base}/projects/${encodeURIComponent(projectId)}/quiet`, (v) =>
+        SecureFoundationQuiet.parse(v),
       ),
     connections: (services) =>
       http.get(`${base}/connections?services=${services.join(",")}`, (v) =>
@@ -96,6 +103,7 @@ export function mockSecureFoundationApi(): SecureFoundationApi {
     verify: off,
     create: off,
     finish: async () => ({ clerkClaimUrl: null, deployedUrl: null }),
+    quiet: async () => ({ quiet: false }),
     connections: async () => ({ connections: [] }),
     startLogin: off,
     login: off,

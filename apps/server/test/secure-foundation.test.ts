@@ -51,7 +51,9 @@ let projectsDir: string;
 let created: Array<{ path: string; name?: string }>;
 let archived: string[];
 let started: StartSessionRequestInit[];
-let failAt: "project" | "session" | null;
+/** What was asked of the scripted deps, in order: the project, its mode, the session. */
+let order: string[];
+let failAt: "project" | "mode" | "session" | null;
 
 beforeAll(() => {
   fixture = makeTemplateFixture();
@@ -63,6 +65,7 @@ beforeEach(() => {
   created = [];
   archived = [];
   started = [];
+  order = [];
   failAt = null;
 });
 afterEach(() => removeTree(dir));
@@ -81,13 +84,25 @@ function service(over: Partial<SecureFoundationDeps> = {}) {
         if (failAt === "project") throw new Error("database is closed");
         if (req.source.type !== "local") throw new Error("expected a local folder");
         created.push({ path: req.source.path, name: req.name });
+        order.push("project");
         return { project: { id: "p1", path: req.source.path, name: req.name } as Project } as never;
       },
-      get: () => ({ id: "p1", path: join(projectsDir, "my-site") }) as Project,
+      get: () =>
+        ({
+          id: "p1",
+          path: join(projectsDir, "my-site"),
+          name: created[0]?.name,
+          autonomyMode: order.includes("mode:manual") ? "manual" : "assisted",
+        }) as Project,
       archive: (id) => void archived.push(id),
+    },
+    async setProjectMode(_id, mode) {
+      if (failAt === "mode") throw new Error("database is closed");
+      order.push(`mode:${mode}`);
     },
     async startSession(req) {
       if (failAt === "session") throw new Error("no runner");
+      order.push("session");
       started.push(req);
       return { status: "started", sessionId: "s1" };
     },
@@ -177,6 +192,12 @@ describe("creating the project", () => {
     expect(JSON.stringify(created)).not.toContain(EMAIL);
   });
 
+  it("puts the new project in Manual mode before its setup session starts", async () => {
+    const result = await service().create(request());
+    expect(order).toEqual(["project", "mode:manual", "session"]);
+    expect(result.project).toMatchObject({ id: "p1", name: "My Site", autonomyMode: "manual" });
+  });
+
   it("refuses when the branch moved after the person confirmed, and leaves nothing", async () => {
     const confirmed = fixture.head();
     const now = fixture.advance();
@@ -246,6 +267,15 @@ describe("creating the project", () => {
     expect(error.message).toContain("adding the project");
     expect(existsSync(join(projectsDir, "my-site"))).toBe(false);
     expect(archived).toEqual([]);
+  });
+
+  it("archives the project and removes the folder when its mode can't be set", async () => {
+    failAt = "mode";
+    const error = await failure(service().create(request()));
+    expect(error.code).toBe("project_failed");
+    expect(archived).toEqual(["p1"]);
+    expect(started).toEqual([]);
+    expect(existsSync(join(projectsDir, "my-site"))).toBe(false);
   });
 
   it("archives the project and removes the folder when the session can't start", async () => {

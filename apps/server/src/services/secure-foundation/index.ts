@@ -6,6 +6,7 @@ import {
   StartSessionRequest,
 } from "@codeden/contracts";
 import type { Exec } from "../exec";
+import type { FactoryService } from "../factory/factory-service";
 import type { ProjectService } from "../projects/project-service";
 import type { RunnerPort } from "../runner-port";
 import type { SessionService } from "../sessions/session-service";
@@ -30,6 +31,8 @@ export function createSecureFoundation(deps: {
   projects: ProjectService;
   /** Read when used: sessions are built after projects. */
   sessions: () => SessionService;
+  /** The service that changes a project's autonomy mode. */
+  factory: () => Pick<FactoryService, "setMode">;
   runner: Pick<RunnerPort, "providers">;
   setup: Pick<SetupService, "status">;
   template?: TemplateSource | null;
@@ -43,6 +46,7 @@ export function createSecureFoundation(deps: {
     preferredProvider: () => deps.sessions().configuredProvider("agent", null),
     setupStatus: () => deps.setup.status(),
     projects: deps.projects,
+    setProjectMode: (projectId, mode) => deps.factory().setMode(projectId, { mode }),
     startSession: (req) => deps.sessions().start(StartSessionRequest.parse(req)),
   });
 }

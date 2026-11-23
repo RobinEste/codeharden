@@ -1,6 +1,7 @@
 import { lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import {
+  type AutonomyMode,
   type CreateProjectRequest,
   type CreateProjectResponse,
   type CreateSecureFoundationRequest,
@@ -10,6 +11,7 @@ import {
   SECURE_FOUNDATION_DEFAULT_DEPLOY,
   SECURE_FOUNDATION_DEFAULT_SECRETS,
   SECURE_FOUNDATION_DEFAULT_SHELL,
+  SECURE_FOUNDATION_PROJECT_MODE,
   SECURE_FOUNDATION_REPOSITORY_MODE,
   SECURE_FOUNDATION_SETUP_AUTONOMY,
   SECURE_FOUNDATION_TEMPLATE_MOVED,
@@ -61,6 +63,11 @@ export interface SecureFoundationDeps {
     get(id: string): Project;
     archive(id: string): void;
   };
+  /**
+   * Sets a project's autonomy mode, as the autonomy dialog does. The new project is put in
+   * `SECURE_FOUNDATION_PROJECT_MODE` before its setup session starts.
+   */
+  setProjectMode: (projectId: string, mode: AutonomyMode) => Promise<unknown>;
   startSession: (req: StartSessionRequestInit) => Promise<StartSessionResponse>;
   /** `fresh` unless a fork flips `SECURE_FOUNDATION_REPOSITORY_MODE`. */
   repositoryMode?: SecureFoundationRepositoryMode;
@@ -215,6 +222,9 @@ export class SecureFoundationService {
    * Create the project: fetch the template, check it is still the confirmed commit, write the
    * new repository into a new folder of the projects folder, add the project and start its
    * setup session. A failure names its step and removes what this call created.
+   *
+   * The project starts quiet (`isSecureFoundationQuiet`): in Manual mode, with the setup session
+   * the only thing that runs in it until the person turns automatic work on.
    */
   async create(req: CreateSecureFoundationRequest): Promise<CreateSecureFoundationResponse> {
     const source = this.requireTemplate();
@@ -252,10 +262,15 @@ export class SecureFoundationService {
           throw moved(source, "another commit");
         }
       });
-      const { project } = await this.step("project", () =>
-        this.deps.projects.create({ source: { type: "local", path: dest }, name: req.name }),
-      );
-      projectId = project.id;
+      const project = await this.step("project", async () => {
+        const made = await this.deps.projects.create({
+          source: { type: "local", path: dest },
+          name: req.name,
+        });
+        projectId = made.project.id;
+        await this.deps.setProjectMode(made.project.id, SECURE_FOUNDATION_PROJECT_MODE);
+        return this.deps.projects.get(made.project.id);
+      });
       const sessionId = await this.step("session", async () => {
         const started = await this.deps.startSession({
           projectId: project.id,

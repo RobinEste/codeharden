@@ -4,6 +4,8 @@
 
 It installs software from npm and creates resources in your Clerk, Convex and (if chosen) Doppler accounts. The form says what, right above its buttons, and nothing is created until you press **Go** and every check has passed.
 
+The new project starts with **automatic work off**: apart from the setup session you pressed Go for, CodeHarden starts nothing in it by itself until you turn that on (see [Automatic work starts off](#automatic-work-starts-off)).
+
 ## The form
 
 There is one form. With the defaults it takes two clicks: the option in the add-project dialog, then **Go** once you have typed a name.
@@ -19,11 +21,12 @@ There is one form. With the defaults it takes two clicks: the option in the add-
 
 **Advanced** is closed to begin with; its heading says what it holds ("Deploy off · runs on …"). Under the fields the form shows the template commit that will be installed (short id and date).
 
-Above the buttons, always in view, three lines say what pressing Go does:
+Above the buttons, always in view, four lines say what pressing Go does:
 
 - what is created in your accounts, by kind ("Creates a Clerk app, a Convex project and a Doppler project in your accounts."), following your answers;
 - that the setup session runs commands inside the new project without asking for each one;
-- that the app's URL only works while the setup session's processes are running.
+- that the app's URL only works while the setup session's processes are running;
+- that the new project starts with automatic work off (Manual mode).
 
 **Details** beside them opens the verification view, which has the full lists. Pressing Go is your confirmation of these lines.
 
@@ -100,7 +103,23 @@ It works in parts:
 
 Its first message is the whole brief it was given: your answers, the list of what you agreed will be created, and the commands with your answers filled in. Its last message starts with the app's URL, then the Clerk claim link and how to stop and restart, and ends with **What was created**: each thing that now exists in your accounts, by name, with where to remove it.
 
-The project page shows a **Secure Foundation setup** line: checking this computer, installing, waiting on you, running at the URL, stopped or failed.
+The project page shows a **Secure Foundation setup** line: checking this computer, installing, waiting on you, running at the URL, stopped or failed. While automatic work is off, it says so under that line.
+
+## Automatic work starts off
+
+A project Secure Foundation creates starts in **Manual** [autonomy mode](software-factory.md), and in such a project CodeHarden starts no agent work by itself. The setup session runs because you pressed Go for it. Nothing else does:
+
+- **The project manager is not woken.** Pull requests, issues and reviews that appear on GitHub don't start or wake the project's manager, and neither do updates from sessions. A new repository can get pull requests from a dependency bot within minutes; they wait for you. What arrives is kept, and the project manager reads it with its next turn. A wake-up the project manager scheduled for itself waits in the same way.
+- **No automations and no triage.** Scheduled and event automations don't fire and new issues aren't triaged, as in every project in Manual mode. You can still run an automation by hand.
+- **No factory.** The software factory and the dark factory only run in a project you put in that mode.
+
+Everything you start yourself works as usual: sessions you start, messages you send to the project manager (it answers, and can start sessions for what you asked) and automations you run by hand. The follow-ups of a session you started (being told when its own pull request fails its checks, a retry after a turn failed for a passing reason) are settings of their own and are not changed by this.
+
+**To turn automatic work on,** open the project and press **Turn on automatic work…** in its Secure Foundation setup card, or the mode button beside the project's name (it reads **Manual**). Choose **Assisted** and save. From then on the project behaves like every other Assisted project: updates from GitHub wake its project manager, which works at the Auto permission level and can start agent sessions, and the automations you enabled fire. What arrived while it was off reaches the project manager with its next turn: the next update that wakes it, your next message to it, or the next start of CodeHarden.
+
+**To turn it off again,** set the mode back to Manual.
+
+This applies to projects Secure Foundation set up; other projects are unchanged. A project made by an earlier version keeps the mode it has (Assisted, unless you changed it): set it to Manual to get the same quiet state.
 
 ## Claim your Clerk app
 
@@ -141,6 +160,6 @@ Neither step removes anything from your accounts. Remove each there:
 
 ## For fork owners
 
-The template is part of the fork's configuration: the build variables `TEMPLATE_REPOSITORY` (a GitHub `owner/repo`, default `harperaa/secure-vibe-coding-OS`) and `TEMPLATE_BRANCH` (default `main`). `TEMPLATE_REPOSITORY=none` builds without the option. Only that repository is ever fetched: no request can name another. The other defaults are one constant each in `packages/contracts/src/secure-foundation.ts`: `SECURE_FOUNDATION_DEFAULT_SECRETS`, `SECURE_FOUNDATION_SETUP_AUTONOMY`, `SECURE_FOUNDATION_REPOSITORY_MODE`, `SECURE_FOUNDATION_DEFAULT_SHELL` (the preselected app shell, `all`) and `SECURE_FOUNDATION_DEFAULT_DEPLOY` (whether the deploy option starts ticked).
+The template is part of the fork's configuration: the build variables `TEMPLATE_REPOSITORY` (a GitHub `owner/repo`, default `harperaa/secure-vibe-coding-OS`) and `TEMPLATE_BRANCH` (default `main`). `TEMPLATE_REPOSITORY=none` builds without the option. Only that repository is ever fetched: no request can name another. The other defaults are one constant each in `packages/contracts/src/secure-foundation.ts`: `SECURE_FOUNDATION_DEFAULT_SECRETS`, `SECURE_FOUNDATION_SETUP_AUTONOMY`, `SECURE_FOUNDATION_REPOSITORY_MODE`, `SECURE_FOUNDATION_DEFAULT_SHELL` (the preselected app shell, `all`) and `SECURE_FOUNDATION_DEFAULT_DEPLOY` (whether the deploy option starts ticked). `SECURE_FOUNDATION_PROJECT_MODE` (`manual`) is the autonomy mode a new project starts in; while a project Secure Foundation set up is in that mode, its project manager is not woken (`isSecureFoundationQuiet`, and `holdsPmWakes` in `apps/server/src/services/secure-foundation/quiet.ts`).
 
 The template must have what the setup session's brief names: `.claude/commands/install.md`, `scripts/setup.mjs` with the subcommands `init`, `convex-setup`, `configure`, `doppler-bootstrap`, `doppler-sync-env-local` and `write-install-summary`, `scripts/modules.mjs install`, for the deploy `.claude/commands/deploy-to-dev.md` and `scripts/deploy.mjs` (`github-setup`, `vercel-env-dev`, `vercel-deploy`, `write-summary`), and content modules under `templates/modules/<name>/module.json`.
