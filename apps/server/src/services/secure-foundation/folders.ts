@@ -21,6 +21,23 @@ export function claimLink(summary: string): string | null {
   return null;
 }
 
+/** The deployed site in the deploy summary: the first link on a vercel.app address. */
+export function deployedLink(summary: string): string | null {
+  for (const word of summary.split(/\s/)) {
+    const at = word.indexOf("https://");
+    if (at < 0 || word.length > 2_000) continue;
+    let text = word.slice(at);
+    while (/[.,)*`>\]]$/.test(text)) text = text.slice(0, -1);
+    try {
+      const url = new URL(text);
+      if (url.hostname.toLowerCase().endsWith(".vercel.app")) return url.origin;
+    } catch {
+      // Not a link.
+    }
+  }
+  return null;
+}
+
 /**
  * True when `dest` is a real folder that sits directly in its parent: not a link, and not
  * reached through one. Only such a folder is written to, or cleaned up.

@@ -287,6 +287,40 @@ describe("creating the project", () => {
     expect(existsSync(join(projectsDir, "my-site"))).toBe(false);
   });
 
+  it("gives the setup session the confirmed repository, owner and scope, and no other", async () => {
+    const deploy = { owner: "acme-org", repository: "my-site", vercelScope: "acme-team" };
+    await service().create(request({ deploy }));
+    const text = started[0]?.input?.text ?? "";
+    expect(text).toContain("GitHub repository: acme-org/my-site, private");
+    expect(text).toContain('--repo-name="my-site" --owner="acme-org"');
+    expect(text).toContain('--scope="acme-team"');
+    // Without the option the session is told not to create or deploy anything.
+    started = [];
+    await service({ projectsDir: join(dir, "other") }).create(request());
+    expect(started[0]?.input?.text).toContain("Don't create a GitHub repository");
+    expect(started[0]?.input?.text).not.toContain("deploy-to-dev");
+  });
+
+  it.each([
+    ["an owner that is a path", { owner: "../x", repository: "a", vercelScope: "t" }],
+    ["a repository name with a space", { owner: "a", repository: "a b", vercelScope: "t" }],
+    ["shell text as the repository", { owner: "a", repository: 'x";id;"', vercelScope: "t" }],
+    [
+      "a public repository",
+      { owner: "a", repository: "a", vercelScope: "t", visibility: "public" },
+    ],
+    ["a scope with an option in it", { owner: "a", repository: "a", vercelScope: "--prod" }],
+  ])("the request schema refuses %s", (_label, deploy) => {
+    const parsed = CreateSecureFoundationRequest.safeParse({
+      name: "x",
+      adminEmail: EMAIL,
+      provider: "alpha",
+      commit: "a".repeat(40),
+      deploy,
+    });
+    expect(parsed.success).toBe(false);
+  });
+
   it("keeps the template's history and remote in clone mode", async () => {
     await service({ repositoryMode: "clone" }).create(request());
     const dest = join(projectsDir, "my-site");
@@ -399,11 +433,19 @@ describe("the finish state", () => {
     const dest = join(projectsDir, "my-site");
     mkdirSync(join(dest, "docs"), { recursive: true });
     const s = service();
-    expect(s.finish("p1")).toEqual({ clerkClaimUrl: null });
+    expect(s.finish("p1")).toEqual({ clerkClaimUrl: null, deployedUrl: null });
     const url = "https://dashboard.clerk.com/apps/claim?token=fixture";
     writeFileSync(join(dest, "docs/INSTALL.md"), `## Claim Your Clerk App\n\nVisit: ${url}\n`);
-    expect(s.finish("p1")).toEqual({ clerkClaimUrl: url });
+    expect(s.finish("p1")).toEqual({ clerkClaimUrl: url, deployedUrl: null });
     writeFileSync(join(dest, "docs/INSTALL.md"), "Visit: https://clerk.com.evil.test/claim\n");
-    expect(s.finish("p1")).toEqual({ clerkClaimUrl: null });
+    expect(s.finish("p1")).toEqual({ clerkClaimUrl: null, deployedUrl: null });
+    // The deployed site, from the deploy's own summary: a vercel.app address only.
+    writeFileSync(
+      join(dest, "docs/DEPLOYMENT-DEV.md"),
+      "# Deployment\n\n- GitHub: https://github.com/acme-org/my-site\n- **App:** https://my-site.vercel.app/dashboard\n",
+    );
+    expect(s.finish("p1").deployedUrl).toBe("https://my-site.vercel.app");
+    writeFileSync(join(dest, "docs/DEPLOYMENT-DEV.md"), "App: https://vercel.app.evil.test/x\n");
+    expect(s.finish("p1").deployedUrl).toBeNull();
   });
 });

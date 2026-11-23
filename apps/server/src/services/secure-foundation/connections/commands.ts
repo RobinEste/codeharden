@@ -2,6 +2,7 @@ import {
   type ConvexTeam,
   ConvexTeamSlug,
   HARDEN_APP_SLUG,
+  SECURE_FOUNDATION_GITHUB_SCOPES,
   SECURE_FOUNDATION_NPX_PACKAGES,
   type SecureFoundationService,
 } from "@codeden/contracts";
@@ -22,6 +23,10 @@ export interface Command {
 export interface StatusReading {
   signedIn: boolean | null;
   teams: ConvexTeam[];
+  account?: string | null;
+  owners?: string[];
+  missingScopes?: string[];
+  scopes?: Array<{ slug: string; name: string }>;
 }
 
 export interface ServiceCommands {
@@ -29,9 +34,13 @@ export interface ServiceCommands {
   label: string;
   status: Command;
   login: Command;
+  /** A second question asked once signed in (GitHub's organisations, Vercel's teams). */
+  extra?: Command;
+  /** Signed in, but short of a permission: the command that adds it instead of a new login. */
+  refresh?: Command;
   /** How long the status command may take (npx may have to download the pinned package). */
   statusTimeoutMs: number;
-  readStatus(result: CliResult): StatusReading;
+  readStatus(result: CliResult, extra: CliResult | null): StatusReading;
   /** The sign-in link and code in what the login has printed so far. */
   readLogin(output: string): { url: string | null; code: string | null };
   /** Said when the program can't be found on the app's path. */
@@ -67,6 +76,69 @@ function wordAfter(output: string, marker: string): string | null {
     .trim()
     .split(/\s/, 1)[0];
   return word && /^[A-Za-z0-9_-]{4,80}$/.test(word) ? word : null;
+}
+
+/** The JSON object in `output`, which may have other lines around it; null when there is none. */
+function jsonIn(output: string): Record<string, unknown> | null {
+  const start = output.indexOf("{");
+  const end = output.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  try {
+    const value: unknown = JSON.parse(output.slice(start, end + 1));
+    return value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+const NAME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/;
+const names = (lines: string[]) => lines.map((l) => l.trim()).filter((l) => NAME.test(l));
+
+/** `gh auth status --json hosts`: the active github.com account and its permissions. */
+function githubStatus(result: CliResult, extra: CliResult | null): StatusReading {
+  const none = { signedIn: null, teams: [] };
+  const hosts = jsonIn(result.output)?.hosts;
+  if (!hosts || typeof hosts !== "object")
+    return result.code === null ? none : { ...none, signedIn: false };
+  const entries = (hosts as Record<string, unknown>)["github.com"];
+  const active = (Array.isArray(entries) ? entries : []).find(
+    (e) => e && typeof e === "object" && e.active === true && e.state === "success",
+  ) as { login?: unknown; scopes?: unknown } | undefined;
+  if (!active || typeof active.login !== "string") return { signedIn: false, teams: [] };
+  const raw = Array.isArray(active.scopes) ? active.scopes.join(",") : String(active.scopes ?? "");
+  const granted = raw.split(",").map((s) => s.trim().replace(/^['"]|['"]$/g, ""));
+  return {
+    signedIn: true,
+    teams: [],
+    account: active.login,
+    owners: names([active.login, ...(extra?.code === 0 ? extra.output.split("\n") : [])]),
+    missingScopes: SECURE_FOUNDATION_GITHUB_SCOPES.filter((s) => !granted.includes(s)),
+  };
+}
+
+const vercelNpx = ["--yes", SECURE_FOUNDATION_NPX_PACKAGES.vercel] as const;
+
+/** `vercel whoami --json`, and `vercel teams list --json` for the scopes. */
+function vercelStatus(result: CliResult, extra: CliResult | null): StatusReading {
+  const who = jsonIn(result.output);
+  if (!who || who.loggedIn === false || typeof who.username !== "string") {
+    return { signedIn: result.code === 1 || who?.loggedIn === false ? false : null, teams: [] };
+  }
+  const listed = extra?.code === 0 ? jsonIn(extra.output)?.teams : who.teams;
+  const scopes = (Array.isArray(listed) ? listed : []).flatMap((t) =>
+    t && typeof t.slug === "string" && NAME.test(t.slug)
+      ? [{ slug: t.slug, name: typeof t.name === "string" ? t.name.slice(0, 200) : t.slug }]
+      : [],
+  );
+  return { signedIn: true, teams: [], account: who.username.slice(0, 200), scopes };
+}
+
+/** Vercel prints its sign-in page with or without `https://` in front. */
+function vercelLink(output: string): string | null {
+  const full = linkOn(output, "vercel.com");
+  if (full) return full;
+  const bare = output.split(/\s/).find((w) => w.startsWith("vercel.com/") && w.length < 2_000);
+  return bare ? `https://${bare}` : null;
 }
 
 const convexNpx = ["--yes", SECURE_FOUNDATION_NPX_PACKAGES.convex] as const;
@@ -142,5 +214,54 @@ export const SERVICE_COMMANDS: Record<SecureFoundationService, ServiceCommands> 
     missing: "The Doppler command-line tool isn't installed, or isn't on the app's path.",
     install: dopplerInstall,
     manual: "Run `doppler login` in a terminal, then check again.",
+  },
+  github: {
+    label: "GitHub",
+    // With `--json` it exits 0 whatever the state, and never prints a token.
+    status: { program: "gh", args: ["auth", "status", "--json", "hosts"] },
+    extra: { program: "gh", args: ["api", "user/orgs", "--jq", ".[].login"] },
+    // Without a terminal it prints a one-time code and the device page, and opens no browser.
+    login: {
+      program: "gh",
+      args: [
+        "auth",
+        "login",
+        "--hostname",
+        "github.com",
+        "--git-protocol",
+        "https",
+        "--web",
+        "--scopes",
+        "workflow",
+      ],
+    },
+    refresh: {
+      program: "gh",
+      args: ["auth", "refresh", "--hostname", "github.com", "--scopes", "workflow"],
+    },
+    statusTimeoutMs: 20_000,
+    readStatus: githubStatus,
+    readLogin: (output) => ({
+      url: linkOn(output, "github.com"),
+      code: wordAfter(output, "one-time code:"),
+    }),
+    missing: "The GitHub command-line tool (gh) isn't installed, or isn't on the app's path.",
+    install: process.platform === "darwin" ? "brew install gh" : "See https://cli.github.com",
+    manual: "Run `gh auth login -h github.com -s workflow` in a terminal, then check again.",
+  },
+  vercel: {
+    label: "Vercel",
+    // Exits 1 with `{"loggedIn": false}` when signed out.
+    status: { program: "npx", args: [...vercelNpx, "whoami", "--json"] },
+    extra: { program: "npx", args: [...vercelNpx, "teams", "list", "--json"] },
+    // Opens the browser itself and prints the device page.
+    login: { program: "npx", args: [...vercelNpx, "login"] },
+    statusTimeoutMs: 120_000,
+    readStatus: vercelStatus,
+    readLogin: (output) => ({ url: vercelLink(output), code: wordAfter(output, "and enter") }),
+    missing:
+      "Node.js (npx) isn't on the app's path, so Vercel can't be asked. Install Node.js, or start the app from a terminal where `npx` works, then check again.",
+    install: null,
+    manual: "Run `npx vercel login` in a terminal, then check again.",
   },
 };

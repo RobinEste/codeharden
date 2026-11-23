@@ -13,7 +13,7 @@ const CLAIM = "https://dashboard.clerk.com/apps/claim?token=fixture";
 const calls: unknown[] = [];
 const stub = {
   prefill: async () => ({ adminEmail: "person@site.test" }),
-  finish: () => ({ clerkClaimUrl: CLAIM }),
+  finish: () => ({ clerkClaimUrl: CLAIM, deployedUrl: "https://my-site.vercel.app" }),
   create: async (req: unknown) => {
     calls.push(req);
     return { project: {}, sessionId: "s1", commit: "a".repeat(40) };
@@ -35,8 +35,14 @@ describe("what is personal is answered on this computer only", () => {
   });
 
   it("gives the Clerk claim link locally and not to another device", async () => {
-    expect(await get("/projects/p1/finish", "::1")).toEqual({ clerkClaimUrl: CLAIM });
-    expect(await get("/projects/p1/finish", "100.101.102.103")).toEqual({ clerkClaimUrl: null });
+    expect(await get("/projects/p1/finish", "::1")).toEqual({
+      clerkClaimUrl: CLAIM,
+      deployedUrl: "https://my-site.vercel.app",
+    });
+    expect(await get("/projects/p1/finish", "100.101.102.103")).toEqual({
+      clerkClaimUrl: null,
+      deployedUrl: null,
+    });
   });
 });
 

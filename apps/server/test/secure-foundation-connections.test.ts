@@ -212,6 +212,100 @@ describe.runIf(posix)("a login started from the form", () => {
   });
 });
 
+describe.runIf(posix)("GitHub and Vercel, for the deploy option", () => {
+  it("reads signed out for both", async () => {
+    expect(await connections.states(["github", "vercel"])).toMatchObject([
+      { service: "github", cli: "ready", signedIn: false, owners: [], missingScopes: [] },
+      { service: "vercel", cli: "ready", signedIn: false, scopes: [] },
+    ]);
+    // Signed out, nobody's organisations or teams are asked for.
+    expect(fakes.calls().some((c) => c.includes("user/orgs") || c.includes("teams list"))).toBe(
+      false,
+    );
+  });
+
+  it("lists who can own the repository, the account first, and the Vercel scopes", async () => {
+    fakes.setMode("signed_in");
+    const [github, vercel] = await connections.states(["github", "vercel"]);
+    expect(github).toMatchObject({
+      signedIn: true,
+      account: "demo-person",
+      owners: ["demo-person", "acme-org", "side-org"],
+      missingScopes: [],
+    });
+    expect(vercel).toMatchObject({
+      signedIn: true,
+      account: "demo-person",
+      scopes: [
+        { slug: "acme-team", name: "Acme Team" },
+        { slug: "side-team", name: "Side Team" },
+      ],
+    });
+  });
+
+  it("handles an account without organisations and one without teams", async () => {
+    fakes.setMode("signed_in");
+    fakes.write("gh.orgs", "");
+    fakes.write("vercel.teams", JSON.stringify({ teams: [] }));
+    const [github, vercel] = await connections.states(["github", "vercel"]);
+    expect(github?.owners).toEqual(["demo-person"]);
+    expect(vercel).toMatchObject({ signedIn: true, scopes: [] });
+  });
+
+  it("names a missing permission and adds it with a refresh, not a new login", async () => {
+    fakes.setMode("login_ok");
+    fakes.write("gh.signed-in", "");
+    fakes.write("gh.scopes", "gist, read:org, repo");
+    const [before] = await connections.states(["github"]);
+    expect(before).toMatchObject({ signedIn: true, missingScopes: ["workflow"] });
+    expect(before?.message).toContain("without the workflow permission");
+    const login = await connections.startLogin("github");
+    const shown = await waiting(login.id);
+    expect(shown.url).toBe("https://github.com/login/device");
+    expect(shown.code).toBe("ABCD-1234");
+    expect(fakes.seen("gh")?.args).toBe("auth refresh --hostname github.com --scopes workflow");
+    fakes.approve();
+    expect((await settled(login.id)).status).toBe("done");
+    expect((await connections.states(["github"]))[0]?.missingScopes).toEqual([]);
+  });
+
+  it("signs in to GitHub and Vercel with their own logins", async () => {
+    fakes.setMode("login_ok");
+    const gh = await waiting((await connections.startLogin("github")).id);
+    expect(gh).toMatchObject({ url: "https://github.com/login/device", code: "ABCD-1234" });
+    expect(fakes.seen("gh")?.args).toContain("auth login --hostname github.com");
+    const vercel = await waiting((await connections.startLogin("vercel")).id);
+    expect(vercel.url).toBe("https://vercel.com/oauth/device?user_code=VRCL-9876");
+    expect(vercel.code).toBe("VRCL-9876");
+    expect(fakes.seen("npx")?.args).toBe("--yes vercel@66.6.0 login");
+  });
+
+  it("says gh is missing with the install command, and starts nothing", async () => {
+    const noGh = makeFakeClis(["npx"]);
+    const s = service({ fakes: noGh });
+    const [github] = await s.states(["github"]);
+    expect(github).toMatchObject({ cli: "missing", signedIn: null });
+    expect(github?.install).toBeTruthy();
+    await expect(s.startLogin("github")).rejects.toBeInstanceOf(ServiceError);
+    s.dispose();
+    await removeTree(noGh.dir);
+  });
+
+  it("never runs a command that isn't one of the fixed ones", async () => {
+    fakes.setMode("signed_in");
+    await connections.states(["convex", "doppler", "github", "vercel"]);
+    const allowed = [
+      "npx --yes convex@1.43.0 login status",
+      "doppler me --json",
+      "gh auth status --json hosts",
+      "gh api user/orgs --jq .[].login",
+      "npx --yes vercel@66.6.0 whoami --json",
+      "npx --yes vercel@66.6.0 teams list --json",
+    ];
+    expect([...new Set(fakes.calls())].sort()).toEqual([...allowed].sort());
+  });
+});
+
 describe("the Connections routes are for this computer only", () => {
   const calls: string[] = [];
   const stub = {
@@ -267,7 +361,7 @@ describe("the Connections routes are for this computer only", () => {
 
   it("refuses a service it doesn't know, and a list with one", async () => {
     const local = from("127.0.0.1");
-    expect((await app.request("/connections/github/login", { method: "POST" }, local)).status).toBe(
+    expect((await app.request("/connections/npm/login", { method: "POST" }, local)).status).toBe(
       403,
     );
     expect((await app.request("/connections?services=convex,ssh", {}, local)).status).toBe(400);

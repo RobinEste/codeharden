@@ -17,8 +17,22 @@ const SETUP = `const FLAGS = {
   configure: ["admin-email"],
   "doppler-bootstrap": ["project-name"],
   "doppler-sync-env-local": [],
+  "doppler-create-ci-token": [],
   "write-install-summary": ["claim-url", "accountless", "completed-steps", "manual-steps", "modules-installed", "modules-skipped"],
 };
+const [command, ...rest] = process.argv.slice(2);
+const allowed = FLAGS[command];
+if (!allowed) { console.error("unknown command " + command); process.exit(2); }
+const args = {};
+for (const arg of rest) {
+  const match = /^--([a-z-]+)=(.*)$/.exec(arg);
+  if (!match || !allowed.includes(match[1])) { console.error("unknown flag " + arg); process.exit(2); }
+  args[match[1]] = match[2];
+}
+console.log(JSON.stringify({ success: true, command, args }));
+`;
+
+const DEPLOY = `const FLAGS = { "github-setup": ["repo-name", "owner"], "vercel-env-dev": [], "vercel-deploy": [] };
 const [command, ...rest] = process.argv.slice(2);
 const allowed = FLAGS[command];
 if (!allowed) { console.error("unknown command " + command); process.exit(2); }
@@ -48,6 +62,7 @@ const FILES: Record<string, string> = {
   "package.json": `${JSON.stringify({ name: "fixture-template", private: true, scripts: { dev: "echo dev", convex: "echo convex" } }, null, 2)}\n`,
   "scripts/setup.mjs": SETUP,
   "scripts/modules.mjs": MODULES,
+  "scripts/deploy.mjs": DEPLOY,
   "templates/modules/blog/module.json": `${JSON.stringify({ name: "blog", title: "Blog", description: "A blog" })}\n`,
   "templates/modules/pricing/module.json": `${JSON.stringify({ name: "pricing", title: "Pricing", description: "A pricing page" })}\n`,
   "templates/modules/Not A Module/module.json": "{}\n",
