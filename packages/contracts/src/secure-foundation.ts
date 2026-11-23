@@ -38,6 +38,31 @@ export const SECURE_FOUNDATION_REPOSITORY_MODE: SecureFoundationRepositoryMode =
 // Default 4 of 4, the template version, is the build variable `TEMPLATE_BRANCH`
 // (`HARDEN_TEMPLATE_BRANCH`, default `main`): the branch's latest commit at the time of the click.
 
+/**
+ * Whether the form starts with "create a GitHub repository and deploy to Vercel" ticked. Off:
+ * the project stays local unless the person ticks it.
+ */
+export const SECURE_FOUNDATION_DEFAULT_DEPLOY = false;
+
+/**
+ * The deploy part of a setup, chosen in the form: the GitHub repository that is created and
+ * the Vercel scope the project is created in. The template's dev route creates the repository
+ * private; no other visibility can be asked for.
+ */
+export const SecureFoundationDeploy = z.object({
+  /** The GitHub account or organisation that will own the repository. */
+  owner: z.string().regex(/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/),
+  /** The repository's name, also the Vercel project's. */
+  repository: z
+    .string()
+    .regex(/^[A-Za-z0-9_][A-Za-z0-9._-]{0,99}$/)
+    .refine((v) => !v.endsWith(".git") && !v.endsWith("."), "Not a repository name"),
+  visibility: z.literal("private").default("private"),
+  /** The Vercel team (scope) slug the project is created in. */
+  vercelScope: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$/),
+});
+export type SecureFoundationDeploy = z.infer<typeof SecureFoundationDeploy>;
+
 /** How much of the app is installed: no content modules, all of them, or a chosen set. */
 export const SecureFoundationShell = z.enum(["minimal", "all", "pick"]);
 export type SecureFoundationShell = z.infer<typeof SecureFoundationShell>;
@@ -134,7 +159,12 @@ export const SecureFoundationOptions = z.object({
   pathSeparator: z.enum(["/", "\\"]),
   /** Signed-in providers that can run the setup, the one a new session would use first. */
   providers: z.array(SecureFoundationProvider),
-  defaults: z.object({ secrets: SecureFoundationSecrets, shell: SecureFoundationShell }),
+  defaults: z.object({
+    secrets: SecureFoundationSecrets,
+    shell: SecureFoundationShell,
+    /** Whether the deploy option starts ticked (`SECURE_FOUNDATION_DEFAULT_DEPLOY`). */
+    deploy: z.boolean().default(false),
+  }),
   repositoryMode: SecureFoundationRepositoryMode,
   autonomy: AutonomyLevel,
 });
@@ -184,6 +214,11 @@ export const CreateSecureFoundationRequest = z.object({
     .string()
     .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/)
     .optional(),
+  /**
+   * Also create a GitHub repository and deploy to Vercel with the template's dev route.
+   * Omitted: the project stays local.
+   */
+  deploy: SecureFoundationDeploy.optional(),
 });
 export type CreateSecureFoundationRequest = z.infer<typeof CreateSecureFoundationRequest>;
 export type CreateSecureFoundationRequestInit = z.input<typeof CreateSecureFoundationRequest>;
@@ -212,6 +247,8 @@ export const SECURE_FOUNDATION_TEMPLATE_MOVED = "template_moved";
 export const SecureFoundationFinish = z.object({
   /** Where the person claims the accountless Clerk app; null when there is none (yet). */
   clerkClaimUrl: z.string().nullable(),
+  /** The deployed site, from `docs/DEPLOYMENT-DEV.md`; null when nothing was deployed. */
+  deployedUrl: z.string().nullable().default(null),
 });
 export type SecureFoundationFinish = z.infer<typeof SecureFoundationFinish>;
 
@@ -219,7 +256,7 @@ export type SecureFoundationFinish = z.infer<typeof SecureFoundationFinish>;
 
 /** One thing a setup creates in the person's accounts, and where it is removed again. */
 export interface SecureFoundationCreated {
-  service: "Clerk" | "Convex" | "Doppler";
+  service: "Clerk" | "Convex" | "Doppler" | "GitHub" | "Vercel";
   /** What it is and its name, as one phrase. */
   item: string;
   /** Where the person removes it. */
@@ -235,6 +272,7 @@ export function secureFoundationCreates(answers: {
   name: string;
   secrets: SecureFoundationSecrets;
   convexTeam?: string;
+  deploy?: Pick<SecureFoundationDeploy, "owner" | "repository" | "vercelScope">;
 }): SecureFoundationCreated[] {
   const slug = secureFoundationFolder(answers.name);
   const created: SecureFoundationCreated[] = [
@@ -255,6 +293,22 @@ export function secureFoundationCreates(answers: {
       item: `a Doppler project named "${slug}" with the configs dev and prd, holding the app's secrets`,
       removeAt: "the Doppler dashboard, in the project's settings",
     });
+  }
+  const { deploy } = answers;
+  if (deploy) {
+    const doppler = answers.secrets === "doppler";
+    created.push(
+      {
+        service: "GitHub",
+        item: `a private repository ${deploy.owner}/${deploy.repository}, with this project's code pushed to it (its own commits only, none of the template's history)${doppler ? ", and a Doppler token stored as its Actions secret DOPPLER_TOKEN" : ""}`,
+        removeAt: "the repository's settings on GitHub (Danger Zone)",
+      },
+      {
+        service: "Vercel",
+        item: `a Vercel project named "${deploy.repository}" in the scope "${deploy.vercelScope}", connected to that repository, with ${doppler ? "a Doppler token as its only environment variable" : "the app's environment variables (its development keys) copied to it"}, and the site published on a public vercel.app address running on the development Clerk and Convex`,
+        removeAt: "the project's settings on Vercel",
+      },
+    );
   }
   return created;
 }

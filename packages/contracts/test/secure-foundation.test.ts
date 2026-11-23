@@ -94,7 +94,7 @@ describe("the route shapes round-trip", () => {
       projectsDir: "/projects",
       pathSeparator: "/",
       providers: [{ id: "fake", displayName: "Fake", runsCommandFiles: false }],
-      defaults: { secrets: "doppler", shell: "minimal" },
+      defaults: { secrets: "doppler", shell: "minimal", deploy: false },
       repositoryMode: "fresh",
       autonomy: "full",
     };
@@ -110,6 +110,7 @@ describe("the route shapes round-trip", () => {
     expect(roundTrip(SecureFoundationTemplate, template)).toEqual(template);
     expect(roundTrip(SecureFoundationFinish, { clerkClaimUrl: null })).toEqual({
       clerkClaimUrl: null,
+      deployedUrl: null,
     });
   });
 
@@ -281,6 +282,10 @@ describe("the Connections step's shapes", () => {
       message: "Signed in to Convex.",
       install: null,
       teams: [{ name: "Acme Labs", slug: "acme-labs" }],
+      account: null,
+      owners: [],
+      missingScopes: [],
+      scopes: [],
     };
     expect(roundTrip(c.SecureFoundationConnections, { connections: [connection] })).toEqual({
       connections: [connection],
@@ -316,5 +321,56 @@ describe("the Connections step's shapes", () => {
         bad,
       ).toBe(false);
     }
+  });
+});
+
+describe("the deploy option", () => {
+  const deploy = { owner: "acme-org", repository: "my-site", vercelScope: "acme-team" };
+
+  it("is off unless a fork flips its one constant", async () => {
+    const c = await import("../src/index");
+    expect(c.SECURE_FOUNDATION_DEFAULT_DEPLOY).toBe(false);
+    expect(c.secureFoundationServices({ secrets: "env_local", deploy: true })).toEqual([
+      "convex",
+      "github",
+      "vercel",
+    ]);
+    expect(c.secureFoundationServices({ secrets: "doppler", deploy: false })).toEqual([
+      "convex",
+      "doppler",
+    ]);
+    expect(c.SECURE_FOUNDATION_NPX_PACKAGES.vercel).toMatch(/^vercel@\d+\.\d+\.\d+$/);
+  });
+
+  it("travels in the request, private only", () => {
+    const base = {
+      name: "My Site",
+      adminEmail: "person@site.test",
+      provider: "fake",
+      commit: COMMIT,
+    };
+    const request = roundTrip(CreateSecureFoundationRequest, { ...base, deploy });
+    expect(request.deploy).toEqual({ ...deploy, visibility: "private" });
+    expect(roundTrip(CreateSecureFoundationRequest, base).deploy).toBeUndefined();
+    for (const bad of [
+      { ...deploy, visibility: "public" },
+      { ...deploy, repository: "x.git" },
+      { ...deploy, repository: ".github" },
+      { ...deploy, owner: "-x" },
+    ]) {
+      expect(CreateSecureFoundationRequest.safeParse({ ...base, deploy: bad }).success).toBe(false);
+    }
+  });
+
+  it("lists the repository, the Vercel project and what is pushed to them", () => {
+    const local = secureFoundationCreates({ name: "My Site", secrets: "env_local", deploy });
+    expect(local.map((c) => c.service)).toEqual(["Clerk", "Convex", "GitHub", "Vercel"]);
+    expect(local[2]?.item).toContain("a private repository acme-org/my-site");
+    expect(local[2]?.item).not.toContain("DOPPLER_TOKEN");
+    expect(local[3]?.item).toContain('named "my-site" in the scope "acme-team"');
+    expect(local[3]?.item).toContain("public vercel.app address");
+    const doppler = secureFoundationCreates({ name: "My Site", secrets: "doppler", deploy });
+    expect(doppler[3]?.item).toContain("Actions secret DOPPLER_TOKEN");
+    expect(doppler[4]?.item).toContain("a Doppler token as its only environment variable");
   });
 });
