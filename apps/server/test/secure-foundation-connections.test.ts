@@ -22,9 +22,12 @@ const posix = process.platform !== "win32";
 let fakes: FakeClis;
 let connections: ConnectionsService;
 
-const service = (over: { loginTimeoutMs?: number; fakes?: FakeClis } = {}) =>
+const service = (over: { loginTimeoutMs?: number; fakes?: FakeClis; path?: string } = {}) =>
   new ConnectionsService({
-    env: () => (over.fakes ?? fakes).env,
+    env: () => ({
+      ...(over.fakes ?? fakes).env,
+      ...(over.path === undefined ? {} : { PATH: over.path }),
+    }),
     loginTimeoutMs: over.loginTimeoutMs,
     // No real shell is asked and no real tool can be reached in tests.
     shellPath: async () => "",
@@ -67,7 +70,9 @@ describe.runIf(posix)("sign-in state, asked of each CLI", () => {
 
   it("says a CLI is missing, with the install command for the person to run", async () => {
     const onlyNpx = makeFakeClis(["npx"]);
-    const s = service({ fakes: onlyNpx });
+    // Only the fakes' folder on PATH: a machine that has the real tool in a system folder must
+    // not make it found here, and the real one must never be asked.
+    const s = service({ fakes: onlyNpx, path: onlyNpx.dir });
     const [doppler] = await s.states(["doppler"]);
     expect(doppler).toMatchObject({ cli: "missing", signedIn: null });
     expect(doppler?.install).toBeTruthy();
@@ -293,7 +298,9 @@ describe.runIf(posix)("GitHub and Vercel, for the deploy option", () => {
 
   it("says gh is missing with the install command, and starts nothing", async () => {
     const noGh = makeFakeClis(["npx"]);
-    const s = service({ fakes: noGh });
+    // Only the fakes' folder on PATH: CI's Linux runner has a real gh in /usr/bin, which the
+    // fakes' usual PATH includes. It must not be found, and never asked, here.
+    const s = service({ fakes: noGh, path: noGh.dir });
     const [github] = await s.states(["github"]);
     expect(github).toMatchObject({ cli: "missing", signedIn: null });
     expect(github?.install).toBeTruthy();

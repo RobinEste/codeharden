@@ -16,6 +16,11 @@ while read -r local_ref local_sha remote_ref _remote_sha; do
   [ "$local_sha" = "$zero" ] && continue
   case "$remote_ref" in
     refs/tags/* | refs/heads/harden | refs/heads/main | refs/heads/mirror) continue ;;
+    # A sync branch (upstream merged with harden) is pushed so that its pull request can be
+    # reviewed. That review runs the full checks itself on the merged result and reports them:
+    # a failing check there is a finding to report on the pull request, not a reason to keep
+    # the branch off GitHub.
+    refs/heads/sync/*) continue ;;
   esac
   # Documentation only, compared with harden: nothing to test (CI skips these too).
   base=$(git merge-base "$local_sha" refs/remotes/origin/harden 2> /dev/null || true)
