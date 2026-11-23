@@ -10,7 +10,7 @@
 **One home for all your coding agents.** Start with a single agent helping you code. Run several at once, across every provider and project. When you're ready, turn your backlog over to a software factory, or let a dark factory find the work and do it on its own.
 
 [![Website](https://img.shields.io/badge/website-codeden.app-e8a33d)](https://www.codeden.app)
-[![npm](https://img.shields.io/npm/v/codeden?color=e8a33d&label=npm)](https://www.npmjs.com/package/codeden)
+[![npm](https://img.shields.io/npm/v/codeharden?color=e8a33d&label=npm)](https://www.npmjs.com/package/codeharden)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node 24+](https://img.shields.io/badge/node-%3E%3D24-339933)
 ![Windows, macOS, Linux](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-555)
@@ -20,7 +20,7 @@
 ![A CodeDen agent session: the conversation on the left, the changes the agent made on the right](docs/images/session.png)
 
 ```sh
-npx codeden
+npx codeharden
 ```
 
 That's it. CodeDen opens in your browser and uses the coding agents you already have installed and signed in. There's no account to create, no license key, no cloud service and no tracking. Everything stays on your computer.
@@ -146,7 +146,7 @@ Full details: [Security](docs/security.md). To report a vulnerability, see [SECU
 **Run it**
 
 ```sh
-npx codeden
+npx codeharden
 ```
 
 Or install the **desktop app** from the [latest release](https://github.com/harperaa/codeharden/releases/latest): `CodeDen-Setup-<version>.exe` on Windows, a `.dmg` on macOS, an AppImage or `.deb` on Linux. If Windows or macOS warns about an unsigned app the first time, see [The desktop app](docs/desktop.md#unsigned-builds).
@@ -157,7 +157,7 @@ Or install the **desktop app** from the [latest release](https://github.com/harp
 
 ![The first-run setup checklist](docs/images/setup.png)
 
-Something not working? Run `npx codeden doctor` to check your setup from the terminal. For a full walkthrough, see [Getting started](docs/getting-started.md).
+Something not working? Run `npx codeharden doctor` to check your setup from the terminal. For a full walkthrough, see [Getting started](docs/getting-started.md).
 
 CodeDen updates itself: when a new version is out, a banner offers **Update now**. Command-line options, settings files and update details are in the [Reference](docs/reference.md).
 
@@ -179,7 +179,7 @@ Yes. Sessions, the workbench and automations all work on local folders. Issues, 
 No. Agents work in their own copies of your project on their own branches. Your own checkout and branch are never touched.
 
 **What if I close the terminal?**
-Agents in the middle of a task keep going. Run `codeden` again and it picks up where it left off. `codeden stop` stops everything.
+Agents in the middle of a task keep going. Run `codeharden` again and it picks up where it left off. `codeharden stop` stops everything.
 
 **Which platforms does it run on?**
 Windows, macOS and Linux.

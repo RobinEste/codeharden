@@ -11,10 +11,10 @@ CodeDen runs on your computer, but you can open it from your phone or tablet: an
 From a terminal (handy on a headless machine):
 
 ```
-codeden password             # type a password (or pipe one in)
-codeden password --generate  # make one up and print it once
-codeden network on           # or: codeden network off
-codeden network              # show whether it's on, and the addresses
+codeharden password             # type a password (or pipe one in)
+codeharden password --generate  # make one up and print it once
+codeharden network on           # or: codeharden network off
+codeharden network              # show whether it's on, and the addresses
 ```
 
 These work whether CodeDen is running or not. Changing the password signs out every phone and tablet.
@@ -69,7 +69,7 @@ Everything else works: the orchestrator and PM chats, sessions and their transcr
 - **Only a hash is stored.** The password is kept as a salted scrypt hash in `~/.codeden/remote-access.json` (readable only by you where the OS supports file modes). Each device's 90-day session token is random; only its SHA-256 hash is stored, with the device's browser name and when it was last seen.
 - **Session cookie.** A signed-in device holds the token in an `HttpOnly`, `SameSite=Lax` cookie (also `Secure` when CodeDen is served over HTTPS).
 - **Who is remote** is decided by the connection's own address: anything other than this computer's loopback (`127.0.0.0/8`, `::1`, and their IPv4-mapped forms) is remote. `X-Forwarded-For` and similar headers are never trusted, so they grant nothing.
-- **Remote devices sign in with the password; the install token doesn't work for them.** This computer keeps using the install token exactly as before, so `npx codeden` and the desktop app are unaffected.
+- **Remote devices sign in with the password; the install token doesn't work for them.** This computer keeps using the install token exactly as before, so `npx codeharden` and the desktop app are unaffected.
 - **Guessing is throttled.** Only failed sign-ins count, per address. After three wrong passwords each try has to wait 1 s, then 2 s, 4 s … up to 30 s; ten failures within 15 minutes lock that address out for 15 minutes. Other devices keep working. Failed sign-ins are logged with their address (never the password) in `~/.codeden/logs/remote-access.log`.
 - **What a signed-in device can reach:** the web UI, its HTTP API and its WebSockets (live updates, the terminal and browser panels), the same things you can do at the computer.
 - **What is never reachable from the network, even when it's on:** the agents' MCP endpoint (`/mcp`, which answers 404), the runner (it keeps listening on `127.0.0.1` only, as does its MCP proxy), and changing network access itself: the switch and the password can only be changed on the computer running CodeDen (or with the CLI there). A phone can see the settings and sign devices out.
