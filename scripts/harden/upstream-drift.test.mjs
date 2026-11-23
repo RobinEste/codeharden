@@ -104,6 +104,13 @@ const RULES = [
     back: "upstream's product name `CodeDen` where it names the app (its name, a title, an installer or executable name)",
     use: "HARDEN_PRODUCT_NAME; in the packaging config `readHardenChannel().productName`",
   },
+  {
+    id: "sandbox-names",
+    pattern:
+      /\bcodeden-runner:|\blabel=codeden\.|(["'`])codeden\.(?:install|session|project|runner|version|build)\1|`codeden-\$\{/,
+    back: "upstream's name for something in Docker: the sandbox image `codeden-runner:<version>`, a `codeden.*` label, or a container or volume named `codeden-<id>`",
+    use: "HARDEN_APP_SLUG, through `imageName`, `LABEL` (`apps/server/src/execution/docker/args.ts`) and `containerNameFor` (`docker/backend.ts`)",
+  },
 ];
 
 const ANY = /^/;
@@ -121,7 +128,7 @@ const WHY = {
   upstreamPack:
     "upstream's own manifest and publish step, kept as they are; the fork's release writes the name, links and README in a staging copy (`scripts/harden/npm-release.mjs`)",
   sandbox:
-    "the package and command name inside the sandbox image, which is built on this machine from this build's own bundle; nothing is fetched from npm under that name",
+    "the package and command name inside the sandbox image (`codeden`, in `/opt/codeden`): nothing outside a container sees it, and the image is built on this machine from this build's own bundle, never fetched from npm under that name. What Docker itself is asked for by name (the image, labels, containers, volumes) is the fork's: rule `sandbox-names`",
   hello: "how the app introduces itself to an agent CLI or a web server (a client name)",
   commits: "the author name of checkpoint commits and of git inside the sandbox image",
 };
@@ -304,6 +311,9 @@ const CALL_SITES = [
   ["apps/cli/src/commands.ts", "the version line and command name in CLI output", "formatHardenVersion", "HARDEN_COMMAND"],
   ["apps/cli/src/doctor.ts", "the version line and update command in `doctor`", "formatHardenVersion", "HARDEN_UPDATE_COMMAND"],
   ["apps/cli/src/update-command.ts", "the update command it prints", "HARDEN_UPDATE_COMMAND"],
+  // --- the sandbox in Docker: one Docker is shared by every product on the machine
+  ["apps/server/src/execution/docker/args.ts", "the sandbox image's name and the labels on images, containers and volumes", /`\$\{HARDEN_APP_SLUG\}-runner:\$\{version\}`/, /install: `\$\{HARDEN_APP_SLUG\}\.install`/, /build: `\$\{HARDEN_APP_SLUG\}\.build`/],
+  ["apps/server/src/execution/docker/backend.ts", "the names of sandbox containers (and through them their volumes)", /`\$\{HARDEN_APP_SLUG\}-\$\{recordId\}`/],
   // --- self-update: only the channel's package, only the fork's releases
   ["apps/server/src/services/updates/app-dir.ts", "the package self-update installs and may run", /PACKAGE_NAME = HARDEN_PACKAGE_NAME/, /pkg\.name !== PACKAGE_NAME/],
   ["apps/server/src/services/updates/registry.ts", "the registry lookup and the release notes links", /registryPackagePath\(PACKAGE_NAME\)/, "hardenReleaseUrl", "hardenReleaseApiUrl", "hardenChangelogUrl", "hardenVersionOf"],
@@ -325,6 +335,8 @@ const CALL_SITES = [
   ["apps/desktop/src/server/serve.ts", "the name and version line of the server the app hosts", "HARDEN_PRODUCT_NAME", "formatHardenVersion"],
   // --- web UI
   ["scripts/harden/web-identity.mjs", "the build step that names the page and the web manifest after the product", /readHardenChannel\(env, options\)/, "productName", "titledHtml", "namedManifest"],
+  ["apps/web/index.html", "the places the build puts the product name in (the page title, the home-screen title)", /<title>[^<]+<\/title>/, /name="apple-mobile-web-app-title" content="/, /rel="manifest" href="\/manifest\.webmanifest"/],
+  ["apps/web/public/manifest.webmanifest", "the installed web app's name, which the build replaces with the product name; a build does not fail when this file is gone", /"name": "/, /"short_name": "/],
   ["apps/web/src/lib/attention/title.ts", "the tab title, bare, counted and waiting", /APP_TITLE = HARDEN_PRODUCT_NAME/, /Waiting on you · \$\{APP_TITLE\}/],
   ["apps/web/src/lib/platform.ts", "the tab title the badge falls back to", /document\.title : HARDEN_PRODUCT_NAME/],
   ["apps/server/src/routes/static.ts", "the title of the page served when the web UI is not built", /<title>\$\{HARDEN_PRODUCT_NAME\}<\/title>/],
@@ -457,6 +469,10 @@ describe("upstream's identity does not come back into product code", () => {
     ["the installed web app's name in the manifest", "apps/web/public/manifest.webmanifest", '  "short_name": "CodeDen",', "app-name"],
     ["the tab title constant", "apps/web/src/lib/attention/title.ts", 'export const APP_TITLE = "CodeDen";', "app-name"],
     ["the title of a page the server writes", "apps/server/src/security.ts", "const PAGE = `<!doctype html><title>CodeDen</title>`;", "app-name"],
+    ["the sandbox image's name", "apps/server/src/execution/docker/args.ts", `  return ${TICK}codeden-runner:${D}{version}${TICK};`, "sandbox-names"],
+    ["a sandbox label", "apps/server/src/execution/docker/args.ts", '  install: "codeden.install",', "sandbox-names"],
+    ["a label filter written by hand", "apps/server/src/execution/new-sweep.ts", 'const filter = ["--filter", "label=codeden.install"];', "sandbox-names"],
+    ["the sandbox container's name", "apps/server/src/execution/docker/backend.ts", `  return ${TICK}codeden-${D}{recordId}${TICK};`, "sandbox-names"],
     ["the link scheme", "packages/contracts/src/desktop.ts", 'export const DEEP_LINK_SCHEME = "codeden";', "bare-name"],
     ["a link built by hand", "apps/web/src/lib/new-links.ts", `const link = ${TICK}codeden://session/${D}{id}${TICK};`, "link-scheme"],
     ["the home folder in a file that also names the project folder", "apps/server/src/services/automations/sources.ts", 'const dir = join(homedir(), ".codeden", "automations");', "home-folder"],
