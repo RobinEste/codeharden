@@ -25,7 +25,7 @@ npx codeden
 
 That's it. CodeDen opens in your browser and uses the coding agents you already have installed and signed in. There's no account to create, no license key, no cloud service and no tracking. Everything stays on your computer.
 
-Prefer an app? **[Download the desktop app](https://github.com/leonvanzyl/codeden/releases/latest)** for Windows, macOS or Linux. It's the same CodeDen in its own window, with notifications and automatic updates, and you don't need Node.js.
+Prefer an app? **[Download the desktop app](https://github.com/harperaa/codeharden/releases/latest)** for Windows, macOS or Linux. It's the same CodeDen in its own window, with notifications and automatic updates, and you don't need Node.js.
 
 ---
 
@@ -149,7 +149,7 @@ Full details: [Security](docs/security.md). To report a vulnerability, see [SECU
 npx codeden
 ```
 
-Or install the **desktop app** from the [latest release](https://github.com/leonvanzyl/codeden/releases/latest): `CodeDen-Setup-<version>.exe` on Windows, a `.dmg` on macOS, an AppImage or `.deb` on Linux. If Windows or macOS warns about an unsigned app the first time, see [The desktop app](docs/desktop.md#unsigned-builds).
+Or install the **desktop app** from the [latest release](https://github.com/harperaa/codeharden/releases/latest): `CodeDen-Setup-<version>.exe` on Windows, a `.dmg` on macOS, an AppImage or `.deb` on Linux. If Windows or macOS warns about an unsigned app the first time, see [The desktop app](docs/desktop.md#unsigned-builds).
 
 1. **The setup checklist** finds your agents, GitHub and git, and only asks about what's missing. Each problem has a one-click fix: an install command, or a **Sign in** button.
 2. **Add a project.** Pick a folder on your computer, or paste a GitHub link to clone one.

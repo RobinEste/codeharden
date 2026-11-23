@@ -6,7 +6,7 @@ You don't need Node.js or npm for the desktop app. You still need the tools your
 
 ## Install
 
-Download the installer for your system from the [latest GitHub Release](https://github.com/leonvanzyl/codeden/releases/latest):
+Download the installer for your system from the [latest GitHub Release](https://github.com/harperaa/codeharden/releases/latest):
 
 | System | File | Notes |
 |---|---|---|
@@ -46,7 +46,7 @@ After that CodeDen opens normally. On macOS 14 and earlier you can instead Contr
 
 3. Open CodeDen again.
 
-**A macOS app without a Developer ID can't update itself:** macOS only installs updates into an app signed with a Developer ID, so download new versions from the [latest GitHub Release](https://github.com/leonvanzyl/codeden/releases/latest) and drag them over the old one. **Settings › About** says when this applies.
+**A macOS app without a Developer ID can't update itself:** macOS only installs updates into an app signed with a Developer ID, so download new versions from the [latest GitHub Release](https://github.com/harperaa/codeharden/releases/latest) and drag them over the old one. **Settings › About** says when this applies.
 
 ## First launch
 
