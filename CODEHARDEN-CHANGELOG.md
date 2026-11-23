@@ -1,5 +1,11 @@
 # CodeHarden releases
 
+## 2026.1123.0947 — 2026-11-23 09:47
+
+### codeharden
+- fix(cli): the warning about an installed version that can't start names the product
+- fix(harden): the update banner of a source build says CodeHarden and no longer reports a false update
+
 ## 2026.1123.0930 — 2026-11-23 09:30
 
 ### codeharden
