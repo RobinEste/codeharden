@@ -4,8 +4,7 @@
 #
 # Not gated: tags, deletions, and pushes to harden, main or mirror (the working branch receives
 # merges and release commits, which were tested on their branches; main and, in a fork of
-# CodeHarden, mirror are pure copies of upstream), sync branches (sync/...: see below), and
-# branches that change documentation only.
+# CodeHarden, mirror are pure copies of upstream), and branches that change documentation only.
 # Git's own `--no-verify` skips the hook; say so in the pull request if you ever use it.
 set -euo pipefail
 

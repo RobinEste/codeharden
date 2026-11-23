@@ -74,7 +74,7 @@ Since 2026-11-22 CI skips `pnpm test` to keep pull requests fast: the repository
 - `scripts/harden/local-checks.sh` runs `pnpm test` on the checked-out commit and remembers a pass for that exact tree. **Run it before you open or update a pull request**, with everything committed.
 - The pre-push hook `scripts/harden/hooks/pre-push` runs the same script and refuses the push when the tests fail or can't run. A commit that already passed pushes at once. It is enabled per clone, once (worktrees share it): `git config core.hooksPath scripts/harden/hooks`.
 - Not gated: tags, pushes to `harden`, `main` and (in a fork of CodeHarden) `mirror`, sync branches (`sync/…`), and branches that change documentation only. `git push --no-verify` skips the hook; don't use it to get around a failure, and say so in the pull request if you ever use it.
-- A sync branch (`sync/…`) is pushed without this gate: the hook skips it, so nobody needs `--no-verify` for one. The review of a sync runs the full checks itself on the merged result (`scripts/harden/local-checks.sh` on the sync branch) and reports them before anyone approves; a failing check there is a finding to report on the pull request, not a reason to keep the branch off GitHub.
+- Sync pull requests from upstream are opened without this gate; run `scripts/harden/local-checks.sh` on the sync branch before approving one.
 - To turn the tests back on in CI: delete the repository variable (`gh variable delete CI_TESTS`), then remove this section. The plan is to do that in mid-December 2026, once the code has settled.
 
 ## Releasing
