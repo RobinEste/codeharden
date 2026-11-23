@@ -24,7 +24,10 @@ name: Upstream sync merge
 #      on upstream main and whose second parent is on harden. So a sync pull request can only
 #      bring upstream code plus the reviewer's conflict-resolution merge; a label alone can't
 #      get an arbitrary branch merged.
-#   6. Every check on the head commit has finished and passed (at least one check must
+#   6. Its changes against harden touch none of the paths in PROTECTED_PATHS (this fork's own
+#      release scripts). One that does gets the label `sync-needs-review` and is left for a
+#      manual merge.
+#   7. Every check on the head commit has finished and passed (at least one check must
 #      exist), and GitHub reports the pull request as mergeable.
 # Anything else is skipped, and the log says why.
 #
@@ -87,6 +90,9 @@ env:
   CHANGELOG_TITLE: "# CodeHarden releases"
   BASE_FILE: state/upstream-base
   RELEASE_SCRIPT: scripts/harden/release.sh
+  # Paths a sync pull request may not change and still merge by itself (space separated).
+  PROTECTED_PATHS: scripts/harden/
+  REVIEW_LABEL: sync-needs-review
   RELEASE_TZ: America/New_York
 
 jobs:
@@ -160,6 +166,13 @@ jobs:
           merged=0
 
           skip() { echo "  SKIP #$number: $1"; }
+          # protected-paths:begin
+          # The protected paths a commit changes against the target branch, one per line.
+          touches_protected() {
+            # shellcheck disable=SC2086 # PROTECTED_PATHS is a list of paths
+            git diff --name-only "refs/sync/target...$1" -- $PROTECTED_PATHS
+          }
+          # protected-paths:end
 
           gh api --paginate "repos/${repo}/pulls?state=open&base=${TARGET_BRANCH}&per_page=100" \
             --jq '.[] | @base64' > "$RUNNER_TEMP/pulls.txt"
@@ -260,7 +273,18 @@ jobs:
               echo "  head is a merge of upstream ${parents[0]} with ${TARGET_BRANCH} ${parents[1]}"
             fi
 
-            # 6. Checks and mergeability.
+            # 6. This fork's own release scripts are not changed by a sync.
+            if ! touched=$(touches_protected "$head_sha"); then
+              skip "its changes against ${TARGET_BRANCH} couldn't be listed."; failed=1; continue
+            fi
+            if [ -n "$touched" ]; then
+              gh api -X POST "repos/${repo}/issues/${number}/labels" -f "labels[]=${REVIEW_LABEL}" > /dev/null \
+                || echo "  (couldn't add the label ${REVIEW_LABEL})"
+              echo "::notice::Sync pull request #$number changes $(tr '\n' ' ' <<< "$touched"); it is left for a manual merge (${REVIEW_LABEL})."
+              skip "it changes protected paths: $(tr '\n' ' ' <<< "$touched")"; continue
+            fi
+
+            # 7. Checks and mergeability.
             if ! checks=$(gh api --paginate "repos/${repo}/commits/${head_sha}/check-runs?filter=latest&per_page=100" \
               --jq '.check_runs[] | "\(.status) \(.conclusion // "none") \(.name)"'); then
               skip "its checks couldn't be read."; failed=1; continue
@@ -341,6 +365,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
           echo "::add-mask::$auth"
+          # The credential lives in this checkout's config only while the script runs.
+          trap 'git config --unset-all "http.https://github.com/.extraheader" || true' EXIT
           git config "http.https://github.com/.extraheader" "AUTHORIZATION: basic $auth"
           # Writes VERSION, the changelog entry and the upstream base, commits, tags and pushes
           # both in one atomic push, never forced. It fails if the tag already exists.
