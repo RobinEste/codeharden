@@ -1,3 +1,4 @@
+import { HARDEN_PRODUCT_NAME } from "./harden-channel";
 import { SOURCE_VERSION } from "./version";
 
 /**
@@ -18,9 +19,6 @@ export const HARDEN_VERSION_PATTERN = /^\d{4}\.\d{4}\.\d{4}$/;
 
 /** Shown when the version was neither injected nor readable from the checkout. */
 export const HARDEN_VERSION_UNKNOWN = "unknown";
-
-/** The product name shown next to the version. */
-export const HARDEN_PRODUCT_NAME = "CodeHarden";
 
 /**
  * The CodeHarden version, `YYYY.MMDD.HHMM` with its zeros (never the npm form of it). Bundles
