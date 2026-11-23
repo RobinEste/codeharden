@@ -22,6 +22,7 @@ import { sessionSnapshot } from "../services/sessions/snapshot";
 import { agentConfigRoutes, sessionAgentConfigRoutes } from "./agent-config";
 import { automationRoutes, projectAutomationRoutes } from "./automations";
 import { browserRoutes, sessionBrowserRoutes } from "./browser";
+import { devPreviewRoutes } from "./dev-preview";
 import { executionRoutes } from "./execution";
 import { factoryRoutes, projectFactoryRoutes } from "./factory";
 import { githubRoutes, projectGithubRoutes, prRoutes, sessionGithubRoutes } from "./github";
@@ -83,6 +84,7 @@ export function createApi(ctx: ApiContext) {
       )
       .route("/projects", projectRoutes(s))
       .route("/secure-foundation", secureFoundationRoutes(s))
+      .route("/dev-preview", devPreviewRoutes(s))
       .route("/execution", executionRoutes(s))
       .route("/projects", projectGithubRoutes(s))
       .route("/projects", projectFactoryRoutes(s))
