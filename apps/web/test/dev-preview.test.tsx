@@ -297,6 +297,7 @@ describe("the project's dev preview settings", () => {
       urlPattern: null,
       pmEnabled: true,
       confirmedAt: "2026-11-23T10:00:00.000Z",
+      baseBranch: "harden",
     };
     renderWithClient(
       <DevPreviewProjectSettings project={project} />,

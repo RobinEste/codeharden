@@ -125,7 +125,7 @@ export function mockDevPreviewApi(): DevPreviewApi {
     },
     project: async (id) => view(id),
     confirmProject: async (id, settings) => {
-      configs.set(id, { ...settings, confirmedAt: new Date().toISOString() });
+      configs.set(id, { ...settings, confirmedAt: new Date().toISOString(), baseBranch: "main" });
       turn(devPreviewBaseKey(id), settings.pmEnabled);
       return view(id);
     },

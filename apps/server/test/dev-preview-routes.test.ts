@@ -135,6 +135,8 @@ describe("this computer", () => {
     for (const bad of [
       { portVars: ["PATH"] },
       { portVars: ["NODE_OPTIONS"] },
+      { portVars: ["BASH_ENV"] },
+      { portVars: ["ZDOTDIR"] },
       { portVars: ["A B"] },
       { portVars: [] },
       { portVars: ["A", "B", "C", "D", "E"] },

@@ -48,6 +48,7 @@ export class FakeProcess {
   }
 }
 
+/** Settings as a person would confirm them; `pmEnabled` off unless a test is about it. */
 export const SETTINGS: DevPreviewSettings = {
   command: "run-dev",
   prepareCommand: null,

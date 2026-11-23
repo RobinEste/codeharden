@@ -63,8 +63,17 @@ export class DevPreviewStore {
   }
 
   /** Store settings a person just confirmed. */
-  confirm(projectId: string, settings: DevPreviewSettings, at: Date): DevPreviewConfig {
-    const config = DevPreviewConfigSchema.parse({ ...settings, confirmedAt: at.toISOString() });
+  confirm(
+    projectId: string,
+    settings: DevPreviewSettings,
+    at: Date,
+    baseBranch: string | null,
+  ): DevPreviewConfig {
+    const config = DevPreviewConfigSchema.parse({
+      ...settings,
+      confirmedAt: at.toISOString(),
+      baseBranch,
+    });
     this.configs.set(projectId, config);
     this.write();
     return config;

@@ -9,8 +9,13 @@ import type { Exec } from "../exec";
  * It only ever moves forward. Every update is `git merge --ff-only` to the branch's tip; when
  * that isn't a fast-forward (someone committed in the checkout, or the branch was rewritten)
  * or git refuses because of local changes, the update stops with a message and the checkout is
- * left exactly as it was. Nothing here resets, checks out over, cleans or deletes anything.
+ * left exactly as it was. Nothing here resets, checks out over, cleans or prunes anything.
+ *
+ * Git's hooks are switched off for the two commands that write the checkout. A repository
+ * whose hooks folder is a tracked one would otherwise run code from the branch (a
+ * `post-checkout` or `post-merge` script) that nobody confirmed as a command.
  */
+const NO_HOOKS = ["-c", "core.hooksPath=/dev/null"];
 
 export type BaseSync =
   | {
@@ -65,7 +70,9 @@ export async function syncBaseCheckout(exec: Exec, base: BaseCheckout): Promise<
   const hasOrigin = (await git(repo, ["remote", "get-url", "origin"])).code === 0;
   let note: string | null = null;
   if (hasOrigin) {
-    const fetched = await git(repo, ["fetch", "--no-tags", "origin", branch], 120_000);
+    // The tracking ref by name: a clone that follows a single branch has no rule for others.
+    const refspec = `+refs/heads/${branch}:refs/remotes/origin/${branch}`;
+    const fetched = await git(repo, ["fetch", "--no-tags", "origin", refspec], 120_000);
     if (fetched.code !== 0) note = "The remote couldn't be reached; this is the last tip known.";
   }
   const ref = hasOrigin ? `refs/remotes/origin/${branch}` : `refs/heads/${branch}`;
@@ -81,9 +88,15 @@ export async function syncBaseCheckout(exec: Exec, base: BaseCheckout): Promise<
   }
 
   if (!existsSync(path)) {
-    // Drops the record of a checkout whose folder was deleted by hand; touches no folder.
-    await git(repo, ["worktree", "prune"]);
-    const added = await git(repo, ["worktree", "add", "--detach", path, target], 300_000);
+    const add = (extra: string[]) =>
+      git(repo, [...NO_HOOKS, "worktree", "add", ...extra, "--detach", path, target], 300_000);
+    let added = await add([]);
+    // The folder was deleted by hand and git still has its record. `--force` reuses that one
+    // record; the project's other worktrees (one on a drive that isn't mounted) are untouched,
+    // which `git worktree prune` would not leave them.
+    if (added.code !== 0 && /already registered|missing but/i.test(added.stderr)) {
+      added = await add(["--force"]);
+    }
     if (added.code !== 0) {
       return {
         ok: false,
@@ -122,7 +135,7 @@ export async function syncBaseCheckout(exec: Exec, base: BaseCheckout): Promise<
       message: `The preview checkout can't be fast-forwarded to ${branch}: it has commits the branch doesn't have, or the branch was rewritten. Nothing was changed. Look at ${path}, or move it away to let the preview make a new one.`,
     };
   }
-  const merged = await git(path, ["merge", "--ff-only", target], 300_000);
+  const merged = await git(path, [...NO_HOOKS, "merge", "--ff-only", target], 300_000);
   if (merged.code !== 0) {
     return {
       ok: false,
@@ -135,7 +148,8 @@ export async function syncBaseCheckout(exec: Exec, base: BaseCheckout): Promise<
 /**
  * Take the checkout away when a project's preview is removed. Plain `git worktree remove`,
  * never forced: git refuses when the checkout holds changes or untracked files, and then it
- * stays. Returns whether it is gone.
+ * stays. What git ignores there (installed dependencies, build output) goes with it.
+ * Returns whether it is gone.
  */
 export async function removeBaseCheckout(exec: Exec, base: Omit<BaseCheckout, "branch">) {
   if (!existsSync(base.path)) return true;

@@ -1,7 +1,7 @@
 import {
   DEV_PREVIEW_LOG_LINES,
   DEV_PREVIEW_TAIL_LINES,
-  type DevPreviewSettings,
+  type DevPreviewConfig,
   type DevPreviewStatus,
   expandDevPreviewCommand,
   previewUrlInLine,
@@ -22,6 +22,10 @@ export interface PreviewDeps {
   stopGraceMs: number;
   /** How long the dev command may run without anything listening. */
   startTimeoutMs: number;
+  /** How long the prepare command may run. */
+  prepareTimeoutMs: number;
+  /** May a preview link to this port? Not the app's own, whatever a command prints. */
+  linkable: (port: number) => boolean;
 }
 
 export interface PreviewTarget {
@@ -52,11 +56,13 @@ export class Preview {
   ports: number[] = [];
   message: string | null = null;
   startedAt: number | null = null;
+  /** Starts waiting their turn for this preview; while there are any, it is kept. */
+  claimed = 0;
 
   private readonly lines: string[] = [];
   private partial = "";
   private proc: PreviewProcess | null = null;
-  private settings: DevPreviewSettings | null = null;
+  private settings: DevPreviewConfig | null = null;
   /** Bumped by every start and stop; work begun under an older number steps aside. */
   private run = 0;
   private retried = false;
@@ -69,6 +75,11 @@ export class Preview {
     readonly target: PreviewTarget,
     private readonly deps: PreviewDeps,
   ) {}
+
+  /** When the settings it was last started with were confirmed; null before any start. */
+  get confirmedAt(): string | null {
+    return this.settings?.confirmedAt ?? null;
+  }
 
   get active(): boolean {
     return ACTIVE.has(this.status);
@@ -83,7 +94,7 @@ export class Preview {
   }
 
   /** Start with confirmed settings on ports the service allocated. */
-  async start(settings: DevPreviewSettings, ports: number[]): Promise<void> {
+  async start(settings: DevPreviewConfig, ports: number[]): Promise<void> {
     const run = ++this.run;
     this.settings = settings;
     this.ports = ports;
@@ -132,6 +143,13 @@ export class Preview {
 
   /** Look once: is something listening yet, or has it taken too long? */
   async poll(): Promise<void> {
+    if (this.status === "preparing") {
+      if (this.deps.now() - this.spawnedAt > this.deps.prepareTimeoutMs) {
+        const minutes = Math.round(this.deps.prepareTimeoutMs / 60_000);
+        await this.stop("failed", `The prepare command didn't finish in ${minutes} minutes.`);
+      }
+      return;
+    }
     if (this.status !== "starting" || !this.proc || !this.settings) return;
     const run = this.run;
     const first = this.ports[0];
@@ -202,6 +220,7 @@ export class Preview {
     const prepare = settings.prepareCommand;
     if (prepare && this.deps.prepared.needs(cwd, prepare)) {
       this.status = "preparing";
+      this.spawnedAt = this.deps.now();
       this.note(`$ ${prepare}`);
       const proc = this.spawn(prepare);
       const exit = await proc.exited;
@@ -234,7 +253,11 @@ export class Preview {
     if (!this.retried && !exit.error) {
       this.retried = true;
       this.message = `The dev command ${exitText(exit)} and was restarted once.`;
-      this.launching = this.launch(run).catch(() => {});
+      this.launching = this.launch(run).catch((error) => {
+        if (run !== this.run) return;
+        this.status = "failed";
+        this.message = `The dev command couldn't be restarted: ${String(error)}`;
+      });
       return;
     }
     this.status = this.everRan ? "stopped" : "failed";
@@ -260,7 +283,9 @@ export class Preview {
       this.lines.splice(0, this.lines.length - DEV_PREVIEW_LOG_LINES);
     }
     if (this.status !== "starting" || this.printed || this.settings?.urlFrom !== "output") return;
-    this.printed = previewUrlInLine(line, this.settings.urlPattern);
+    const printed = previewUrlInLine(line, this.settings.urlPattern);
+    // A dev command can print any address. One on the app's own port is never the preview.
+    if (printed && this.deps.linkable(printed.port)) this.printed = printed;
   }
 
   private output(text: string): void {

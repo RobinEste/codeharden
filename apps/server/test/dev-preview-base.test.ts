@@ -1,77 +1,32 @@
-import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { devPreviewBaseKey } from "@codeden/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { syncBaseCheckout } from "../src/services/dev-preview/base-checkout";
 import { runTool } from "../src/services/exec";
 import { createPreviewEnv, type PreviewEnv, SETTINGS } from "./support/dev-preview-env";
+import { commit, createRepos, git, type Repos } from "./support/dev-preview-git";
 
 /**
- * The PM thread's preview against real git repositories in a temp folder: an "origin", the
- * project's clone of it, and the checkout the app makes. Processes are scripted.
+ * The PM thread's preview against real git repositories: an "origin", the project's clone of
+ * it, and the checkout the app makes. Processes are scripted.
  */
-const GIT_ENV = Object.fromEntries(
-  Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key)),
-);
-// The suite must behave the same when it is run from a git hook.
-for (const key of Object.keys(process.env)) if (/^GIT_/i.test(key)) delete process.env[key];
-
-function git(cwd: string, ...args: string[]): string {
-  return execFileSync("git", args, {
-    cwd,
-    encoding: "utf8",
-    env: {
-      ...GIT_ENV,
-      GIT_AUTHOR_NAME: "T",
-      GIT_AUTHOR_EMAIL: "t@example.com",
-      GIT_COMMITTER_NAME: "T",
-      GIT_COMMITTER_EMAIL: "t@example.com",
-      GIT_CONFIG_GLOBAL: "/dev/null",
-      GIT_CONFIG_SYSTEM: "/dev/null",
-    },
-  }).trim();
-}
-
+let repos: Repos;
 let root: string;
 let origin: string;
 let repo: string;
 let env: PreviewEnv;
-
-function commit(cwd: string, file: string, content: string, message: string): string {
-  writeFileSync(join(cwd, file), content);
-  git(cwd, "add", "-A");
-  git(cwd, "commit", "-q", "-m", message);
-  return git(cwd, "rev-parse", "HEAD");
-}
-
-/** A new commit lands on the base branch at the remote, as a merged pull request would. */
-function pushToOrigin(file: string, content: string): string {
-  const work = join(root, `work-${Math.random().toString(36).slice(2)}`);
-  git(root, "clone", "-q", "-b", "trunk", origin, work);
-  const sha = commit(work, file, content, `change ${file}`);
-  git(work, "push", "-q", "origin", "trunk");
-  return sha;
-}
+const pushToOrigin = (file: string, content: string) => repos.pushToOrigin(file, content);
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "dev-preview-base-"));
-  origin = join(root, "origin.git");
-  repo = join(root, "project");
-  mkdirSync(repo);
-  git(root, "init", "-q", "--bare", "-b", "trunk", origin);
-  git(repo, "init", "-q", "-b", "trunk");
-  commit(repo, "index.html", "one\n", "init");
-  git(repo, "remote", "add", "origin", origin);
-  git(repo, "push", "-q", "-u", "origin", "trunk");
+  repos = createRepos();
+  ({ root, origin, repo } = repos);
   env = createPreviewEnv({ exec: runTool });
-  // The base branch is the project's own setting: not main, not harden.
   env.projects.set("app", { ...env.addProject("app", { defaultBranch: "trunk" }), path: repo });
 });
 afterEach(async () => {
   await env.close();
-  rmSync(root, { recursive: true, force: true });
+  repos.close();
 });
 
 const key = devPreviewBaseKey("app");

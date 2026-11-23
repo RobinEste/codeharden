@@ -249,7 +249,7 @@ export function DevPreviewProjectSettings({ project }: { project: Project }) {
             <p className="text-2xs text-muted-foreground">
               Ports go in {asking?.portVars.join(", ")}.{" "}
               {asking?.pmEnabled
-                ? "A preview of the base branch starts for the PM thread."
+                ? `A preview of the base branch${baseBranch ? ` (${baseBranch})` : ""} starts for the PM thread, and follows that branch only.`
                 : "No preview starts for the PM thread."}
             </p>
           </div>

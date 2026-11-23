@@ -150,7 +150,10 @@ describe("what the command gets", () => {
     env.store.setLimits({ perProject: 3, total: 6, portFrom: 4310, portTo: 4420 });
     env.taken.add(4311);
     env.service.start({ port: 4312 });
-    await env.service.setProject("app", { ...SETTINGS, portVars: ["A", "B", "C", "D"] });
+    await env.service.setProject("app", {
+      ...SETTINGS,
+      portVars: ["A_PORT", "B_PORT", "C_PORT", "D_PORT"],
+    });
     const first = await start("s1");
     expect(first.ports).toEqual([4310, 4313, 4314, 4315]);
     // A second preview gets none of the first one's ports.

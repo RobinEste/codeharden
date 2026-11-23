@@ -46,7 +46,15 @@ describe("dev preview contracts", () => {
     expect(roundTrip(DevPreviewConfig, { ...full, confirmedAt: NOW })).toEqual({
       ...full,
       confirmedAt: NOW,
+      baseBranch: null,
     });
+    expect(
+      roundTrip(DevPreviewConfig, { ...full, confirmedAt: NOW, baseBranch: "harden" }).baseBranch,
+    ).toBe("harden");
+    // The branch is the server's record of what was confirmed: a request can't carry it.
+    expect(
+      SetDevPreviewRequest.parse({ ...full, confirm: true, baseBranch: "evil" }),
+    ).not.toHaveProperty("baseBranch");
   });
 
   it("a request to set the commands must carry the confirmation", () => {
@@ -57,25 +65,35 @@ describe("dev preview contracts", () => {
     expect(roundTrip(SetDevPreviewPmRequest, { enabled: false })).toEqual({ enabled: false });
   });
 
-  it("refuses port variables that aren't plain names or that the shell itself reads", () => {
+  it("takes only plain names that say they hold a port", () => {
     const ok = (portVars: unknown) =>
       DevPreviewSettings.safeParse({ command: "x", portVars }).success;
-    expect(ok(["PORT", "VITE_PORT", "_p2"])).toBe(true);
+    expect(ok(["PORT", "VITE_PORT", "_port2", "ApiPort"])).toBe(true);
     for (const bad of [
+      // What a shell or a runtime reads to decide what to run.
       ["PATH"],
-      ["path"],
       ["HOME"],
       ["HOST"],
       ["NODE_OPTIONS"],
-      ["A=B"],
-      ["1A"],
-      ["A B"],
+      ["BASH_ENV"],
+      ["ENV"],
+      ["ZDOTDIR"],
+      ["LD_PRELOAD"],
+      ["DYLD_INSERT_LIBRARIES"],
+      ["PYTHONSTARTUP"],
+      ["RUBYOPT"],
+      ["GIT_DIR"],
+      ["npm_config_script_shell"],
+      // Not names.
+      ["PORT=1"],
+      ["1PORT"],
+      ["MY PORT"],
       [""],
       [],
     ]) {
       expect(ok(bad), JSON.stringify(bad)).toBe(false);
     }
-    expect(ok(["A", "B", "C", "D", "E"])).toBe(false);
+    expect(ok(["A_PORT", "B_PORT", "C_PORT", "D_PORT", "E_PORT"])).toBe(false);
   });
 
   it("round-trips the limits, and refuses a range too small or outside user ports", () => {

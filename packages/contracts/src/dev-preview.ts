@@ -29,14 +29,16 @@ export const DEV_PREVIEW_TAIL_LINES = 12;
 export const DEV_PREVIEW_RESERVED_PORTS: readonly number[] = [4317, 4417];
 
 /**
- * An environment variable name a port is passed in: a plain name, and none of the few the shell
- * and the runtime themselves read to decide what to run.
+ * An environment variable name a port is passed in: a plain name that says it holds a port
+ * (`PORT`, `WEB_PORT`, `VITE_PORT`). That rule keeps every variable a shell or a runtime reads
+ * to decide what to run (`BASH_ENV`, `ZDOTDIR`, `NODE_OPTIONS`, `LD_PRELOAD` and the like) out
+ * of reach of a preview's settings.
  */
 export const DevPreviewPortVar = z
   .string()
   .regex(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/, "Use letters, digits and underscores")
-  .refine((name) => !/^(?:PATH|HOME|SHELL|HOST|NODE_OPTIONS)$/i.test(name), {
-    message: "This variable can't carry a port",
+  .refine((name) => /port/i.test(name), {
+    message: 'A port variable has "PORT" in its name, like PORT or WEB_PORT',
   });
 
 const Command = z.string().trim().min(1).max(DEV_PREVIEW_COMMAND_MAX);
@@ -97,6 +99,14 @@ export type DevPreviewSettings = z.infer<typeof DevPreviewSettings>;
 export const DevPreviewConfig = DevPreviewSettings.extend({
   /** When a person confirmed these commands on this computer. */
   confirmedAt: Timestamp,
+  /**
+   * The project's base branch when the person confirmed, which is the branch the PM thread's
+   * preview follows. The server records it; no request sets it. A project's base branch can be
+   * changed by others than the person at this computer (the orchestrator, another device), so
+   * when it no longer matches, the PM thread's preview stops until the settings are confirmed
+   * again: nobody else gets to pick the code a confirmed command runs unattended.
+   */
+  baseBranch: z.string().nullable().default(null),
 });
 export type DevPreviewConfig = z.infer<typeof DevPreviewConfig>;
 

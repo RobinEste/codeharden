@@ -17,7 +17,7 @@ export interface BasePreviewsDeps {
   preview: (target: PreviewTarget) => Preview;
   existing: (key: string) => Preview | undefined;
   /** Make room, take ports and start (the service's own start path). */
-  begin: (preview: Preview, byPerson: boolean) => Promise<void>;
+  begin: (preview: Preview, opts: { byPerson: boolean; restart?: boolean }) => Promise<void>;
   prepared: PreparedStore;
   now: () => number;
   /** The least time between two looks at a project's base branch. */
@@ -35,6 +35,8 @@ export interface BasePreviewsDeps {
 export class BasePreviews {
   private readonly infos = new Map<string, DevPreviewBase>();
   private readonly checked = new Map<string, number>();
+  /** Projects whose preview a person stopped with Stop all: only a person starts it again. */
+  private readonly held = new Set<string>();
   private readonly busy = new Map<string, Promise<void>>();
 
   constructor(private readonly deps: BasePreviewsDeps) {}
@@ -59,6 +61,11 @@ export class BasePreviews {
     }
     if (!previewBaseBranch(project)) return "The project has no base branch set.";
     return null;
+  }
+
+  /** Every base preview stays stopped until a person starts it again. */
+  holdAll(): void {
+    for (const projectId of this.deps.store.projectIds()) this.held.add(projectId);
   }
 
   /** Look at every project whose turn it is (all of them with `all`). Doesn't wait. */
@@ -105,6 +112,7 @@ export class BasePreviews {
     await this.deps.existing(devPreviewBaseKey(project.id))?.stop("off");
     this.infos.delete(project.id);
     this.checked.delete(project.id);
+    this.held.delete(project.id);
     const path = this.path(project);
     const gone = await removeBaseCheckout(this.deps.exec, { repo: project.path, path });
     if (gone) this.deps.prepared.forget(path);
@@ -119,12 +127,29 @@ export class BasePreviews {
       await this.deps.existing(key)?.stop("off");
       return;
     }
+    if (byPerson) this.held.delete(projectId);
+    else if (this.held.has(projectId)) return;
     const path = this.path(project);
     const preview = this.deps.preview({ key, kind: "base", projectId, sessionId: null, cwd: path });
     const branch = previewBaseBranch(project);
     const problem = this.unavailable(project);
     if (problem || !branch) {
       await preview.stop("stopped", problem);
+      return;
+    }
+    if (settings.baseBranch !== branch) {
+      // Others than the person at this computer can change a project's base branch (the
+      // orchestrator, another device). They don't get to choose what a confirmed command runs.
+      this.infos.set(projectId, {
+        branch: settings.baseBranch ?? branch,
+        commit: this.infos.get(projectId)?.commit ?? null,
+        checkedAt: new Date(this.deps.now()).toISOString(),
+        blocked: true,
+      });
+      await preview.stop(
+        "stopped",
+        `The project's base branch is now "${branch}"; this preview was confirmed for ${settings.baseBranch ? `"${settings.baseBranch}"` : "a project without one"}. Save the dev preview settings again to follow the new branch.`,
+      );
       return;
     }
     const was = this.infos.get(projectId);
@@ -142,7 +167,7 @@ export class BasePreviews {
       return;
     }
     const prepare = settings.prepareCommand;
-    if (preview.active) {
+    if (preview.active && preview.confirmedAt === settings.confirmedAt) {
       // Running: the dev server reloads by itself. Only new dependencies need a restart.
       if (!(result.moved && prepare && this.deps.prepared.needs(path, prepare))) return;
     } else if (!byPerson && preview.status !== "off" && !result.moved && !was?.blocked) {
@@ -150,7 +175,7 @@ export class BasePreviews {
       return;
     }
     try {
-      await this.deps.begin(preview, byPerson);
+      await this.deps.begin(preview, { byPerson, restart: true });
     } catch (error) {
       if (byPerson || !(error instanceof ServiceError)) throw error;
       await preview.stop("stopped", error.message);

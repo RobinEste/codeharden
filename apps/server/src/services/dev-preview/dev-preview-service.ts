@@ -1,6 +1,5 @@
 import { join } from "node:path";
 import {
-  DEV_PREVIEW_RESERVED_PORTS,
   type DevPreviewLimits,
   type DevPreviewLimitsView,
   type DevPreviewLog,
@@ -8,9 +7,7 @@ import {
   type DevPreviewSettings,
   type DevPreviewState,
   devPreviewBaseKey,
-  devPreviewPortCount,
   devPreviewSessionKey,
-  HARDEN_DEFAULT_PORT,
   type Project,
   type Session,
 } from "@codeden/contracts";
@@ -23,7 +20,7 @@ import { PreparedStore } from "./lockfile";
 import { isListening, PortAllocator, portIsFree } from "./ports";
 import { Preview, type PreviewDeps, type PreviewTarget } from "./preview";
 import { type SpawnPreview, spawnPreview } from "./process";
-import { makeRoom } from "./room";
+import { notConfigured, PreviewStarter } from "./starter";
 import type { DevPreviewStore } from "./store";
 
 export interface DevPreviewDeps {
@@ -48,6 +45,7 @@ export interface DevPreviewDeps {
   baseCheckEveryMs?: number;
   stopGraceMs?: number;
   startTimeoutMs?: number;
+  prepareTimeoutMs?: number;
 }
 
 /**
@@ -61,7 +59,7 @@ export interface DevPreviewDeps {
  */
 export class DevPreviewService {
   private readonly previews = new Map<string, Preview>();
-  private readonly allocator: PortAllocator;
+  private readonly starter: PreviewStarter;
   private readonly registry: RunningRegistry;
   private readonly prepared: PreparedStore;
   private readonly previewDeps: PreviewDeps;
@@ -70,8 +68,6 @@ export class DevPreviewService {
   private serverPort: number | null = null;
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
-  /** Starts run one at a time, so two can't take the same slot or the same port. */
-  private queue: Promise<unknown> = Promise.resolve();
   private readonly onExit = () => {
     for (const preview of this.previews.values()) preview.killNow();
   };
@@ -79,7 +75,13 @@ export class DevPreviewService {
   constructor(private readonly deps: DevPreviewDeps) {
     const dir = join(deps.home, "dev-preview");
     this.now = deps.now ?? Date.now;
-    this.allocator = new PortAllocator(deps.portIsFree ?? portIsFree);
+    this.starter = new PreviewStarter({
+      store: deps.store,
+      allocator: new PortAllocator(deps.portIsFree ?? portIsFree),
+      previews: () => [...this.previews.values()],
+      session: deps.session,
+      serverPort: () => this.serverPort,
+    });
     this.registry = new RunningRegistry(join(dir, "running.json"), deps.probe);
     this.prepared = new PreparedStore(join(dir, "prepared.json"));
     this.previewDeps = {
@@ -90,6 +92,8 @@ export class DevPreviewService {
       prepared: this.prepared,
       stopGraceMs: deps.stopGraceMs ?? 5_000,
       startTimeoutMs: deps.startTimeoutMs ?? 5 * 60_000,
+      prepareTimeoutMs: deps.prepareTimeoutMs ?? 30 * 60_000,
+      linkable: (port) => !this.starter.reserved().has(port),
     };
     this.bases = new BasePreviews({
       dir: join(dir, "base"),
@@ -98,7 +102,7 @@ export class DevPreviewService {
       project: (id) => this.findProject(id),
       preview: (target) => this.previewFor(target),
       existing: (key) => this.previews.get(key),
-      begin: (preview, byPerson) => this.begin(preview, byPerson),
+      begin: (preview, opts) => this.starter.begin(preview, opts),
       prepared: this.prepared,
       now: this.now,
       checkEveryMs: deps.baseCheckEveryMs ?? 90_000,
@@ -124,7 +128,10 @@ export class DevPreviewService {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
     process.off("exit", this.onExit);
-    await this.stopAll();
+    // No start after this, including one a base-branch check still under way would make.
+    await this.starter.close();
+    const running = [...this.previews.values()].filter((p) => p.active);
+    await Promise.all(running.map((p) => p.stop("off")));
   }
 
   /**
@@ -135,8 +142,11 @@ export class DevPreviewService {
     if (this.ticking) return;
     this.ticking = true;
     try {
-      for (const preview of [...this.previews.values()]) {
-        if (!preview.active) continue;
+      for (const [key, preview] of [...this.previews]) {
+        if (!preview.active) {
+          if (this.forgettable(preview)) this.previews.delete(key);
+          continue;
+        }
         const gone = this.noLongerAllowed(preview);
         if (gone) await preview.stop("stopped", gone);
         else await preview.poll();
@@ -179,7 +189,7 @@ export class DevPreviewService {
   async setProject(projectId: string, settings: DevPreviewSettings): Promise<DevPreviewProject> {
     const project = this.deps.project(projectId);
     if (project.archivedAt) throw conflict("The project is archived.", "project_archived");
-    this.deps.store.confirm(projectId, settings, new Date(this.now()));
+    this.deps.store.confirm(projectId, settings, new Date(this.now()), previewBaseBranch(project));
     await this.stopProject(projectId, "The dev preview's settings changed. Turn it on again.");
     if (settings.pmEnabled) void this.bases.ensure(projectId, true).catch(() => {});
     return this.project(projectId, false);
@@ -191,13 +201,16 @@ export class DevPreviewService {
     this.deps.store.remove(projectId);
     await this.stopProject(projectId, null);
     await this.bases.forget(project);
+    for (const [key, preview] of this.previews) {
+      if (preview.target.projectId === projectId) this.previews.delete(key);
+    }
     return this.project(projectId, false);
   }
 
   /** The PM thread's preview on (starts it) or off (stops it); the choice is kept. */
   async setPm(projectId: string, enabled: boolean): Promise<DevPreviewState> {
     this.deps.project(projectId);
-    if (!this.deps.store.setPmEnabled(projectId, enabled)) throw this.notConfigured();
+    if (!this.deps.store.setPmEnabled(projectId, enabled)) throw notConfigured();
     await this.bases.ensure(projectId, true);
     return this.baseState(projectId, false);
   }
@@ -206,7 +219,7 @@ export class DevPreviewService {
   async updateBase(projectId: string): Promise<DevPreviewState> {
     this.deps.project(projectId);
     const config = this.deps.store.config(projectId);
-    if (!config) throw this.notConfigured();
+    if (!config) throw notConfigured();
     if (!config.pmEnabled) throw conflict("The PM thread's preview is off.", "preview_off");
     await this.bases.ensure(projectId, true);
     return this.baseState(projectId, false);
@@ -236,7 +249,7 @@ export class DevPreviewService {
   async startSession(sessionId: string): Promise<DevPreviewState> {
     const session = this.deps.session(sessionId);
     if (!session?.projectId) throw notFound("Session not found");
-    if (!this.deps.store.config(session.projectId)) throw this.notConfigured();
+    if (!this.deps.store.config(session.projectId)) throw notConfigured();
     const reason = this.unavailable(session);
     if (reason || !session.worktreePath) throw conflict(reason ?? "No worktree", "unavailable");
     const preview = this.previewFor({
@@ -246,7 +259,7 @@ export class DevPreviewService {
       sessionId,
       cwd: session.worktreePath,
     });
-    if (!preview.active) await this.begin(preview, true);
+    await this.starter.begin(preview, { byPerson: true });
     return this.sessionState(sessionId, false);
   }
 
@@ -262,15 +275,17 @@ export class DevPreviewService {
   /** Stop every preview of every project. Returns how many were running. */
   async stopAll(): Promise<number> {
     const running = [...this.previews.values()].filter((p) => p.active);
-    await Promise.all(running.map((p) => p.stop("off")));
-    return running.length;
-  }
-
-  private notConfigured() {
-    return conflict(
-      "This project has no dev preview yet. Set its dev command in the project's settings first.",
-      "not_configured",
+    // The PM threads' previews stay stopped until a person starts them again: without this
+    // the next look at the base branch would bring each one back.
+    this.bases.holdAll();
+    await Promise.all(
+      running.map((p) =>
+        p.target.kind === "base"
+          ? p.stop("stopped", "Stopped with Stop all. Restart it when you want it back.")
+          : p.stop("off"),
+      ),
     );
+    return running.length;
   }
 
   private findProject(id: string): Project | undefined {
@@ -292,14 +307,34 @@ export class DevPreviewService {
   /** Why a running preview must stop now, or null. */
   private noLongerAllowed(preview: Preview): string | null {
     const { projectId, sessionId } = preview.target;
-    if (!this.deps.store.config(projectId)) return "The project's dev preview was removed.";
+    const config = this.deps.store.config(projectId);
+    if (!config) return "The project's dev preview was removed.";
+    // Whatever runs was started with the commands confirmed now. A net under the starter.
+    if (preview.confirmedAt !== config.confirmedAt) {
+      return "The dev preview's settings changed. Turn it on again.";
+    }
     if (preview.target.kind === "base") return null;
     return this.unavailable(sessionId ? this.deps.session(sessionId) : undefined);
+  }
+
+  /** A preview nobody is looking at any more: its log and state can go. */
+  private forgettable(preview: Preview): boolean {
+    // A start is on its way to it.
+    if (preview.claimed > 0) return false;
+    const { kind, projectId, sessionId } = preview.target;
+    if (kind === "base") {
+      return !this.findProject(projectId) || !this.deps.store.config(projectId);
+    }
+    if (preview.status === "off") return true;
+    const session = sessionId ? this.deps.session(sessionId) : undefined;
+    return !session || Boolean(session.archivedAt);
   }
 
   private previewFor(target: PreviewTarget): Preview {
     const existing = this.previews.get(target.key);
     if (existing && existing.target.cwd === target.cwd) return existing;
+    // The folder changed (a worktree made again elsewhere): the old one's process goes first.
+    void existing?.stop("off");
     const preview = new Preview(target, this.previewDeps);
     this.previews.set(target.key, preview);
     return preview;
@@ -310,46 +345,6 @@ export class DevPreviewService {
     await Promise.all(
       mine.map((p) => (p.active && message ? p.stop("stopped", message) : p.stop("off"))),
     );
-  }
-
-  /**
-   * Make room, take ports and start. A person's start may stop the oldest idle preview to
-   * make room; one the app starts by itself never stops anyone's.
-   */
-  private begin(preview: Preview, byPerson: boolean): Promise<void> {
-    const run = this.queue.then(async () => {
-      // Read here, at the moment of starting, and from nowhere else: what runs is always
-      // what is confirmed now, never settings a caller picked up before they were changed.
-      const settings = this.deps.store.config(preview.target.projectId);
-      if (!settings) throw this.notConfigured();
-      await makeRoom({
-        previews: [...this.previews.values()],
-        preview,
-        limits: this.deps.store.limits(),
-        evict: byPerson,
-        session: this.deps.session,
-      });
-      const limits = this.deps.store.limits();
-      const taken = new Set<number>([...DEV_PREVIEW_RESERVED_PORTS, HARDEN_DEFAULT_PORT]);
-      if (this.serverPort) taken.add(this.serverPort);
-      for (const other of this.previews.values()) {
-        if (other !== preview && other.active) for (const port of other.ports) taken.add(port);
-      }
-      const ports = await this.allocator.next(
-        devPreviewPortCount(settings),
-        { from: limits.portFrom, to: limits.portTo },
-        taken,
-      );
-      if (!ports) {
-        throw conflict(
-          `No free port between ${limits.portFrom} and ${limits.portTo}. Stop a preview, or widen the range in Settings.`,
-          "no_ports",
-        );
-      }
-      await preview.start(settings, ports);
-    });
-    this.queue = run.catch(() => {});
-    return run;
   }
 
   private state(
