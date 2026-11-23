@@ -104,6 +104,55 @@ describe("the desktop installers workflow", () => {
     for (const action of uses(workflow)) expect(known).toContain(action);
   });
 
+  it("gives each system its own signing secrets and no other system's", () => {
+    const { build, check, release } = jobs(workflow);
+    const mac = [
+      "CSC_LINK",
+      "CSC_KEY_PASSWORD",
+      "APPLE_ID",
+      "APPLE_APP_SPECIFIC_PASSWORD",
+      "APPLE_TEAM_ID",
+    ];
+    const win = ["WIN_CSC_LINK", "WIN_CSC_KEY_PASSWORD"];
+    const given = [...build.matchAll(/^\s+([A-Z_]+): \$\{\{ (.*secrets\.[A-Z_]+.*) \}\}$/gm)];
+    // Every secret is behind its system's condition; none is passed to all three.
+    expect(given.map((m) => m[1]).sort()).toEqual([...mac, ...win].sort());
+    for (const [, name, expression] of given) {
+      const os = mac.includes(name) ? "macos-latest" : "windows-latest";
+      expect(expression).toBe(`matrix.os == '${os}' && secrets.${name} || ''`);
+    }
+    // No other job, and no other place in the build job, reads a secret.
+    expect(check + release).not.toContain("secrets.");
+    expect(build.match(/secrets\./g)).toHaveLength(mac.length + win.length);
+    // And the script drops the other systems' variables again before anything is built.
+    const script = scripts(workflow);
+    const drop = script.indexOf('if [ "$RUNNER_OS" != "macOS" ]; then unset');
+    expect(drop).toBeGreaterThan(-1);
+    expect(script).toContain('if [ "$RUNNER_OS" != "Windows" ]; then unset');
+    expect(drop).toBeLessThan(script.indexOf("pnpm --filter @codeden/desktop package"));
+  });
+
+  it("stops on half-configured signing and checks a signed macOS app strictly", () => {
+    const script = scripts(workflow);
+    const stop = script.indexOf("macOS signing is half configured");
+    expect(stop).toBeGreaterThan(-1);
+    expect(script).toContain("Windows signing is half configured");
+    expect(stop).toBeLessThan(script.indexOf("pnpm --filter @codeden/desktop package"));
+    // The message names the missing secrets; it never prints a value.
+    expect(script).not.toMatch(
+      /echo[^\n]*\$\{?(CSC_LINK|CSC_KEY_PASSWORD|APPLE_ID|APPLE_APP_SPECIFIC_PASSWORD|APPLE_TEAM_ID|WIN_CSC_LINK|WIN_CSC_KEY_PASSWORD)\b/,
+    );
+    expect(script).toContain('echo "REQUIRE_DEVELOPER_ID=1" >> "$GITHUB_ENV"');
+    const check = readFileSync(
+      new URL("../../apps/desktop/scripts/check-mac-signature.sh", import.meta.url),
+      "utf8",
+    );
+    expect(check).toMatch(/^require_id="\$\{REQUIRE_DEVELOPER_ID:-\}"$/m);
+    expect(check).toContain("xcrun stapler validate");
+    expect(check).toContain("the app is not signed with a Developer ID");
+    expect(check).toContain("Gatekeeper does not accept the downloaded app");
+  });
+
   it("does not check the release tag out with the job's credentials kept", () => {
     expect(jobs(workflow).build).toContain("persist-credentials: false");
   });
