@@ -1,6 +1,7 @@
-// The pre-push hook (scripts/harden/hooks/pre-push): which pushes run the local tests and which
-// don't ("Local test gate" in AGENTS.md). The hook runs in a scratch repository with a stub in
-// place of local-checks.sh, so no test suite is started here.
+// The pre-push hook (scripts/harden/hooks/pre-push): which pushes run the push checks (typecheck
+// and lint) and which don't ("Checks before a push and in CI" in AGENTS.md). The hook runs in a
+// scratch repository with a stub in place of push-checks.sh, so nothing real is started here;
+// push-checks.test.mjs runs the checks script itself.
 //
 // The hook is started with an environment written out below, never with this process's own:
 // when these tests run from the real hook, git's variables (GIT_DIR, GIT_INDEX_FILE, ...) must
@@ -14,7 +15,7 @@ import { BASE_ENV, repository } from "./test-support/scratch.mjs";
 
 const HOOK = fileURLToPath(new URL("./hooks/pre-push", import.meta.url));
 const ZERO = "0".repeat(40);
-/** Stands in for local-checks.sh: leaves a mark that it ran, and passes or fails as told. */
+/** Stands in for push-checks.sh: leaves a mark that it ran, and passes or fails as told. */
 const STUB = `#!/usr/bin/env bash
 echo ran >> "$(dirname "$0")/checks-ran"
 echo "stub checks: \${STUB_CHECKS:-pass}"
@@ -30,8 +31,8 @@ function checkout(file = "apps/server/src/a.ts") {
   const scripts = join(repo.dir, "scripts", "harden");
   mkdirSync(join(scripts, "hooks"), { recursive: true });
   copyFileSync(HOOK, join(scripts, "hooks", "pre-push"));
-  writeFileSync(join(scripts, "local-checks.sh"), STUB);
-  chmodSync(join(scripts, "local-checks.sh"), 0o755);
+  writeFileSync(join(scripts, "push-checks.sh"), STUB);
+  chmodSync(join(scripts, "push-checks.sh"), 0o755);
   const base = repo.commit("base.txt", "base");
   repo.git("update-ref", "refs/remotes/origin/harden", base);
   mkdirSync(join(repo.dir, file, ".."), { recursive: true });
@@ -55,7 +56,7 @@ function checkout(file = "apps/server/src/a.ts") {
 }
 
 describe("the pre-push hook", () => {
-  it("does not run the tests for a sync branch", () => {
+  it("does not run the checks for a sync branch", () => {
     const repo = checkout();
     const pushed = repo.push(
       [["refs/heads/sync/2026-11-23", repo.head, "refs/heads/sync/2026-11-23"]],
@@ -65,14 +66,14 @@ describe("the pre-push hook", () => {
     expect(pushed).toMatchObject({ code: 0, ranChecks: false });
   });
 
-  it("runs the tests for an ordinary branch and lets the push through when they pass", () => {
+  it("runs the checks for an ordinary branch and lets the push through when they pass", () => {
     const repo = checkout();
     const pushed = repo.push([["refs/heads/fix/a", repo.head, "refs/heads/fix/a"]]);
     expect(pushed).toMatchObject({ code: 0, ranChecks: true });
     expect(pushed.err).toContain("stub checks: pass");
   });
 
-  it("refuses an ordinary branch whose tests fail", () => {
+  it("refuses an ordinary branch whose checks fail", () => {
     const repo = checkout();
     const pushed = repo.push([["refs/heads/fix/a", repo.head, "refs/heads/fix/a"]], {
       STUB_CHECKS: "fail",
@@ -91,7 +92,7 @@ describe("the pre-push hook", () => {
     }
   });
 
-  it("still tests an ordinary branch pushed together with a sync branch", () => {
+  it("still checks an ordinary branch pushed together with a sync branch", () => {
     const repo = checkout();
     const pushed = repo.push(
       [
@@ -103,7 +104,7 @@ describe("the pre-push hook", () => {
     expect(pushed).toMatchObject({ code: 1, ranChecks: true });
   });
 
-  it("does not run the tests for tags, the working and mirror branches, deletions or docs", () => {
+  it("does not run the checks for tags, the working and mirror branches, deletions or docs", () => {
     const repo = checkout();
     const quiet = [
       ["refs/tags/v2026.0105.0518", repo.head, "refs/tags/v2026.0105.0518"],
@@ -119,14 +120,15 @@ describe("the pre-push hook", () => {
     ).toMatchObject({ code: 0, ranChecks: false });
   });
 
-  it("refuses a branch that is not the checked-out commit, without running anything", () => {
+  it("lets a branch that is not the checked-out commit through with a note, running nothing", () => {
     const repo = checkout();
     const pushed = repo.push([["refs/heads/fix/a", repo.base, "refs/heads/fix/a"]]);
-    // The first commit is origin/harden itself: nothing changed, so nothing to test.
+    // The first commit is origin/harden itself: nothing changed, so nothing to check.
     expect(pushed).toMatchObject({ code: 0, ranChecks: false });
     const other = repo.git("commit-tree", "-m", "other", "-p", repo.base, `${repo.head}^{tree}`);
-    const refused = repo.push([["refs/heads/fix/b", other, "refs/heads/fix/b"]]);
-    expect(refused).toMatchObject({ code: 1, ranChecks: false });
-    expect(refused.err).toContain("is not the checked-out commit");
+    // Its files aren't in the checkout, so typecheck and lint can't judge it here; CI does.
+    const skipped = repo.push([["refs/heads/fix/b", other, "refs/heads/fix/b"]]);
+    expect(skipped).toMatchObject({ code: 0, ranChecks: false });
+    expect(skipped.err).toContain("is not the checked-out commit");
   });
 });

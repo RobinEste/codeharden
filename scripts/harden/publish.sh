@@ -10,8 +10,9 @@
 # (scripts/harden/npm-release.mjs, which does the work); the repository is not modified.
 #
 # The real publish runs `npm publish --access public` with no one-time code on the command
-# line: npm prints a URL and waits while you sign in and approve in the browser. Sign in first
-# with `npm login` if `npm whoami` doesn't show your account.
+# line: npm prints a URL and waits while you approve in the browser. Sign in first if
+# `npm whoami` doesn't show your account: `node scripts/harden/npm-release.mjs login` (in the
+# browser too). A publish that fails with E404 almost always means npm is not signed in.
 set -euo pipefail
 
 dry_run=0

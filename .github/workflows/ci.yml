@@ -12,6 +12,8 @@ on:
   push:
     branches: [main, harden]
   pull_request:
+    # CodeHarden: also when a draft is marked ready for review, which is when its tests first run.
+    types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
 # A new push to a pull request cancels its older, superseded run. Every push to main gets its
@@ -60,6 +62,8 @@ jobs:
     # About 4 minutes: fail a hang in minutes instead of waiting for GitHub.
     timeout-minutes: 15
     runs-on: ubuntu-latest
+    outputs:
+      tests: ${{ steps.tests.outcome }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -70,14 +74,12 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
-      # CodeHarden: while the repository variable CI_TESTS is "off", the tests run on the
-      # author's machine before a push instead (scripts/harden/hooks/pre-push; see "Local
-      # test gate" in AGENTS.md). Delete the variable to run them here again.
+      # CodeHarden: the tests run for pull requests into the working branch that are ready
+      # for review (a sync pull request is one of them). Not for drafts, other pull requests
+      # or pushes: what reaches the working branch was tested on its pull request.
       - run: pnpm test
-        if: ${{ vars.CI_TESTS != 'off' }}
-      - name: Tests are switched off in CI
-        if: ${{ vars.CI_TESTS == 'off' }}
-        run: echo "::warning::pnpm test is skipped in CI (repository variable CI_TESTS=off, a temporary measure since 2026-11-22). Tests run locally before a push. To turn them back on, delete the variable CI_TESTS."
+        id: tests
+        if: ${{ github.event_name == 'pull_request' && github.base_ref == (vars.HARDEN_BRANCH || 'harden') && !github.event.pull_request.draft }}
       - run: pnpm build
       - name: Self-update against a local fake registry
         run: pnpm exec vitest run apps/cli/test/self-update.integration.test.ts
@@ -156,10 +158,16 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           CODE: ${{ needs.changes.outputs.code }}
           CHECK: ${{ needs.check.result }}
+          TESTS: ${{ needs.check.outputs.tests }}
+          TESTS_EXPECTED: ${{ github.event_name == 'pull_request' && github.base_ref == (vars.HARDEN_BRANCH || 'harden') && !github.event.pull_request.draft }}
         run: |
           echo "changes: $CHANGES (code: $CODE), check: $CHECK"
           if [ "$CHANGES" != "success" ]; then
             echo "::error::Change detection did not succeed"; exit 1
+          fi
+          echo "tests: ${TESTS:-not run} (expected: $TESTS_EXPECTED)"
+          if [ "$CHECK" = "success" ] && [ "$TESTS_EXPECTED" = "true" ] && [ "$TESTS" != "success" ]; then
+            echo "::error::The tests should have run for this pull request but did not ($TESTS)"; exit 1
           fi
           if [ "$CHECK" = "success" ]; then exit 0; fi
           if [ "$CHECK" = "skipped" ] && [ "$CODE" = "false" ]; then exit 0; fi
