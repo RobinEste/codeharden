@@ -109,7 +109,7 @@ OpenCode with no connected provider is a warning rather than an error: its own f
 
 ### The orchestrator or a PM runs on a provider I can't use
 
-Their turns fail with the provider's own error, such as "Not logged in", and the model picker in their chat shows the other providers greyed out. A session can't change provider, so the picker can't move them. Open **Settings → Providers → Defaults per role** (the picker's **Change provider** goes there) and choose a provider you are signed in to for **Orchestrator** and **Project managers**. The next message you send starts a fresh orchestrator or PM on it; a message that was still waiting for the old provider is dropped, so send it again. See [orchestration](orchestration.md).
+Their turns fail with the provider's own error, such as "Not logged in", and the model picker in their chat shows the other providers greyed out. A session can't change provider, so the picker can't move them. Open **Settings → Providers → Defaults per role** (the picker's **Change provider** goes there) and choose a provider you are signed in to for **Orchestrator** and **Project managers**. The next message you send starts a fresh orchestrator or PM on it, and messages that were still waiting for the old provider are sent to it. If the setting already named that provider and they still run on the old one (it was chosen in a version that couldn't move them), choose another provider and then that one again. See [orchestration](orchestration.md).
 
 ### CodeDen's sessions show up in the Codex app
 
@@ -222,7 +222,7 @@ CodeDen uses an installed **Microsoft Edge** or **Google Chrome**. Install one, 
 
 ### A session keeps asking after I changed the project's permissions
 
-The project's **Permissions** (its Settings tab) and **Settings → Autonomy** are defaults for sessions you start afterwards. A session that exists keeps the level it was created with, also after you stop and resume it; a fork or a hand-off takes its source's. Open the session and change **Permissions** under its message box: it applies from the agent's next tool call (Codex: its next turn). The session's level is also shown in its **Details** panel, and the project's Settings tab lists the open sessions on another level than the project's default.
+The project's **Permissions** (its Settings tab) and **Settings → Autonomy** are defaults for sessions you start afterwards. A session that exists keeps the level it was created with, also after you stop and resume it; a fork or a hand-off takes its source's. Open the session and change **Permissions** under its message box, or use **Apply to open sessions** in the project's Settings tab, under **Permissions**, to move every open session listed there to the project's level (it asks first when that raises a session's level). Either applies from the agent's next tool call (Codex: its next turn). The session's level is also shown in its **Details** panel.
 
 Under **Supervised** every command asks, also ones that only read; that is what the level means. The project's autonomy mode (Manual, Assisted, the factory modes) doesn't change which commands ask. See [Security → Permissions](security.md#permissions).
 

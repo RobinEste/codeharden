@@ -406,6 +406,9 @@ const CALL_SITES = [
   ["apps/web/src/routes/project.tsx", "the dev preview section of a project's settings", /<DevPreviewProjectSettings project=\{project\} \/>/],
   ["apps/web/src/routes/settings.tsx", "the dev preview limits in the app's settings", /render: \(\) => <DevPreviewLimitsSettings \/>/],
   ["apps/web/src/lib/api/http-client.ts", "the web client's dev preview calls", /devPreview: httpDevPreviewApi\(http\)/],
+  // --- OpenCode sessions: slash commands are plain prompts in this fork for now
+  ["packages/providers/src/opencode/commands.ts", "the commands OpenCode lists pass the fork's switch before they are reported or routed", /commands = hardenListedCommands\(/],
+  ["packages/providers/src/opencode/harden-commands.ts", "the switch itself, off in the product", "hardenListedCommands", /^let run = false;$/m],
   // --- the vision the project manager reads: the fork's own text in a file upstream ships too
   [".codeden/VISION.md", "the fork's own vision (a conflict on this file is resolved to the fork's text)", /^CodeHarden is a hardened fork/],
 ];
