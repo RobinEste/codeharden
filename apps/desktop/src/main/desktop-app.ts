@@ -3,6 +3,7 @@ import {
   type DesktopInfo,
   type DesktopUpdateCommand,
   deepLinkPath,
+  formatHardenVersion,
   parseDeepLink,
 } from "@codeden/contracts";
 import { app, dialog, Menu, Notification, shell } from "electron";
@@ -76,7 +77,7 @@ export class DesktopApp {
   }
 
   async start(): Promise<void> {
-    this.log(`app: CodeDen ${app.getVersion()} starting (home ${this.args.home})`);
+    this.log(`app: ${formatHardenVersion()} starting (home ${this.args.home})`);
     const unsupported = updateSupport({
       packaged: app.isPackaged,
       platform: process.platform,
