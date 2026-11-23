@@ -1,5 +1,4 @@
 import type { DevPreviewState, DevPreviewStatus, Session } from "@codeden/contracts";
-import { Link } from "@tanstack/react-router";
 import { ExternalLink, RefreshCw, ScrollText } from "lucide-react";
 import { useState } from "react";
 import { lazyComponent } from "@/components/common/lazy-component";
@@ -70,14 +69,13 @@ function DevPreviewStrip(target: PreviewTarget) {
         data-testid="dev-preview-hint"
         className="flex h-8 shrink-0 items-center gap-2 border-b border-border/70 px-4 text-2xs text-muted-foreground"
       >
-        <Link
-          to="/projects/$projectId"
-          params={{ projectId: target.projectId }}
-          search={{ tab: "settings" }}
+        {/* A plain link: this strip also renders where there is no router around it. */}
+        <a
+          href={`/projects/${encodeURIComponent(target.projectId)}?tab=settings`}
           className="underline-offset-2 hover:text-foreground hover:underline"
         >
           Set up a dev preview
-        </Link>
+        </a>
       </div>
     );
   }
