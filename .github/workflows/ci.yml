@@ -10,7 +10,7 @@ name: CI
 # The release workflow builds and checks the desktop installers on Windows, macOS and Linux.
 on:
   push:
-    branches: [main]
+    branches: [main, harden]
   pull_request:
   workflow_dispatch:
 

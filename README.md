@@ -1,3 +1,7 @@
+> **CodeHarden** is a hardened fork of [CodeDen](https://github.com/leonvanzyl/codeden) by Leon van Zyl.
+> It stays close to upstream: new upstream changes are reviewed every day for security and function,
+> and merged 48 hours after they are approved. Everything below is CodeDen's own README.
+
 <div align="center">
 
 # CodeDen
