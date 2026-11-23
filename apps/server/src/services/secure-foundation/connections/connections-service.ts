@@ -11,6 +11,7 @@ import {
 import { conflict, notFound } from "../../errors";
 import { SERVICE_COMMANDS, type ServiceCommands } from "./commands";
 import { type CliProcess, minimalEnv, runCli, startCli } from "./process";
+import { toolPath } from "./tool-path";
 
 export interface ConnectionsDeps {
   /** The environment the CLIs' minimal one is taken from (tests pass a PATH of fake CLIs). */
@@ -20,6 +21,13 @@ export interface ConnectionsDeps {
   loginTimeoutMs?: number;
   /** Where the scratch folder the CLIs run in is made (the OS temp folder). */
   tmpDir?: string;
+  /**
+   * The PATH the person's own shell sets up, asked for at every check (tests script it). It is
+   * how `npx` is found when the app was started from the Dock with the system's bare PATH.
+   */
+  shellPath?: (env: NodeJS.ProcessEnv, cwd: string) => Promise<string>;
+  /** The usual install folders added after it (tests pass none, so no real tool is reached). */
+  usualFolders?: string[];
 }
 
 const LOGIN_TIMEOUT_MS = 5 * 60_000;
@@ -52,8 +60,13 @@ export class ConnectionsService {
     return this.deps.commands ?? SERVICE_COMMANDS;
   }
 
-  private env(): NodeJS.ProcessEnv {
-    return minimalEnv(this.deps.env?.() ?? process.env);
+  /** The CLIs' environment, with a PATH read afresh so a tool installed a moment ago is found. */
+  private async env(): Promise<NodeJS.ProcessEnv> {
+    const env = minimalEnv(this.deps.env?.() ?? process.env);
+    return {
+      ...env,
+      PATH: await toolPath(env, this.cwd(), this.deps.shellPath, this.deps.usualFolders),
+    };
   }
 
   /** An empty folder that isn't a project: no CLI picks up a project's configuration there. */
@@ -71,7 +84,7 @@ export class ConnectionsService {
     const commands = this.commands[service];
     const result = await runCli(commands.status.program, commands.status.args, {
       cwd: this.cwd(),
-      env: this.env(),
+      env: await this.env(),
       timeoutMs: commands.statusTimeoutMs,
     });
     if (result.notFound) {
@@ -79,7 +92,7 @@ export class ConnectionsService {
         service,
         cli: "missing",
         signedIn: null,
-        message: `The ${commands.status.program} command isn't installed on this computer.`,
+        message: commands.missing,
         install: commands.install,
         teams: [],
       };
@@ -95,7 +108,7 @@ export class ConnectionsService {
   }
 
   /** Start a service's login, or return the one already running for it. */
-  startLogin(service: SecureFoundationService): SecureFoundationLogin {
+  async startLogin(service: SecureFoundationService): Promise<SecureFoundationLogin> {
     this.forget();
     for (const running of this.logins.values()) {
       if (running.login.service === service && isLoginRunning(running.login)) return running.login;
@@ -127,11 +140,11 @@ export class ConnectionsService {
     this.logins.set(id, record);
     record.cli = startCli(commands.login.program, commands.login.args, {
       cwd: this.cwd(),
-      env: this.env(),
+      env: await this.env(),
       onOutput: (text) => this.read(id, text),
     });
     if (!record.cli.child) {
-      this.end(id, "failed", `The ${commands.login.program} command isn't installed.`);
+      this.end(id, "failed", commands.missing);
       throw conflict(record.login.message, "cli_missing");
     }
     record.cli.child.on("error", () => this.end(id, "failed"));

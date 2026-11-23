@@ -34,6 +34,8 @@ export interface ServiceCommands {
   readStatus(result: CliResult): StatusReading;
   /** The sign-in link and code in what the login has printed so far. */
   readLogin(output: string): { url: string | null; code: string | null };
+  /** Said when the program can't be found on the app's path. */
+  missing: string;
   /** For a missing CLI: what the person runs to install it themselves. */
   install: string | null;
   /** What to do by hand when the login can't be driven from here. */
@@ -120,6 +122,8 @@ export const SERVICE_COMMANDS: Record<SecureFoundationService, ServiceCommands> 
       url: linkOn(output, "convex.dev"),
       code: wordAfter(output, "minutes:"),
     }),
+    missing:
+      "Node.js (npx) isn't on the app's path, so Convex can't be asked. Install Node.js, or start the app from a terminal where `npx` works, then check again.",
     install: null,
     manual: "Run `npx convex login` in a terminal, then check again.",
   },
@@ -135,6 +139,7 @@ export const SERVICE_COMMANDS: Record<SecureFoundationService, ServiceCommands> 
       url: linkOn(output, "doppler.com"),
       code: wordAfter(output, "code is:"),
     }),
+    missing: "The Doppler command-line tool isn't installed, or isn't on the app's path.",
     install: dopplerInstall,
     manual: "Run `doppler login` in a terminal, then check again.",
   },

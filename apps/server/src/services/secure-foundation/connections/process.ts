@@ -74,11 +74,17 @@ export interface CliProcess {
 export function startCli(
   program: string,
   args: readonly string[],
-  opts: { cwd: string; env: NodeJS.ProcessEnv; onOutput: (text: string) => void },
+  opts: {
+    cwd: string;
+    env: NodeJS.ProcessEnv;
+    onOutput: (text: string) => void;
+    /** For the one fixed shell line that reads the person's PATH (never a service command). */
+    anyArgs?: boolean;
+  },
 ): CliProcess {
   const resolved = resolveExecutable(program, opts.env);
   if (!resolved) return { child: null, kill: () => {} };
-  for (const arg of args) {
+  for (const arg of opts.anyArgs ? [] : args) {
     if (!SAFE_ARG.test(arg)) throw new Error(`Unsafe argument for ${program}`);
   }
   const shim = isWindows && /\.(cmd|bat)$/i.test(resolved);
@@ -130,7 +136,7 @@ export interface CliResult {
 export function runCli(
   program: string,
   args: readonly string[],
-  opts: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs: number },
+  opts: { cwd: string; env: NodeJS.ProcessEnv; timeoutMs: number; anyArgs?: boolean },
 ): Promise<CliResult> {
   return new Promise((resolve) => {
     let output = "";

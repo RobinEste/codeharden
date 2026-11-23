@@ -1,5 +1,6 @@
 import { existsSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { dirname } from "node:path";
 import { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { secureFoundationRoutes } from "../src/routes/secure-foundation";
@@ -8,6 +9,7 @@ import type { AppServices } from "../src/services/container";
 import { ServiceError } from "../src/services/errors";
 import { ConnectionsService } from "../src/services/secure-foundation/connections/connections-service";
 import { minimalEnv } from "../src/services/secure-foundation/connections/process";
+import { toolPath } from "../src/services/secure-foundation/connections/tool-path";
 import { type FakeClis, isAlive, makeFakeClis } from "./support/fake-clis";
 import { waitUntil } from "./support/harness";
 import { removeTree } from "./support/remove-tree";
@@ -24,6 +26,9 @@ const service = (over: { loginTimeoutMs?: number; fakes?: FakeClis } = {}) =>
   new ConnectionsService({
     env: () => (over.fakes ?? fakes).env,
     loginTimeoutMs: over.loginTimeoutMs,
+    // No real shell is asked and no real tool can be reached in tests.
+    shellPath: async () => "",
+    usualFolders: [],
   });
 
 beforeEach(() => {
@@ -67,9 +72,49 @@ describe.runIf(posix)("sign-in state, asked of each CLI", () => {
     expect(doppler).toMatchObject({ cli: "missing", signedIn: null });
     expect(doppler?.install).toBeTruthy();
     // Starting its login is refused: nothing is installed for the person, nothing hangs.
-    expect(() => s.startLogin("doppler")).toThrow(ServiceError);
+    await expect(s.startLogin("doppler")).rejects.toBeInstanceOf(ServiceError);
     s.dispose();
     await removeTree(onlyNpx.dir);
+  });
+
+  it("finds npx on the PATH of the person's shell when the app's own PATH is the bare one", async () => {
+    // The app as started from the Dock: nothing of the fakes' folder on its PATH.
+    const bare = { ...fakes.env, PATH: "/usr/bin:/bin" };
+    const asked: string[] = [];
+    let shell = "";
+    const s = new ConnectionsService({
+      env: () => bare,
+      usualFolders: [],
+      shellPath: async (env) => {
+        asked.push(env.PATH ?? "");
+        return shell;
+      },
+    });
+    // Not found: the row says Node.js isn't on the app's path, not "signed out".
+    const [missing] = await s.states(["convex"]);
+    expect(missing).toMatchObject({ cli: "missing", signedIn: null });
+    expect(missing?.message).toContain("Node.js (npx) isn't on the app's path");
+    await expect(s.startLogin("convex")).rejects.toBeInstanceOf(ServiceError);
+    // Installed a moment ago: the shell's PATH is asked again at the next check.
+    shell = `/somewhere/else:${fakes.dir}:${dirname(process.execPath)}`;
+    const [found] = await s.states(["convex"]);
+    expect(found).toMatchObject({ cli: "ready", signedIn: false });
+    expect(asked.length).toBeGreaterThanOrEqual(3);
+    // The app's own PATH stays in front, and each folder is there once.
+    const path = await toolPath(bare, fakes.dir, async () => `/bin:${fakes.dir}:${fakes.dir}`, []);
+    expect(path.split(":").slice(0, 3)).toEqual(["/usr/bin", "/bin", fakes.dir]);
+    expect(path.split(":").filter((d) => d === fakes.dir)).toHaveLength(1);
+    // A shell that fails or says nothing changes nothing.
+    const failing = await toolPath(
+      { PATH: "/usr/bin", HOME: fakes.dir },
+      fakes.dir,
+      async () => {
+        throw new Error("no shell");
+      },
+      [],
+    );
+    expect(failing.split(":")[0]).toBe("/usr/bin");
+    s.dispose();
   });
 
   it("runs the CLI with a minimal environment, in a scratch folder that isn't a project", async () => {
@@ -93,13 +138,13 @@ describe.runIf(posix)("sign-in state, asked of each CLI", () => {
 describe.runIf(posix)("a login started from the form", () => {
   it("shows the link and the code, and is done when the person finishes in the browser", async () => {
     fakes.setMode("login_ok");
-    const started = connections.startLogin("convex");
+    const started = await connections.startLogin("convex");
     expect(started).toMatchObject({ service: "convex", status: "starting", url: null });
     const shown = await waiting(started.id);
     expect(shown.url).toBe("https://auth.convex.dev/activate?user_code=WXYZ-1234");
     expect(shown.code).toBe("WXYZ-1234");
     // A second click joins the login that is running.
-    expect(connections.startLogin("convex").id).toBe(started.id);
+    expect((await connections.startLogin("convex")).id).toBe(started.id);
     fakes.approve();
     const done = await settled(started.id);
     expect(done).toMatchObject({ status: "done", url: null, code: null });
@@ -109,7 +154,7 @@ describe.runIf(posix)("a login started from the form", () => {
 
   it("reads Doppler's link and code through its colour codes", async () => {
     fakes.setMode("login_ok");
-    const shown = await waiting(connections.startLogin("doppler").id);
+    const shown = await waiting((await connections.startLogin("doppler")).id);
     expect(shown.url).toBe("https://dashboard.doppler.com/workplace/auth/cli");
     expect(shown.code).toBe("fake_code_1234");
     expect(fakes.seen("doppler")?.args).toBe("login --yes --no-copy");
@@ -118,7 +163,7 @@ describe.runIf(posix)("a login started from the form", () => {
   it("times out, and leaves no process behind", async () => {
     fakes.setMode("login_hang");
     const s = service({ loginTimeoutMs: 400 });
-    const login = s.startLogin("convex");
+    const login = await s.startLogin("convex");
     const ended = await settled(login.id, s);
     expect(ended).toMatchObject({ status: "timed_out", url: null, code: null });
     const pid = fakes.pid("npx");
@@ -128,7 +173,7 @@ describe.runIf(posix)("a login started from the form", () => {
 
   it("can be cancelled, and leaves no process behind", async () => {
     fakes.setMode("login_hang");
-    const login = connections.startLogin("doppler");
+    const login = await connections.startLogin("doppler");
     await waiting(login.id);
     const pid = fakes.pid("doppler") as number;
     expect(isAlive(pid)).toBe(true);
@@ -136,19 +181,19 @@ describe.runIf(posix)("a login started from the form", () => {
     await waitUntil(() => (isAlive(pid) ? undefined : true));
     // Cancelling again changes nothing; a new login can start.
     expect(connections.cancel(login.id).status).toBe("cancelled");
-    expect(connections.startLogin("doppler").id).not.toBe(login.id);
+    expect((await connections.startLogin("doppler")).id).not.toBe(login.id);
   });
 
   it("reports a login that fails, with what to do by hand", async () => {
     fakes.setMode("login_fail");
-    const ended = await settled(connections.startLogin("convex").id);
+    const ended = await settled((await connections.startLogin("convex")).id);
     expect(ended.status).toBe("failed");
     expect(ended.message).toContain("npx convex login");
   });
 
   it("stops every login when the server closes", async () => {
     fakes.setMode("login_hang");
-    await waiting(connections.startLogin("convex").id);
+    await waiting((await connections.startLogin("convex")).id);
     const pid = fakes.pid("npx") as number;
     connections.dispose();
     await waitUntil(() => (isAlive(pid) ? undefined : true));

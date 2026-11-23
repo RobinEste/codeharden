@@ -22,6 +22,8 @@ After the form, **Connections** lists the services your choices need (Convex alw
 - **Tool not installed** (Doppler): the step shows the install command for you to run in a terminal yourself, because it can ask for your password. Then **Check again**.
 - **Several Convex teams:** pick the team the project is created in. The first one is preselected.
 
+**If a row says Node.js isn't on the app's path:** an app started from the Dock or a launcher gets the system's bare path, without the folders your terminal adds (Homebrew, a Node version manager). The step asks your own shell for its path at every check, so this is rare; when it still happens, start CodeHarden from a terminal where `npx` works. The same goes for the setup session: if it reports that `node` or `npm` isn't found, quit the app, start it from such a terminal and send "continue" in the session.
+
 The commands are fixed in the product: `npx convex@<pinned version> login status` and `login --login-flow poll --no-open`, `doppler me` and `doppler login`. Nothing you type becomes part of a command. These checks and logins work on the computer running CodeHarden only: from a phone or another device the step says so and the setup session asks you there instead.
 
 Then **Review** shows what will happen: where the project is created, the template commit that will be installed (short id and date), that packages are installed from npm, what is created in your accounts and where you remove each item, what the setup session may do, and that the app's URL only works while the setup session's processes are running. **Create project and start setup** starts it; **Cancel** or closing the dialog leaves nothing behind.

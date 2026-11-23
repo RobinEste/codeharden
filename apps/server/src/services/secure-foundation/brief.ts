@@ -71,7 +71,7 @@ export function setupBrief(input: SetupBriefInput): string {
     "",
     "## Part 1: checks and sign-ins (the only part that may involve the person)",
     `Report "${PREFIX}${MARK.preflight}". Then, in order:`,
-    "1. `node -v` is 18 or newer, and `npm -v` and `git --version` work.",
+    "1. `node -v` is 18 or newer, and `npm -v` and `git --version` work. If `node` or `npm` is not found at all, this session's PATH has no Node.js (it happens when the app was started from the Dock and Node.js comes from a version manager): don't try to install Node.js or to guess its folder. Stop as described below, and tell the person to quit the app, start it from a terminal where `node -v` works, and send \"continue\" here.",
     "2. If `node_modules/.package-lock.json` is missing, run `npm install`.",
     `3. Convex sign-in (the person was offered it in the form, so this is usually a check): run \`npx convex login status\`. If it doesn't say "Status: Logged in", run \`npx convex login --login-flow poll --no-open --device-name "${secureFoundationFolder(name)}-setup"\` in the background with a five-minute limit, read the URL it prints, and give that URL to the person with \`ask_user\` ("Open this link to sign in to Convex, then answer Done"). Wait for the command to finish. If it times out, offer one more try, then stop.`,
     input.convexTeam

@@ -40,11 +40,11 @@ export function secureFoundationRoutes(s: AppServices) {
         connections: await connections.states(c.req.valid("query").services),
       });
     })
-    .post("/connections/:service/login", (c) => {
+    .post("/connections/:service/login", async (c) => {
       requireLocal(c);
       const service = SecureFoundationService.safeParse(c.req.param("service"));
       if (!service.success) throw forbidden("Unknown service", "unknown_service");
-      return c.json<SecureFoundationLogin>(connections.startLogin(service.data), 201);
+      return c.json<SecureFoundationLogin>(await connections.startLogin(service.data), 201);
     })
     .get("/connections/logins/:id", (c) => {
       requireLocal(c);
