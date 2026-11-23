@@ -1,5 +1,13 @@
-import { lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { dirname, join, resolve, sep } from "node:path";
+import {
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+} from "node:fs";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import {
   type CreateProjectRequest,
   type CreateProjectResponse,
@@ -68,8 +76,23 @@ const STEP_LABEL: Record<Step, string> = {
   session: "starting the setup session",
 };
 
-/** A Clerk claim link in the install's summary: `Visit: https://…clerk.com/…`. */
-const CLAIM_LINE = /^Visit:\s+(https:\/\/[a-z0-9.-]*clerk\.(?:com|dev)\/\S+)\s*$/m;
+/** The Clerk claim link in the install's summary: a line `Visit: https://…clerk.com/…`. */
+export function claimLink(summary: string): string | null {
+  for (const line of summary.split("\n")) {
+    if (!line.startsWith("Visit:")) continue;
+    const text = line.slice("Visit:".length).trim();
+    if (text.length > 2_000 || text.includes(" ")) continue;
+    try {
+      const url = new URL(text);
+      const host = url.hostname.toLowerCase();
+      const clerk = ["clerk.com", "clerk.dev"].some((d) => host === d || host.endsWith(`.${d}`));
+      if (url.protocol === "https:" && clerk) return text;
+    } catch {
+      // Not a link.
+    }
+  }
+  return null;
+}
 
 /**
  * "Secure Foundation": create a project from the build's template and start its setup session
@@ -210,6 +233,12 @@ export class SecureFoundationService {
       const modules = chosenModules(req, available);
       wrote = true;
       mkdirSync(dest, { recursive: true });
+      if (!isOwnFolder(dest)) {
+        throw conflict(
+          `${dest} is not a folder of its own. Choose another name.`,
+          "destination_exists",
+        );
+      }
       await this.step("files", async () => {
         if (this.mode === "fresh") {
           const message = `Initial commit from the Secure Foundation template (${source.repository} at ${fetched.commit.slice(0, 7)})`;
@@ -275,7 +304,7 @@ export class SecureFoundationService {
     } catch {
       return { clerkClaimUrl: null };
     }
-    return { clerkClaimUrl: CLAIM_LINE.exec(text)?.[1] ?? null };
+    return { clerkClaimUrl: claimLink(text) };
   }
 
   /** The new project's folder: a direct child of the projects folder, whatever the name. */
@@ -341,9 +370,27 @@ export function chosenModules(
   return names.filter((n) => req.modules.includes(n));
 }
 
-/** Remove what a failed create wrote: the folder, or only its contents when it was there. */
-function removeCreated(dest: string, existed: boolean): void {
+/**
+ * True when `dest` is a real folder that sits directly in its parent: not a link, and not
+ * reached through one. Only such a folder is written to, or cleaned up.
+ */
+export function isOwnFolder(dest: string): boolean {
   try {
+    if (!lstatSync(dest).isDirectory()) return false;
+    return realpathSync(dest) === join(realpathSync(dirname(dest)), basename(dest));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Remove what a failed create wrote: the folder, or only its contents when it was there before.
+ * Nothing is removed unless `dest` is still a folder of its own: a link put in its place is
+ * left alone, and so is whatever it points at.
+ */
+export function removeCreated(dest: string, existed: boolean): void {
+  try {
+    if (!isOwnFolder(dest)) return;
     if (!existed) {
       rmSync(dest, { recursive: true, force: true });
       return;

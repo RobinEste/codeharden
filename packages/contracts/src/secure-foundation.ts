@@ -66,12 +66,16 @@ export const SecureFoundationName = z
  * `SecureFoundationName`. The template derives its Convex and Doppler project names the same way.
  */
 export function secureFoundationFolder(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40)
-    .replace(/-+$/, "");
+  // One pass, no regular expression: the cost is linear whatever the input.
+  let folder = "";
+  for (const ch of name.slice(0, 200).toLowerCase()) {
+    const kept = (ch >= "a" && ch <= "z") || (ch >= "0" && ch <= "9");
+    if (kept) folder += ch;
+    else if (folder && !folder.endsWith("-")) folder += "-";
+  }
+  folder = folder.slice(0, 40);
+  while (folder.endsWith("-")) folder = folder.slice(0, -1);
+  return folder;
 }
 
 /** Addresses the template's install refuses as placeholders. */

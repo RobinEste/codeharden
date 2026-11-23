@@ -148,6 +148,13 @@ describe("names, folders and addresses", () => {
     }
   });
 
+  it("makes the folder name in one pass, whatever it is given", () => {
+    expect(secureFoundationFolder("--a--b--")).toBe("a-b");
+    expect(secureFoundationFolder("-".repeat(100_000))).toBe("");
+    expect(secureFoundationFolder(`a${"-".repeat(100_000)}`)).toBe("a");
+    expect(secureFoundationFolder("../../x")).toBe("x");
+  });
+
   it("refuses names that are paths, hidden files or options", () => {
     for (const name of ["..", "../x", "a/b", "a\\b", ".env", "-x", "", "a:b", "é"]) {
       expect(SecureFoundationName.safeParse(name).success, name).toBe(false);

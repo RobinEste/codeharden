@@ -1,5 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -14,6 +21,8 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { ServiceError } from "../src/services/errors";
 import { type Exec, runTool } from "../src/services/exec";
 import {
+  isOwnFolder,
+  removeCreated,
   type SecureFoundationDeps,
   SecureFoundationService,
 } from "../src/services/secure-foundation/secure-foundation-service";
@@ -195,6 +204,38 @@ describe("creating the project", () => {
     mkdirSync(projectsDir, { recursive: true });
     writeFileSync(join(projectsDir, "my-site"), "a file\n");
     expect((await failure(service().create(request()))).code).toBe("destination_exists");
+  });
+
+  it("refuses a link of that name and leaves what it points at alone", async () => {
+    const elsewhere = join(dir, "elsewhere");
+    mkdirSync(elsewhere);
+    mkdirSync(projectsDir, { recursive: true });
+    symlinkSync(elsewhere, join(projectsDir, "my-site"), "dir");
+    expect((await failure(service().create(request()))).code).toBe("destination_exists");
+    expect(readdirSync(elsewhere)).toEqual([]);
+    expect(started).toEqual([]);
+  });
+
+  it("never cleans up through a link put where the new folder was", () => {
+    const elsewhere = join(dir, "elsewhere");
+    mkdirSync(elsewhere);
+    writeFileSync(join(elsewhere, "keep.txt"), "mine\n");
+    mkdirSync(projectsDir, { recursive: true });
+    const link = join(projectsDir, "swapped");
+    symlinkSync(elsewhere, link, "dir");
+    expect(isOwnFolder(link)).toBe(false);
+    removeCreated(link, true);
+    removeCreated(link, false);
+    expect(readdirSync(elsewhere)).toEqual(["keep.txt"]);
+    expect(existsSync(link)).toBe(true);
+    // A folder of its own is removed, or emptied when it was there before.
+    const own = join(projectsDir, "own");
+    mkdirSync(join(own, "sub"), { recursive: true });
+    expect(isOwnFolder(own)).toBe(true);
+    removeCreated(own, true);
+    expect(readdirSync(own)).toEqual([]);
+    removeCreated(own, false);
+    expect(existsSync(own)).toBe(false);
   });
 
   it("removes the folder when adding the project fails, and says which step", async () => {
