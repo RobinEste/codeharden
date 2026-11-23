@@ -230,7 +230,7 @@ function pack(flags) {
       "This is a rehearsal (not a clean checkout of the release tag): publish refuses it.",
     );
   } else {
-    console.log(`Next: node scripts/harden/npm-release.mjs publish --confirm ${rel.version}`);
+    console.log("Next: scripts/harden/publish.sh (run by the owner, in their own terminal)");
   }
 }
 
@@ -249,6 +249,12 @@ function check(rel) {
     const reported = capture(process.execPath, [join(root, "dist", "cli.js"), "--version"], {
       env,
     });
+    const line = capture(process.execPath, [join(root, "dist", "cli.js"), "--version"]) ?? "";
+    if (!line.startsWith(`CodeHarden ${rel.hardenVersion} `)) {
+      problems.push(
+        `the packed CLI's version line is "${line}", not CodeHarden ${rel.hardenVersion}`,
+      );
+    }
     if (reported !== rel.version)
       problems.push(`the packed CLI reports "${reported}", not ${rel.version}`);
     const chunks = readdirSync(join(root, "dist")).filter((f) => f.endsWith(".js"));
@@ -260,9 +266,20 @@ function check(rel) {
       problems.push(`the bundle was not built from VERSION ${rel.hardenVersion}`);
     }
     if (problems.length > 0) fail(`the tarball is not right:\n- ${problems.join("\n- ")}`);
-    console.log(
-      `\nTarball checks passed: name, version ${rel.version}, command, repository, files, CLI start.`,
+    const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+    const files = readdirSync(root, { recursive: true, withFileTypes: true }).filter((e) =>
+      e.isFile(),
     );
+    console.log("\nTarball checks passed.");
+    console.log(`  name:     ${pkg.name}`);
+    console.log(`  version:  ${pkg.version} (CodeHarden ${rel.hardenVersion}, tag ${rel.tag})`);
+    console.log(
+      `  bin:      ${Object.entries(pkg.bin)
+        .map(([k, v]) => `${k} -> ${v}`)
+        .join(", ")}`,
+    );
+    console.log(`  files:    ${files.length}`);
+    console.log(`  reports:  ${line}`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -345,7 +362,9 @@ function publish(flags) {
     console.log(
       `\nPublishing ${rel.channel.packageName}@${rel.version} to ${registry} as ${user}.`,
     );
-    console.log("If npm asks you to authenticate, it prints a URL: open it and approve.\n");
+    console.log(
+      "npm asks you to authenticate in the browser: it prints a URL, open it and approve.\n",
+    );
   }
   const args = [
     "publish",
@@ -357,7 +376,6 @@ function publish(flags) {
     "--ignore-scripts",
   ];
   if (dry) args.push("--dry-run");
-  if (flags.otp) args.push("--otp", flags.otp);
   if (attached(npm, args, { cwd: OUT, shell }) !== 0)
     fail(dry ? "the dry run failed" : "npm publish failed");
   if (dry) {
@@ -380,7 +398,6 @@ const USAGE = `Usage: node scripts/harden/npm-release.mjs <pack|login|publish|st
   login                        sign in to npm in the browser
   publish   --dry-run          show what npm would publish, publish nothing
             --confirm <ver>    required to publish for real
-            --otp <code>       a one-time password, instead of the browser
   status                       what is packed, who is signed in, what is published
 
   --registry <url>             another registry (tests only; default ${NPM_REGISTRY})
@@ -395,7 +412,6 @@ function main() {
       "allow-untagged": { type: "boolean" },
       "dry-run": { type: "boolean" },
       confirm: { type: "string" },
-      otp: { type: "string" },
       registry: { type: "string" },
       help: { type: "boolean", short: "h" },
     },
