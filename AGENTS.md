@@ -17,7 +17,7 @@ packages/
 docs/DESIGN.md
 changes/      Changelog fragments: one file per user-facing change, assembled into CHANGELOG.md at release
 scripts/release/  bump-version.mjs (the Release workflow's version bump) and changes.mjs (fragments)
-scripts/harden/   CodeHarden's own: release.sh, publish.sh (npm-release.mjs), setup-fork.sh, fork-config.sh (which upstream, branches and package), the build-time version and channel defines, upstream-drift.test.mjs (the guard against upstream's identity coming back), brand/ (the logo's one SVG source and the script that makes every icon from it)
+scripts/harden/   CodeHarden's own: release.sh, publish.sh (npm-release.mjs), setup-fork.sh, fork-config.sh (which upstream, branches and package), the build-time version and channel defines, upstream-drift.test.mjs (the guard against upstream's identity coming back), brand/ (the logo's one SVG source and the script that makes every icon from it), dev-preview/ (this repository's own dev command for a dev preview: `run.mjs` takes the web and server ports from `WEB_PORT` and `API_PORT` and keeps its home in `.codeden-dev/preview/`; `docs/dev-preview.md`)
 ```
 
 Key entry points:
@@ -65,6 +65,7 @@ Node 24+ and pnpm 10 (`corepack enable`).
 - **Never mention other harnesses or products as inspiration** anywhere: code, comments, docs, commits. Describe CodeDen on its own terms.
 - **Commits:** conventional commits (`feat(server): ...`, `fix(runner): ...`, `chore: ...`), one logical change per commit. `pnpm typecheck && pnpm lint && pnpm test` must pass; the first two are checked before a push and all three in CI (see "Checks before a push and in CI").
 - **Changelog notes are fragments.** A user-facing change adds its note as its own file, `changes/<issue>-<slug>.md` (front matter `section: added | changed | deprecated | removed | fixed | security`, then `- ` bullets in the style of `CHANGELOG.md`). Never edit `CHANGELOG.md` for unreleased work, so pull requests never conflict on it. Docs-only and internal changes need no note. Format: `changes/README.md`; `pnpm test` checks it.
+- **Dev preview is a person's feature.** `apps/server/src/services/dev-preview/` runs a project's dev command in a session's worktree (`docs/dev-preview.md`). The command comes only from `<home>/dev-preview.json`, which only `PUT /api/dev-preview/projects/:id` writes (this computer only, with `confirm: true`). Never read a command from the repository, never add it to `Project` or to a request that starts a preview, and never add an agent or MCP tool that sets it or starts one. Every start goes through `starter.ts`, which reads the stored settings itself; the PM thread's preview follows only the base branch recorded at confirmation (`Project.defaultBranch` is agent-writable). A preview's processes are ended only through `process-table.ts` (`familyOf`): never signal a process by an id alone, and never a process group as a whole. The suites with real processes are in `pnpm test:slow` (`test/dev-preview-process.test.ts`); the ones with real git run in the server's process-heavy project.
 - Generated files: `apps/server/drizzle/` (migrations, via drizzle-kit) and `apps/web/src/components/ui/` (shadcn). Add shadcn components with `pnpm dlx shadcn@latest add <name>` from `apps/web`.
 
 ## Checks before a push and in CI

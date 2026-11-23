@@ -197,6 +197,7 @@ It's experimental. Start with the software factory on a test repository with aut
 | [Getting started](docs/getting-started.md) | Install, setup, your first project and session |
 | [The desktop app](docs/desktop.md) | Install, notifications, updates and where data lives |
 | [Secure Foundation](docs/secure-foundation.md) | A new project from the Secure Vibe Coding OS template, installed and started for you |
+| [Dev preview](docs/dev-preview.md) | Your project's dev server, started in a session's own worktree, with its address at the top of the session |
 | [Orchestration](docs/orchestration.md) | The orchestrator, project managers and agent sessions |
 | [Workbench](docs/workbench.md) | Changes, comments, undo, forks, hand-offs, files, terminal, browser and search |
 | [GitHub](docs/github.md) | Issues, pull requests, checks, reviews and evidence |
