@@ -1,7 +1,9 @@
 import {
   isSecureFoundationQuiet,
   isSecureFoundationSetup,
+  type Project,
   SECURE_FOUNDATION_OPT_IN_MODE,
+  SECURE_FOUNDATION_PROJECT_MODE,
   type SecureFoundationPhase,
   secureFoundationStatus,
 } from "@codeden/contracts";
@@ -40,13 +42,14 @@ const HINT: Partial<Record<SecureFoundationPhase, string>> = {
 /**
  * A project's "Secure Foundation setup" status: derived from its setup session, with the app's
  * URL while that session's processes run. While the project is quiet (`isSecureFoundationQuiet`)
- * it says that automatic work is off and opens the autonomy dialog to turn it on. Renders
- * nothing for any other project.
+ * it says that automatic work is off and opens the autonomy dialog to turn it on. The snapshot
+ * drops a setup session some time after it is archived; the server still keeps such a project
+ * quiet, so a project in the quiet mode without a setup session here is asked about, and the
+ * notice stays. Renders nothing for any other project.
  */
 export function SecureFoundationStatus({ projectId }: { projectId: string }) {
   const client = useClient();
   const { data } = useSnapshot();
-  const [choosingMode, setChoosingMode] = useState(false);
   const project = data?.projects.find((p) => p.id === projectId);
   const session = (data?.sessions ?? [])
     .filter((s) => s.projectId === projectId && isSecureFoundationSetup(s))
@@ -59,9 +62,31 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
     enabled: Boolean(session) && finished,
     gcTime: 0,
   });
-  if (!session || !status) return null;
+  const inQuietMode = project?.autonomyMode === SECURE_FOUNDATION_PROJECT_MODE;
+  const asked = useQuery({
+    queryKey: [...secureFoundationKey, "quiet", projectId],
+    queryFn: () => client.secureFoundation.quiet(projectId),
+    enabled: Boolean(data) && inQuietMode && !session,
+  });
+  if (!project) return null;
+  if (!session || !status) {
+    if (!inQuietMode || !asked.data?.quiet) return null;
+    return (
+      <section
+        className="rounded-xl border border-border p-3 text-xs"
+        aria-label="Secure Foundation setup"
+        data-testid="secure-foundation-status"
+      >
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <ShieldCheck className="size-4 text-muted-foreground" />
+          <span className="font-medium">Secure Foundation setup</span>
+        </div>
+        <QuietNotice project={project} />
+      </section>
+    );
+  }
   const claim = finish.data?.clerkClaimUrl;
-  const quiet = project ? isSecureFoundationQuiet(project, [session]) : false;
+  const quiet = isSecureFoundationQuiet(project, [session]);
   return (
     <section
       className="rounded-xl border border-border p-3 text-xs"
@@ -111,40 +136,7 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
       {HINT[status.phase] && (
         <p className="mt-1.5 text-2xs text-muted-foreground">{HINT[status.phase]}</p>
       )}
-      {project && quiet && (
-        <p className="mt-2 text-2xs" data-testid="secure-foundation-quiet">
-          <span className="font-medium">Automatic work is off.</span>{" "}
-          <span className="text-muted-foreground">
-            This project is in Manual mode, as Secure Foundation creates it: nothing starts in it by
-            itself. {QUIET_MEANS}; what arrives meanwhile is kept for the project manager's next
-            turn. {QUIET_TURN_ON}.
-          </span>{" "}
-          <button
-            type="button"
-            className="underline underline-offset-2 hover:text-foreground"
-            onClick={() => setChoosingMode(true)}
-            data-testid="secure-foundation-turn-on"
-          >
-            Turn on automatic work…
-          </button>{" "}
-          <a
-            href={secureFoundationQuietUrl()}
-            target="_blank"
-            rel="noreferrer"
-            className="text-muted-foreground underline underline-offset-2"
-          >
-            What this changes
-          </a>
-        </p>
-      )}
-      {project && quiet && choosingMode && (
-        <AutonomyDialog
-          project={project}
-          open
-          onOpenChange={setChoosingMode}
-          initialMode={SECURE_FOUNDATION_OPT_IN_MODE}
-        />
-      )}
+      {quiet && <QuietNotice project={project} />}
       {finish.data?.deployedUrl && (
         <p className="mt-2 text-2xs" data-testid="secure-foundation-deployed">
           <span className="font-medium">Deployed (dev):</span>{" "}
@@ -195,5 +187,46 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
         </p>
       )}
     </section>
+  );
+}
+
+/** That automatic work is off in this project, what that means and the way to turn it on. */
+function QuietNotice({ project }: { project: Project }) {
+  const [choosingMode, setChoosingMode] = useState(false);
+  return (
+    <>
+      <p className="mt-2 text-2xs" data-testid="secure-foundation-quiet">
+        <span className="font-medium">Automatic work is off.</span>{" "}
+        <span className="text-muted-foreground">
+          This project is in Manual mode, as Secure Foundation creates it: nothing starts in it by
+          itself. {QUIET_MEANS}; what arrives meanwhile is kept for the project manager's next turn.{" "}
+          {QUIET_TURN_ON}.
+        </span>{" "}
+        <button
+          type="button"
+          className="underline underline-offset-2 hover:text-foreground"
+          onClick={() => setChoosingMode(true)}
+          data-testid="secure-foundation-turn-on"
+        >
+          Turn on automatic work…
+        </button>{" "}
+        <a
+          href={secureFoundationQuietUrl()}
+          target="_blank"
+          rel="noreferrer"
+          className="text-muted-foreground underline underline-offset-2"
+        >
+          What this changes
+        </a>
+      </p>
+      {choosingMode && (
+        <AutonomyDialog
+          project={project}
+          open
+          onOpenChange={setChoosingMode}
+          initialMode={SECURE_FOUNDATION_OPT_IN_MODE}
+        />
+      )}
+    </>
   );
 }

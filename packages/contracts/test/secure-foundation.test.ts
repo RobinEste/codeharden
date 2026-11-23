@@ -21,6 +21,7 @@ import {
   SecureFoundationName,
   SecureFoundationOptions,
   SecureFoundationPrefill,
+  SecureFoundationQuiet,
   SecureFoundationTemplate,
   type Session,
   secureFoundationCreates,
@@ -457,6 +458,11 @@ describe("a new project is quiet", () => {
     for (const mode of ["assisted", "software_factory", "dark_factory"] as const) {
       expect(isSecureFoundationQuiet({ autonomyMode: mode }, [setup])).toBe(false);
     }
+  });
+
+  it("is answered by the server as one flag", () => {
+    expect(SecureFoundationQuiet.parse({ quiet: true })).toEqual({ quiet: true });
+    expect(SecureFoundationQuiet.safeParse({}).success).toBe(false);
   });
 
   it("never applies to a project Secure Foundation didn't set up", () => {

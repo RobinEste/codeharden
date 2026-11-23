@@ -398,6 +398,14 @@ export function isSecureFoundationQuiet(
 }
 
 /**
+ * `GET /api/secure-foundation/projects/:id/quiet`: whether the project is a quiet Secure
+ * Foundation project, answered from the server's own sessions. The snapshot drops a setup
+ * session some time after it is archived, so the project page asks when it has none to go by.
+ */
+export const SecureFoundationQuiet = z.object({ quiet: z.boolean() });
+export type SecureFoundationQuiet = z.infer<typeof SecureFoundationQuiet>;
+
+/**
  * A setup's status, from its session alone: the session's lifecycle and the last progress line
  * it reported. The service lives in the session's processes, so a session that ended (or was
  * archived) reads `stopped` whatever it reported last. A session between turns that reported

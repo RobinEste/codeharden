@@ -6,6 +6,7 @@ import {
   RoleMessageResponse,
   SECURE_FOUNDATION_SETUP_AUTONOMY,
   SecureFoundationOptions,
+  SecureFoundationQuiet,
   type Session,
   StartSessionResponse,
   secureFoundationStatus,
@@ -123,6 +124,14 @@ describe("Secure Foundation with the Fake provider", () => {
     const s = h.server.services;
     const projectId = made.project.id;
     expect(holdsPmWakes({ db: s.db, projects: s.projects }, projectId)).toBe(true);
+    // The project page can ask, for when the setup session has left its snapshot.
+    const quiet = async (id: string) =>
+      SecureFoundationQuiet.parse(
+        (await h.api("GET", `/secure-foundation/projects/${id}/quiet`)).body,
+      );
+    expect(await quiet(projectId)).toEqual({ quiet: true });
+    expect(await quiet(h.projectId)).toEqual({ quiet: false });
+    expect(await quiet("no-such-project")).toEqual({ quiet: false });
 
     // A session the person starts by hand runs its turn.
     const started = StartSessionResponse.parse(

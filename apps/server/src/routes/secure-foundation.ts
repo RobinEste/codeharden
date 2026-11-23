@@ -7,6 +7,7 @@ import {
   type SecureFoundationLogin,
   type SecureFoundationOptions,
   type SecureFoundationPrefill,
+  type SecureFoundationQuiet,
   SecureFoundationService,
   type SecureFoundationTemplate,
   VerifySecureFoundationRequest,
@@ -16,6 +17,7 @@ import { type Context, Hono } from "hono";
 import { isRemoteRequest } from "../security";
 import type { AppServices } from "../services/container";
 import { forbidden } from "../services/errors";
+import { holdsPmWakes } from "../services/secure-foundation/quiet";
 import { jsonBody, queryOf } from "./validate";
 
 /**
@@ -25,7 +27,8 @@ import { jsonBody, queryOf } from "./validate";
  * answered on this computer: another device gets nulls, never an error. The Connections routes
  * (sign-in state, starting and cancelling a login) are refused to another device altogether.
  * `/verify` is what "Go" checks first (fields, folder, template commit, provider); the sign-in
- * checks are not part of it and stay the Connections routes.
+ * checks are not part of it and stay the Connections routes. `/projects/:id/quiet` says whether
+ * automatic work is still off in a project Secure Foundation set up (false for any other id).
  */
 /** Sign-ins read and change this computer's own state and start processes on it. */
 function requireLocal(c: Context): void {
@@ -77,5 +80,8 @@ export function secureFoundationRoutes(s: AppServices) {
           ? { clerkClaimUrl: null, deployedUrl: null }
           : sf.finish(c.req.param("id")),
       ),
+    )
+    .get("/projects/:id/quiet", (c) =>
+      c.json<SecureFoundationQuiet>({ quiet: holdsPmWakes(s, c.req.param("id")) }),
     );
 }
