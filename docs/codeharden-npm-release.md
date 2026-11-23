@@ -2,7 +2,7 @@
 
 CodeHarden is published to npm by hand, for the releases you choose. Not every CodeHarden release has to go to npm: installs update to the newest version npm has, and skip the ones in between.
 
-The package is `codeharden`. The repository's `apps/cli/package.json` keeps upstream's name and version; `scripts/harden/npm-release.mjs` writes the release manifest into a staging folder at pack time (name, command, version, repository links) and changes nothing in the repository.
+The package is `codeharden`. The repository's `apps/cli/package.json` keeps upstream's name and version; `scripts/harden/publish.sh` (through `scripts/harden/npm-release.mjs`, which does the work) writes the release manifest into a staging folder at pack time (name, command, version, repository links) and changes nothing in the repository.
 
 | | Example |
 |---|---|
@@ -16,7 +16,15 @@ The package is `codeharden`. The repository's `apps/cli/package.json` keeps upst
 
 ## Every publish
 
-1. **Pick the release.** A CodeHarden release is a commit on `harden` tagged `v<version>`. The "Upstream sync merge" workflow makes one after it merges a sync; to make one now, run that workflow by hand with **release** checked.
+1. **Cut the release**, if the changes you want aren't in one yet. On a clean, up-to-date `harden`:
+
+   ```sh
+   git checkout harden && git pull --ff-only
+   scripts/harden/release.sh --dry-run   # shows the version, the tag and the changelog entry
+   scripts/harden/release.sh --push      # commits, tags and pushes both in one atomic push
+   ```
+
+   It writes `VERSION` (the time now in America/New_York), a new entry on top of `CODEHARDEN-CHANGELOG.md` and `state/upstream-base`, in one commit `release: <version> (upstream <sha>)` tagged `v<version>`. Without `--push` it stays local and prints the push command. It refuses if the tag exists or tracked files have changes. The "Upstream sync merge" workflow runs the same script after it merges a sync, so a release may already be there.
 
 2. **Check the release out**, clean:
 
@@ -25,37 +33,25 @@ The package is `codeharden`. The repository's `apps/cli/package.json` keeps upst
    git checkout v2026.0105.0518
    ```
 
-3. **Pack and check:**
+3. **Rehearse:**
 
    ```sh
-   node scripts/harden/npm-release.mjs pack
+   scripts/harden/publish.sh --dry-run
    ```
 
-   It installs dependencies, builds, packs `dist/npm/codeharden-<npm version>.tgz` and checks the tarball: the name, version, command and repository in its `package.json`, the files it must and must not contain, that the bundle was built from this `VERSION` for this package, and that its CLI starts and reports the version. It refuses a checkout that is not the release tag or has changes (`--allow-untagged` and `--allow-dirty` make a rehearsal tarball, which `publish` refuses).
+   It refuses unless the tree is clean and HEAD is the tag `v<VERSION>`. Then it installs dependencies, builds, packs `dist/npm/codeharden-<npm version>.tgz` and checks the tarball: the name, version, command and repository in its `package.json`, the files it must and must not contain, that the bundle was built from this `VERSION` for this package, and that its CLI starts and reports both versions. It prints the name, version, `bin` and file count, then what npm would publish. Nothing is published.
 
-4. **Sign in to npm:**
+4. **Sign in to npm**, if `npm whoami` doesn't show your account: `npm login`. npm prints a URL (`https://www.npmjs.com/login?next=/login/cli/...`); open it in your browser and approve.
+
+5. **Publish:**
 
    ```sh
-   node scripts/harden/npm-release.mjs login
+   scripts/harden/publish.sh
    ```
 
-   npm prints a URL (`https://www.npmjs.com/login?next=/login/cli/...`). Open it in your browser and approve. `node scripts/harden/npm-release.mjs status` shows who is signed in and what is already published.
+   It repeats the build, pack and checks, asks you to type the version, then runs `npm publish --access public`. npm prints another URL (`https://www.npmjs.com/auth/cli/...`) and waits while you approve with your second factor in the browser. No one-time code goes on the command line.
 
-5. **Look at what would be published**, without publishing:
-
-   ```sh
-   node scripts/harden/npm-release.mjs publish --dry-run
-   ```
-
-6. **Publish:**
-
-   ```sh
-   node scripts/harden/npm-release.mjs publish --confirm 2026.105.518
-   ```
-
-   `--confirm` takes the npm version, so a publish is never an accident. When npm wants your second factor it prints another URL (`https://www.npmjs.com/auth/cli/...`): open it and approve, or pass `--otp <code>` from an authenticator app.
-
-7. **Check it**, in an empty folder:
+6. **Check it**, in an empty folder:
 
    ```sh
    npm view codeharden version
@@ -68,5 +64,5 @@ The package is `codeharden`. The repository's `apps/cli/package.json` keeps upst
 
 - **A version can't be published twice**, and npm restricts unpublishing after 72 hours. If a release is wrong, publish a newer one and mark the bad one: `npm deprecate codeharden@<version> "<reason>"`.
 - **The registry is always named** (`https://registry.npmjs.org`), so an npm config pointing elsewhere can't redirect a publish. `--registry` exists for tests.
-- **Nothing is published from CI.** The Release workflow stays disabled, and no npm token is stored anywhere.
+- **Nothing is published from CI.** The Release workflow stays disabled, no npm token is stored anywhere, and there is no Trusted Publishing or provenance: every publish is you, signed in, at your machine.
 - **A fork's own channel:** set `PACKAGE_NAME` and `RELEASE_REPOSITORY` in the environment for both the build and this script (see `scripts/harden/channel-define.mjs`).

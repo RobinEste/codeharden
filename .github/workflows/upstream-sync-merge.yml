@@ -47,9 +47,10 @@ name: Upstream sync merge
 #   - It uses no actions at all, only `git`, `gh` and `jq` from the runner image, so there is
 #     nothing to pin. If an action is ever added here, pin it by full commit SHA.
 #   - It never checks out or runs code from a pull request. Commits are fetched into a bare
-#     repository as data, only to compare ancestry. The release job checks out three files
-#     of harden (VERSION, the changelog, state/upstream-base) and nothing else, and runs
-#     nothing from the repository.
+#     repository as data, only to compare ancestry. The release job checks out four files
+#     of harden and nothing else: VERSION, the changelog, state/upstream-base and
+#     scripts/harden/release.sh. That script, from harden itself, is the only thing it runs
+#     from the repository; it is the same one a maintainer runs by hand.
 #   - It authenticates with the run's own GITHUB_TOKEN. No personal tokens, no secrets.
 #   - Values from pull requests (branch names, labels) reach the scripts as data through `jq`
 #     and environment variables, never through `${{ }}` in a script.
@@ -85,6 +86,7 @@ env:
   CHANGELOG_FILE: CODEHARDEN-CHANGELOG.md
   CHANGELOG_TITLE: "# CodeHarden releases"
   BASE_FILE: state/upstream-base
+  RELEASE_SCRIPT: scripts/harden/release.sh
   RELEASE_TZ: America/New_York
 
 jobs:
@@ -327,58 +329,20 @@ jobs:
           git remote add origin "$fork_url"
           git fetch --quiet --no-tags origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
           git fetch --quiet --no-tags "$UPSTREAM_URL" "refs/heads/${MIRROR_BRANCH}:refs/sync/upstream"
-          # Only the three release files reach the working tree; nothing from it is run.
-          git sparse-checkout set --no-cone "/VERSION" "/${CHANGELOG_FILE}" "/${BASE_FILE}"
+          # Only the three release files and the release script reach the working tree. The
+          # script is the one a maintainer runs by hand after merging our own changes.
+          git sparse-checkout set --no-cone "/VERSION" "/${CHANGELOG_FILE}" "/${BASE_FILE}" "/${RELEASE_SCRIPT}"
           git checkout --quiet -B "$TARGET_BRANCH" "refs/remotes/origin/${TARGET_BRANCH}"
-
-          for f in VERSION "$CHANGELOG_FILE" "$BASE_FILE"; do
-            if [ ! -f "$f" ]; then echo "::error::${TARGET_BRANCH} has no $f; can't make a release."; exit 1; fi
-          done
-          if [ "$(head -n 1 "$CHANGELOG_FILE")" != "$CHANGELOG_TITLE" ]; then
-            echo "::error::${CHANGELOG_FILE} doesn't start with '${CHANGELOG_TITLE}'."; exit 1
-          fi
-          prev_base=$(tr -d '[:space:]' < "$BASE_FILE")
-          if ! [[ "$prev_base" =~ ^[0-9a-f]{40}$ ]] || ! git cat-file -e "${prev_base}^{commit}" 2> /dev/null; then
-            echo "::error::${BASE_FILE} doesn't hold a commit of this repository."; exit 1
-          fi
-          # The newest upstream commit that the target branch contains.
-          new_base=$(git merge-base HEAD refs/sync/upstream)
-          if ! git merge-base --is-ancestor "$prev_base" "$new_base"; then
-            echo "::error::The last release's upstream base ($prev_base) is not an ancestor of the upstream commit ${TARGET_BRANCH} now contains ($new_base)."; exit 1
-          fi
-          prev_release=$(git log -1 --format=%H -- VERSION)
-
-          # One clock reading for the version and the changelog heading.
-          read -r version day time <<< "$(TZ="$RELEASE_TZ" date '+%Y.%m%d.%H%M %Y-%m-%d %H:%M')"
-          tag="v${version}"
-          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" > /dev/null; then
-            echo "::error::Tag ${tag} already exists. Nothing was changed; run the workflow again in a minute."; exit 1
+          if [ ! -f "$RELEASE_SCRIPT" ]; then
+            echo "::error::${TARGET_BRANCH} has no ${RELEASE_SCRIPT}; can't make a release."; exit 1
           fi
 
-          upstream_lines=$(git log --no-merges --pretty='- %s' "${prev_base}..${new_base}")
-          own_lines=$(git log --no-merges --pretty='- %s' "${prev_release}..HEAD" --not "$new_base")
-          {
-            printf '%s\n\n## %s — %s %s\n\n' "$CHANGELOG_TITLE" "$version" "$day" "$time"
-            if [ -z "$upstream_lines" ] && [ -z "$own_lines" ]; then
-              printf -- '- rebuild only (upstream base or dependency refresh)\n\n'
-            fi
-            if [ -n "$upstream_lines" ]; then printf '### upstream (%s)\n%s\n\n' "$UPSTREAM_NAME" "$upstream_lines"; fi
-            if [ -n "$own_lines" ]; then printf '### codeharden\n%s\n\n' "$own_lines"; fi
-            tail -n +3 "$CHANGELOG_FILE"
-          } > "$RUNNER_TEMP/changelog.new"
-          cp "$RUNNER_TEMP/changelog.new" "$CHANGELOG_FILE"
-          printf '%s\n' "$version" > VERSION
-          printf '%s\n' "$new_base" > "$BASE_FILE"
-
-          short=$(git rev-parse --short=8 "$new_base")
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add VERSION "$CHANGELOG_FILE" "$BASE_FILE"
-          git commit --quiet -m "release: ${version} (upstream ${short})"
-          git tag -a "$tag" -m "CodeHarden ${version} (upstream ${short})"
-          # One atomic push, never forced: both the commit and the tag land, or neither.
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
           echo "::add-mask::$auth"
-          git -c "http.extraheader=AUTHORIZATION: basic $auth" \
-            push --atomic origin "HEAD:refs/heads/${TARGET_BRANCH}" "refs/tags/${tag}"
-          echo "::notice::Released CodeHarden ${version} (${tag}) on ${TARGET_BRANCH}, upstream base ${short}."
+          git config "http.https://github.com/.extraheader" "AUTHORIZATION: basic $auth"
+          # Writes VERSION, the changelog entry and the upstream base, commits, tags and pushes
+          # both in one atomic push, never forced. It fails if the tag already exists.
+          bash "$RELEASE_SCRIPT" --upstream-ref refs/sync/upstream --push
+          echo "::notice::Released CodeHarden $(cat VERSION) on ${TARGET_BRANCH}."
