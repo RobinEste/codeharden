@@ -1,0 +1,5 @@
+commit:  485ecfd08a644f4db4266c6024c6c9937249d9d1 (fix(test): decide the busy-machine worker limit once per run)
+command: NODE_OPTIONS="--import <evidence>/stub-os.mjs" STUB_IDLE=0.2 pnpm exec vitest list --mode slow --project '@codeden/desktop (processes)'
+----------------------------------------------------------------------
+----------------------------------------------------------------------
+exit code: 0

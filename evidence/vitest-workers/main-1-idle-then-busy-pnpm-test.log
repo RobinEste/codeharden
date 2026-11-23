@@ -1,0 +1,49 @@
+commit:  911551159b30ae44367c1cea5f2ba3fa9f755346 (Auto: `Invoke-WebRequest … -OutFile <outside>` and PowerShell's `${C)
+command: NODE_OPTIONS="--import <evidence>/stub-os.mjs" STUB_TRACE=1 STUB_IDLE=0.9,0.2 pnpm test
+----------------------------------------------------------------------
+
+> codeden-monorepo@ test ./
+> vitest run
+
+[stub] measurement 1: 90% idle, VITEST_MAX_WORKERS=(unset)
+[stub] measurement 2: 20% idle, VITEST_MAX_WORKERS=(unset)
+[stub] measurement 3: 20% idle, VITEST_MAX_WORKERS=(unset)
+The machine is busy (20% idle): 2 test workers.
+[stub] measurement 4: 20% idle, VITEST_MAX_WORKERS=2
+The machine is busy (20% idle): 2 test workers.
+The machine is busy (20% idle): 2 test workers.
+[stub] measurement 5: 20% idle, VITEST_MAX_WORKERS=2
+The machine is busy (20% idle): 2 test workers.
+
+ RUN  v5.1.0 ./
+
+⎯⎯⎯⎯⎯⎯ Unhandled Errors ⎯⎯⎯⎯⎯⎯
+
+Vitest caught 1 unhandled error during the test run.
+This might cause false positive tests. Resolve unhandled errors to make sure your tests are not affected.
+
+⎯⎯⎯⎯⎯⎯ Unhandled Error ⎯⎯⎯⎯⎯⎯⎯
+Error: Projects "@codeden/contracts" and "@codeden/desktop" have different 'maxWorkers' but same 'sequence.groupOrder'.
+Provide unique 'sequence.groupOrder' for them.
+ ❯ node_modules/.pnpm/vitest@5.1.0_@opentelemetry+api@1.10.0_@types+node@24.19.2_jsdom@31.0.0_@noble+hashes@1_c61bb938bcb249fd6ffaf7b3e23e74c1/node_modules/vitest/dist/chunks/index.Di8au7q4.js:6298:10
+ ❯ groupSpecs node_modules/.pnpm/vitest@5.1.0_@opentelemetry+api@1.10.0_@types+node@24.19.2_jsdom@31.0.0_@noble+hashes@1_c61bb938bcb249fd6ffaf7b3e23e74c1/node_modules/vitest/dist/chunks/index.Di8au7q4.js:6280:8
+ ❯ executeTests node_modules/.pnpm/vitest@5.1.0_@opentelemetry+api@1.10.0_@types+node@24.19.2_jsdom@31.0.0_@noble+hashes@1_c61bb938bcb249fd6ffaf7b3e23e74c1/node_modules/vitest/dist/chunks/index.Di8au7q4.js:6096:18
+ ❯ node_modules/.pnpm/vitest@5.1.0_@opentelemetry+api@1.10.0_@types+node@24.19.2_jsdom@31.0.0_@noble+hashes@1_c61bb938bcb249fd6ffaf7b3e23e74c1/node_modules/vitest/dist/chunks/cli-api.COfZo8lK.js:13415:7
+ ❯ node_modules/.pnpm/vitest@5.1.0_@opentelemetry+api@1.10.0_@types+node@24.19.2_jsdom@31.0.0_@noble+hashes@1_c61bb938bcb249fd6ffaf7b3e23e74c1/node_modules/vitest/dist/chunks/cli-api.COfZo8lK.js:13440:11
+ ❯ node_modules/.pnpm/vitest@5.1.0_@opentelemetry+api@1.10.0_@types+node@24.19.2_jsdom@31.0.0_@noble+hashes@1_c61bb938bcb249fd6ffaf7b3e23e74c1/node_modules/vitest/dist/chunks/cli-api.COfZo8lK.js:13304:45
+ ❯ startVitest node_modules/.pnpm/vitest@5.1.0_@opentelemetry+api@1.10.0_@types+node@24.19.2_jsdom@31.0.0_@noble+hashes@1_c61bb938bcb249fd6ffaf7b3e23e74c1/node_modules/vitest/dist/chunks/cli-api.COfZo8lK.js:14572:8
+ ❯ start node_modules/.pnpm/vitest@5.1.0_@opentelemetry+api@1.10.0_@types+node@24.19.2_jsdom@31.0.0_@noble+hashes@1_c61bb938bcb249fd6ffaf7b3e23e74c1/node_modules/vitest/dist/chunks/cac.BYbt0aJp.js:2382:15
+ ❯ CAC.run node_modules/.pnpm/vitest@5.1.0_@opentelemetry+api@1.10.0_@types+node@24.19.2_jsdom@31.0.0_@noble+hashes@1_c61bb938bcb249fd6ffaf7b3e23e74c1/node_modules/vitest/dist/chunks/cac.BYbt0aJp.js:2358:2
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
+
+
+ Test Files  no tests
+      Tests  no tests
+     Errors  1 error
+   Start at  23:46:52
+   Duration  52ms
+
+ ELIFECYCLE  Test failed. See above for more details.
+----------------------------------------------------------------------
+exit code: 1

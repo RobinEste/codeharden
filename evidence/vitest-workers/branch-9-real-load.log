@@ -1,0 +1,23 @@
+commit:  485ecfd08a644f4db4266c6024c6c9937249d9d1 (fix(test): decide the busy-machine worker limit once per run)
+command: node <evidence>/real-load.mjs --tries 16
+----------------------------------------------------------------------
+try 1 (load after 200 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (0% idle): 2 test workers.)
+try 2 (load after 250 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (0% idle): 2 test workers.)
+try 3 (load after 300 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (0% idle): 2 test workers.)
+try 4 (load after 350 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (0% idle): 2 test workers.)
+try 5 (load after 400 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (0% idle): 2 test workers.)
+try 6 (load after 450 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (0% idle): 2 test workers.)
+try 7 (load after 500 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (2% idle): 2 test workers.)
+try 8 (load after 550 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (17% idle): 2 test workers.)
+try 9 (load after 600 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (25% idle): 2 test workers.)
+try 10 (load after 650 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (34% idle): 2 test workers.)
+try 11 (load after 700 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (32% idle): 2 test workers.)
+try 12 (load after 750 ms): exit 0 | files: 59 passed (59) | "busy" lines: 0
+try 13 (load after 800 ms): exit 0 | files: 59 passed (59) | "busy" lines: 0
+try 14 (load after 850 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (47% idle): 2 test workers.)
+try 15 (load after 900 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (40% idle): 2 test workers.)
+try 16 (load after 950 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (41% idle): 2 test workers.)
+
+0/16 tries stopped with the maxWorkers error
+----------------------------------------------------------------------
+exit code: 0

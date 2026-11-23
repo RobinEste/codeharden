@@ -1,0 +1,15 @@
+commit:  911551159b30ae44367c1cea5f2ba3fa9f755346 (Auto: `Invoke-WebRequest … -OutFile <outside>` and PowerShell's `${C)
+command: NODE_OPTIONS="--import <evidence>/stub-os.mjs" STUB_IDLE=0.2 STUB_CPUS=3 pnpm exec vitest run --project scripts scripts/ci-workflows.test.mjs
+----------------------------------------------------------------------
+The machine is busy (20% idle): 2 test workers.
+
+ RUN  v5.1.0 ./
+
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  23:46:57
+   Duration  160ms (import 44%, transform 28%, tests 18%, worker 10%)
+
+----------------------------------------------------------------------
+exit code: 0

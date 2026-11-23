@@ -1,0 +1,34 @@
+commit:  485ecfd08a644f4db4266c6024c6c9937249d9d1 (fix(test): decide the busy-machine worker limit once per run)
+command: pnpm exec vitest run --project @codeden/runner test/runner-link.test.ts
+----------------------------------------------------------------------
+The machine is busy (38% idle): 2 test workers.
+
+ RUN  v5.1.0 ./
+
+ ❯ |@codeden/runner| test/runner-link.test.ts (5 tests | 1 failed) 40103ms
+   ❯ runner-link (5)
+     × aborting while the upgrade is still pending drops the socket and ends the link 40004ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+Error: Test timed out in 40000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ test/runner-link.test.ts:141:3
+    139|   });
+    140|
+    141|   it("aborting while the upgrade is still pending drops the socket and…
+       |   ^
+    142|     // A listener that accepts the connection but never answers the We…
+    143|     const accepted: Socket[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Start at  23:50:48
+   Duration  41.06s (tests 98%, import 1%, transform 1%)
+
+----------------------------------------------------------------------
+exit code: 1

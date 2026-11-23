@@ -1,0 +1,41 @@
+commit:  911551159b30ae44367c1cea5f2ba3fa9f755346 (Auto: `Invoke-WebRequest … -OutFile <outside>` and PowerShell's `${C)
+command: 6 x pnpm exec vitest run --project @codeden/runner test/runner-link.test.ts (summary lines)
+----------------------------------------------------------------------
+=== run 1 ===
+The machine is busy (49% idle): 2 test workers.
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Duration  41.21s (tests 98%, import 1%, transform 1%)
+=== run 2 ===
+The machine is busy (11% idle): 2 test workers.
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Duration  42.53s (tests 95%, transform 3%, import 2%)
+=== run 3 ===
+The machine is busy (13% idle): 2 test workers.
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Duration  1.45s (import 50%, transform 41%, tests 9%)
+=== run 4 ===
+The machine is busy (38% idle): 2 test workers.
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Duration  1.06s (import 58%, transform 32%, tests 10%)
+=== run 5 ===
+The machine is busy (48% idle): 2 test workers.
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+ FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+ Test Files  1 failed (1)
+      Tests  1 failed | 4 passed (5)
+   Duration  41.05s (tests 98%, import 1%, transform 1%)
+=== run 6 ===
+The machine is busy (2% idle): 2 test workers.
+ Test Files  1 passed (1)
+      Tests  5 passed (5)
+   Duration  2.94s (transform 60%, import 34%, tests 6%)
+----------------------------------------------------------------------
+exit code: 0

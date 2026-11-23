@@ -1,0 +1,28 @@
+commit:  485ecfd08a644f4db4266c6024c6c9937249d9d1 (fix(test): decide the busy-machine worker limit once per run)
+command: pnpm exec vitest run --project scripts scripts/test-workers.test.mjs --reporter verbose
+----------------------------------------------------------------------
+
+ RUN  v5.1.0 ./
+
+ ✓ |scripts| test-workers.test.mjs > busyWorkerCount > is a quarter of the CPUs, at least 2 1ms
+ ✓ |scripts| test-workers.test.mjs > busyWorkerCount > never exceeds what Vitest starts on its own, and is at least 1, for every CPU count 7ms
+ ✓ |scripts| test-workers.test.mjs > busyWorkerCount > is 1 for a CPU count that is not a positive number 0ms
+ ✓ |scripts| test-workers.test.mjs > setsWorkers > finds the worker options in every spelling Vitest accepts 0ms
+ ✓ |scripts| test-workers.test.mjs > setsWorkers > ignores everything else 0ms
+ ✓ |scripts| test-workers.test.mjs > capWorkersWhenBusy > limits the workers on a busy machine and says so 0ms
+ ✓ |scripts| test-workers.test.mjs > capWorkersWhenBusy > leaves an idle machine alone, at half idle and above 0ms
+ ✓ |scripts| test-workers.test.mjs > capWorkersWhenBusy > keeps the first decision when the machine gets busy afterwards 0ms
+ ✓ |scripts| test-workers.test.mjs > capWorkersWhenBusy > measures once for calls that overlap, and logs once 1ms
+ ✓ |scripts| test-workers.test.mjs > capWorkersWhenBusy > leaves a VITEST_MAX_WORKERS that is already set, without measuring 0ms
+ ✓ |scripts| test-workers.test.mjs > capWorkersWhenBusy > treats an empty VITEST_MAX_WORKERS as unset, as Vitest does 0ms
+ ✓ |scripts| test-workers.test.mjs > capWorkersWhenBusy > leaves a run whose command line sets the workers 0ms
+ ✓ |scripts| test-workers.test.mjs > capWorkersWhenBusy > leaves the slow suites one file at a time 0ms
+ ✓ |scripts| test-workers.test.mjs > capWorkersWhenBusy > sets a valid count on a busy machine with any number of CPUs 0ms
+
+ Test Files  1 passed (1)
+      Tests  14 passed (14)
+   Start at  01:22:23
+   Duration  118ms (tests 40%, import 29%, transform 20%, worker 11%)
+
+----------------------------------------------------------------------
+exit code: 0

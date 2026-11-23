@@ -1,0 +1,19 @@
+commit:  911551159b30ae44367c1cea5f2ba3fa9f755346 (Auto: `Invoke-WebRequest … -OutFile <outside>` and PowerShell's `${C)
+command: NODE_OPTIONS="--import <evidence>/stub-os.mjs" STUB_TRACE=1 STUB_IDLE=0.9 pnpm exec vitest run --project scripts scripts/ci-workflows.test.mjs
+----------------------------------------------------------------------
+[stub] measurement 1: 90% idle, VITEST_MAX_WORKERS=(unset)
+[stub] measurement 2: 90% idle, VITEST_MAX_WORKERS=(unset)
+[stub] measurement 3: 90% idle, VITEST_MAX_WORKERS=(unset)
+[stub] measurement 4: 90% idle, VITEST_MAX_WORKERS=(unset)
+[stub] measurement 5: 90% idle, VITEST_MAX_WORKERS=(unset)
+
+ RUN  v5.1.0 ./
+
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  23:47:08
+   Duration  111ms (import 39%, tests 22%, transform 21%, worker 17%)
+
+----------------------------------------------------------------------
+exit code: 0

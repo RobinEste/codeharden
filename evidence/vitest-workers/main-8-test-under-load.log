@@ -1,0 +1,27 @@
+commit:  911551159b30ae44367c1cea5f2ba3fa9f755346 (Auto: `Invoke-WebRequest … -OutFile <outside>` and PowerShell's `${C)
+command: node scripts/test-under-load.mjs --runs 2
+----------------------------------------------------------------------
+
+=== run 1/2 with 0 busy threads, 3 pnpm test at once ===
+
+pnpm test 1: exit 1 in 316s | files: 1 failed | 569 passed | 12 skipped (582)
+  FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+pnpm test 2: exit 1 in 648s | files: 1 failed | 569 passed | 12 skipped (582)
+  FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+pnpm test 3: exit 1 in 640s | files: 1 failed | 569 passed | 12 skipped (582)
+  FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+
+=== run 2/2 with 0 busy threads, 3 pnpm test at once ===
+
+pnpm test 1: exit 1 in 201s | files: 1 failed | 569 passed | 12 skipped (582)
+  FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+pnpm test 2: exit 1 in 517s | files: 1 failed | 569 passed | 12 skipped (582)
+  FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+pnpm test 3: exit 0 in 501s | files: 570 passed | 12 skipped (582)
+
+=== pnpm test under 0 busy threads, 3 pnpm test at once ===
+run 1: FAIL | 316s, files: 1 failed | 569 passed | 12 skipped (582), tests: 1 failed | 4485 passed | 45 skipped (4531) || 648s, files: 1 failed | 569 passed | 12 skipped (582), tests: 1 failed | 4485 passed | 45 skipped (4531) || 640s, files: 1 failed | 569 passed | 12 skipped (582), tests: 1 failed | 4485 passed | 45 skipped (4531)
+run 2: FAIL | 201s, files: 1 failed | 569 passed | 12 skipped (582), tests: 1 failed | 4485 passed | 45 skipped (4531) || 517s, files: 1 failed | 569 passed | 12 skipped (582), tests: 1 failed | 4485 passed | 45 skipped (4531) || 501s, files: 570 passed | 12 skipped (582), tests: 4486 passed | 45 skipped (4531)
+0/2 runs passed
+----------------------------------------------------------------------
+exit code: 1

@@ -1,0 +1,10 @@
+commit:  485ecfd08a644f4db4266c6024c6c9937249d9d1 (fix(test): decide the busy-machine worker limit once per run)
+command: pnpm lint
+----------------------------------------------------------------------
+
+> codeden-monorepo@ lint ./
+> biome check .
+
+Checked 2023 files in 635ms. No fixes applied.
+----------------------------------------------------------------------
+exit code: 0

@@ -1,0 +1,37 @@
+commit:  911551159b30ae44367c1cea5f2ba3fa9f755346 (Auto: `Invoke-WebRequest … -OutFile <outside>` and PowerShell's `${C)
+command: vitest-behaviour/ (see README): how Vitest 5.1.0 treats VITEST_MAX_WORKERS against fileParallelism and the command line
+----------------------------------------------------------------------
+## A project with fileParallelism: false (vitest.config.mjs)
+ Test Files  3 passed (3)
+no variable => start a end a start b end b start c end c 
+
+ Test Files  3 passed (3)
+VITEST_MAX_WORKERS=2 => start b start c end b end c start a end a 
+
+## A project with default parallelism (par.config.mjs)
+ Test Files  3 passed (3)
+no option => start c start b start a end c end a end b 
+
+ Test Files  3 passed (3)
+--maxWorkers=1 => start b end b start a end a start c end c 
+
+ Test Files  3 passed (3)
+--max-workers=1 => start c end c start a end a start b end b 
+
+ Test Files  3 passed (3)
+--no-file-parallelism => start a end a start b end b start c end c 
+
+ Test Files  3 passed (3)
+--fileParallelism=false => start b end b start c end c start a end a 
+
+ Test Files  3 passed (3)
+VITEST_MAX_WORKERS=3 --maxWorkers=1 => start a start b start c end a end c end b 
+
+ Test Files  3 passed (3)
+VITEST_MAX_WORKERS=3 --max-workers=1 => start a start b start c end a end c end b 
+
+ Test Files  3 passed (3)
+VITEST_MAX_WORKERS=3 --no-file-parallelism => start b start c start a end b end c end a 
+
+----------------------------------------------------------------------
+exit code: 0

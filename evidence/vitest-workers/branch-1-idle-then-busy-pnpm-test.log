@@ -1,0 +1,43 @@
+commit:  485ecfd08a644f4db4266c6024c6c9937249d9d1 (fix(test): decide the busy-machine worker limit once per run)
+command: NODE_OPTIONS="--import <evidence>/stub-os.mjs" STUB_TRACE=1 STUB_IDLE=0.9,0.2 pnpm test
+----------------------------------------------------------------------
+
+> codeden-monorepo@ test ./
+> vitest run
+
+[stub] measurement 1: 90% idle, VITEST_MAX_WORKERS=(unset)
+
+ RUN  v5.1.0 ./
+
+ ❯ |@codeden/runner| test/runner-link.test.ts (5 tests | 1 failed) 40161ms
+   ❯ runner-link (5)
+     × aborting while the upgrade is still pending drops the socket and ends the link 40005ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+Error: Test timed out in 40000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ test/runner-link.test.ts:141:3
+    139|   });
+    140|
+    141|   it("aborting while the upgrade is still pending drops the socket and…
+       |   ^
+    142|     // A listener that accepts the connection but never answers the We…
+    143|     const accepted: Socket[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 570 passed | 12 skipped (583)
+      Tests  1 failed | 4499 passed | 45 skipped (4545)
+   Start at  23:47:09
+   Duration  189.99s (tests 50%, import 25%, transform 16%, environment 7%, setup 2%)
+
+Environment  |@codeden/web| jsdom was created 120 times · 109.94s total, 27% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+ ELIFECYCLE  Test failed. See above for more details.
+----------------------------------------------------------------------
+exit code: 1

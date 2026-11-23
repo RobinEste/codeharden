@@ -1,0 +1,15 @@
+commit:  485ecfd08a644f4db4266c6024c6c9937249d9d1 (fix(test): decide the busy-machine worker limit once per run)
+command: NODE_OPTIONS="--import <evidence>/stub-os.mjs" STUB_IDLE=0.2 STUB_CPUS=3 pnpm exec vitest run --project scripts scripts/ci-workflows.test.mjs
+----------------------------------------------------------------------
+The machine is busy (20% idle): 2 test workers.
+
+ RUN  v5.1.0 ./
+
+
+ Test Files  1 passed (1)
+      Tests  12 passed (12)
+   Start at  23:50:23
+   Duration  141ms (import 42%, tests 22%, transform 21%, worker 14%)
+
+----------------------------------------------------------------------
+exit code: 0

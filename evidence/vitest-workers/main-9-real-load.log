@@ -1,0 +1,21 @@
+commit:  485ecfd08a644f4db4266c6024c6c9937249d9d1 (fix(test): decide the busy-machine worker limit once per run)
+command: node <evidence>/real-load.mjs --config vitest.main.config.ts   (vitest.main.config.ts = a copy of main's vitest.config.ts, beside it)
+----------------------------------------------------------------------
+try 1 (load after 200 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (0% idle): 2 test workers.)
+try 2 (load after 250 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (0% idle): 2 test workers.)
+try 3 (load after 300 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (0% idle): 2 test workers.)
+try 4 (load after 350 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (0% idle): 2 test workers.)
+try 5 (load after 400 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (0% idle): 2 test workers.)
+try 6 (load after 450 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (6% idle): 2 test workers.)
+try 7 (load after 500 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (18% idle): 2 test workers.)
+try 8 (load after 550 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (29% idle): 2 test workers.)
+try 9 (load after 600 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (19% idle): 2 test workers.)
+try 10 (load after 650 ms): exit 0 | files: 59 passed (59) | "busy" lines: 1 (The machine is busy (40% idle): 2 test workers.)
+try 11 (load after 700 ms): exit 1 | files: no tests | "busy" lines: 4 (The machine is busy (0% idle): 2 test workers.)
+  Error: Projects "@codeden/contracts" and "scripts" have different 'maxWorkers' but same 'sequence.groupOrder'.
+try 12 (load after 750 ms): exit 1 | files: no tests | "busy" lines: 4 (The machine is busy (0% idle): 2 test workers.)
+  Error: Projects "@codeden/contracts" and "scripts" have different 'maxWorkers' but same 'sequence.groupOrder'.
+
+2/12 tries stopped with the maxWorkers error
+----------------------------------------------------------------------
+exit code: 0

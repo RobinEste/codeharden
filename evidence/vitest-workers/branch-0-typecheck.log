@@ -1,0 +1,24 @@
+commit:  485ecfd08a644f4db4266c6024c6c9937249d9d1 (fix(test): decide the busy-machine worker limit once per run)
+command: pnpm typecheck
+----------------------------------------------------------------------
+
+> codeden-monorepo@ typecheck ./
+> pnpm -r run typecheck
+
+Scope: 7 of 8 workspace projects
+packages/contracts typecheck$ tsc --noEmit
+packages/contracts typecheck: Done
+packages/providers typecheck$ tsc --noEmit
+packages/providers typecheck: Done
+apps/runner typecheck$ tsc --noEmit
+apps/runner typecheck: Done
+apps/server typecheck$ tsc --noEmit
+apps/server typecheck: Done
+apps/web typecheck$ tsc --noEmit
+apps/web typecheck: Done
+apps/cli typecheck$ tsc --noEmit
+apps/desktop typecheck$ tsc --noEmit
+apps/cli typecheck: Done
+apps/desktop typecheck: Done
+----------------------------------------------------------------------
+exit code: 0

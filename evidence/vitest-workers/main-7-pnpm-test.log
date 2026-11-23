@@ -1,0 +1,43 @@
+commit:  911551159b30ae44367c1cea5f2ba3fa9f755346 (Auto: `Invoke-WebRequest … -OutFile <outside>` and PowerShell's `${C)
+command: pnpm test
+----------------------------------------------------------------------
+
+> codeden-monorepo@ test ./
+> vitest run
+
+The machine is busy (3% idle): 2 test workers.
+
+ RUN  v5.1.0 ./
+
+ ❯ |@codeden/runner| test/runner-link.test.ts (5 tests | 1 failed) 40207ms
+   ❯ runner-link (5)
+     × aborting while the upgrade is still pending drops the socket and ends the link 40007ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+Error: Test timed out in 40000ms.
+If this is a long-running test, pass a timeout value as the last argument or configure it globally with "testTimeout".
+ ❯ test/runner-link.test.ts:141:3
+    139|   });
+    140|
+    141|   it("aborting while the upgrade is still pending drops the socket and…
+       |   ^
+    142|     // A listener that accepts the connection but never answers the We…
+    143|     const accepted: Socket[] = [];
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 569 passed | 12 skipped (582)
+      Tests  1 failed | 4485 passed | 45 skipped (4531)
+   Start at  00:01:37
+   Duration  476.27s (tests 63%, import 26%, transform 5%, environment 4%, setup 1%)
+
+Environment  |@codeden/web| jsdom was created 120 times · 39.60s total, 26% of tracked time
+             create it once per worker with pool: 'vmThreads' (keeps per-file isolation) or isolate: false (shares it across files)
+             learn more: https://vitest.dev/guide/improving-performance#test-environments
+
+ ELIFECYCLE  Test failed. See above for more details.
+----------------------------------------------------------------------
+exit code: 1

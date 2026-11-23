@@ -1,0 +1,26 @@
+commit:  485ecfd08a644f4db4266c6024c6c9937249d9d1 (fix(test): decide the busy-machine worker limit once per run)
+command: node scripts/test-under-load.mjs --runs 2
+----------------------------------------------------------------------
+
+=== run 1/2 with 0 busy threads, 3 pnpm test at once ===
+
+pnpm test 1: exit 0 in 193s | files: 571 passed | 12 skipped (583)
+pnpm test 2: exit 1 in 502s | files: 1 failed | 570 passed | 12 skipped (583)
+  FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+pnpm test 3: exit 1 in 495s | files: 1 failed | 570 passed | 12 skipped (583)
+  FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+
+=== run 2/2 with 0 busy threads, 3 pnpm test at once ===
+
+pnpm test 1: exit 1 in 184s | files: 1 failed | 570 passed | 12 skipped (583)
+  FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+pnpm test 2: exit 1 in 472s | files: 1 failed | 570 passed | 12 skipped (583)
+  FAIL  |@codeden/runner| test/runner-link.test.ts > runner-link > aborting while the upgrade is still pending drops the socket and ends the link
+pnpm test 3: exit 0 in 459s | files: 571 passed | 12 skipped (583)
+
+=== pnpm test under 0 busy threads, 3 pnpm test at once ===
+run 1: FAIL | 193s, files: 571 passed | 12 skipped (583), tests: 4500 passed | 45 skipped (4545) || 502s, files: 1 failed | 570 passed | 12 skipped (583), tests: 1 failed | 4499 passed | 45 skipped (4545) || 495s, files: 1 failed | 570 passed | 12 skipped (583), tests: 1 failed | 4499 passed | 45 skipped (4545)
+run 2: FAIL | 184s, files: 1 failed | 570 passed | 12 skipped (583), tests: 1 failed | 4499 passed | 45 skipped (4545) || 472s, files: 1 failed | 570 passed | 12 skipped (583), tests: 1 failed | 4499 passed | 45 skipped (4545) || 459s, files: 571 passed | 12 skipped (583), tests: 4500 passed | 45 skipped (4545)
+0/2 runs passed
+----------------------------------------------------------------------
+exit code: 1
