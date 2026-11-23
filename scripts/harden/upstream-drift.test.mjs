@@ -306,7 +306,7 @@ const CALL_SITES = [
   ["apps/server/src/routes/api.ts", "the versions the server reports", "HARDEN_VERSION", "UPSTREAM_VERSION"],
   ["apps/cli/src/args.ts", "the CLI's default port, home and command in the help", /DEFAULT_PORT = HARDEN_DEFAULT_PORT/, "HARDEN_HOME_DISPLAY", "HARDEN_COMMAND", "formatHardenVersion"],
   ["apps/cli/src/network-command.ts", "the network command's port comes from the CLI's default", /import \{ DEFAULT_PORT \} from "\.\/args"/],
-  ["apps/cli/src/launcher.ts", "the launcher's home, the installed package it may start and the commands it prints", /join\(homedir\(\), HARDEN_HOME_DIRNAME\)/, /pkg\.name !== HARDEN_PACKAGE_NAME/, "HARDEN_PACKAGE_SEGMENTS", "HARDEN_NPX_COMMAND", "HARDEN_UPDATE_COMMAND", "HARDEN_COMMAND", /export \{ HARDEN_PRODUCT_NAME \} from/],
+  ["apps/cli/src/launcher.ts", "the launcher's home, the installed package it may start and the commands it prints", /join\(homedir\(\), HARDEN_HOME_DIRNAME\)/, /pkg\.name !== HARDEN_PACKAGE_NAME/, "HARDEN_PACKAGE_SEGMENTS", "HARDEN_NPX_COMMAND", "HARDEN_UPDATE_COMMAND", "HARDEN_COMMAND", /export \{ HARDEN_PRODUCT_NAME \};/, /`\$\{HARDEN_PRODUCT_NAME\} \$\{pinned\} in /],
   ["apps/cli/src/harden-home.ts", "the notice about the old home", "HARDEN_HOME_DIRNAME", "UPSTREAM_HOME_DIRNAME", "hardenHomeNotice"],
   ["apps/cli/src/cli.ts", "the bare package version is printed for the updater's probe only, and the warning about an installed version that didn't load names the product", /CODEDEN_NO_SWITCH === "1"/, /`\$\{HARDEN_PRODUCT_NAME\} \$\{decision\.version\} failed to load/],
   ["apps/cli/src/main.ts", "the version line of `--version`", "formatHardenVersion"],

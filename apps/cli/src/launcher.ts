@@ -19,11 +19,12 @@ import {
   HARDEN_NPX_COMMAND,
   HARDEN_PACKAGE_NAME,
   HARDEN_PACKAGE_SEGMENTS,
+  HARDEN_PRODUCT_NAME,
   HARDEN_UPDATE_COMMAND,
 } from "@codeden/contracts/harden-channel";
 
 /** The product's name, for `cli.ts`, which may import nothing but this module. */
-export { HARDEN_PRODUCT_NAME } from "@codeden/contracts/harden-channel";
+export { HARDEN_PRODUCT_NAME };
 
 /** How the running CLI was launched; set on `globalThis` for the rest of the bundle. */
 export interface LaunchInfo {
@@ -138,7 +139,7 @@ export function decideLaunch(input: {
     return {
       kind: "self",
       warning:
-        `CodeDen ${pinned} in ${join(input.home, "app", pinned)} can't start (${problem}); ` +
+        `${HARDEN_PRODUCT_NAME} ${pinned} in ${join(input.home, "app", pinned)} can't start (${problem}); ` +
         `running ${input.selfVersion} instead. Run \`${HARDEN_UPDATE_COMMAND}\` to reinstall it.`,
     };
   }
