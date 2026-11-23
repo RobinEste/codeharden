@@ -41,12 +41,55 @@ No signing certificate is configured, so the installers are unsigned. They work;
 
 [The desktop app](desktop.md#unsigned-builds) has the steps a user follows.
 
-To sign later, add these repository secrets; the workflow already reads them, and without them it builds as today:
+Each system's build is given its own secrets and nothing else:
 
-| Secret | What |
-|---|---|
-| `CSC_LINK`, `CSC_KEY_PASSWORD` | The certificate (`.pfx` for Windows or a Developer ID Application `.p12` for macOS), base64 or a URL, and its password |
-| `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | Notarization on macOS |
+| System | Secrets | Notes |
+|---|---|---|
+| macOS | `CSC_LINK`, `CSC_KEY_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | All five or none. With only some of them the macOS job stops and names the missing ones. |
+| Windows | `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD` | Both or neither. Windows never receives `CSC_LINK`: electron-builder would fall back to it and try to sign the installer with the Apple certificate. |
+| Linux | none | |
+
+## Signing with an Apple Developer ID
+
+You do these steps yourself, signed in to your Apple account and to GitHub. **The secrets are entered by you in the repository's settings. No agent ever sees, creates or handles them**, and they are never printed by the workflow.
+
+1. **Create the certificate.** On your Mac open **Keychain Access › Certificate Assistant › Request a Certificate From a Certificate Authority**, enter your email and name, and choose **Saved to disk**. At [developer.apple.com/account](https://developer.apple.com/account) go to **Certificates, IDs & Profiles › Certificates › +**, choose **Developer ID Application** (not "Developer ID Installer", and not "Apple Development"), upload the request file, download the certificate and double-click it so it lands in your login keychain. Only the account holder of the developer team can create this kind.
+
+2. **Export it as a `.p12`.** In Keychain Access, under **My Certificates**, find "Developer ID Application: <your name> (<team id>)". It must show a private key under it when expanded. Right-click it, **Export**, file format **Personal Information Exchange (.p12)**, and set a strong password you will use nowhere else.
+
+3. **Turn it into text**, straight to the clipboard, so the file's content never appears in a terminal:
+
+   ```sh
+   base64 -i DeveloperID.p12 | pbcopy
+   ```
+
+4. **Make an app-specific password** for notarization: [account.apple.com](https://account.apple.com) › **Sign-In and Security › App-Specific Passwords › +**. It looks like `abcd-efgh-ijkl-mnop`. This is not your Apple account password.
+
+5. **Add the five secrets** at **github.com/harperaa/codeharden › Settings › Secrets and variables › Actions › New repository secret**:
+
+   | Secret | Value |
+   |---|---|
+   | `CSC_LINK` | The base64 text from step 3 |
+   | `CSC_KEY_PASSWORD` | The password you set when exporting the `.p12` (step 2) |
+   | `APPLE_ID` | The email address of your Apple developer account |
+   | `APPLE_APP_SPECIFIC_PASSWORD` | The app-specific password from step 4 |
+   | `APPLE_TEAM_ID` | The ten-character team id: developer.apple.com/account › **Membership details**, or the part in brackets in the certificate's name |
+
+   Then delete the `.p12` file from your disk (the certificate stays in your keychain), and clear the clipboard by copying something else.
+
+6. **Run the workflow** for a release tag made after the secrets were added (cut a new release first: the workflow runs the signature check of the tag it builds, and `v2026.1122.2302` has the older, lenient one), with **dry-run** on first. The macOS job's log says "signing with the Developer ID certificate and notarizing"; notarization adds a few minutes. The signature check is then strict: it fails unless each app is signed with your Developer ID, has Apple's notarization ticket stapled to it, and is accepted by Gatekeeper as a downloaded app. Open the `.dmg` from the run's `desktop-macos-latest` artifact on a Mac if you want to see it open without a warning. Then run it again with **dry-run** off.
+
+**What changes for people using the app:**
+
+- It opens on first launch without the "can't verify the developer" warning and without **Open Anyway**.
+- It updates itself, like the Windows and Linux apps, and **Settings › About** no longer says that this macOS build can't update itself. The app decides this by looking at its own signature each time it starts (`macSigned` in `apps/desktop/src/main/system.ts`: a "Developer ID Application" authority), so nothing else needs to be switched on.
+- **Someone on an earlier, unsigned build installs the signed one by hand, once:** an unsigned app can't replace itself, so they download the new `.dmg` from the release page and drag it over the old app. From then on it updates itself. Their data is untouched.
+
+**Keep in mind:** a Developer ID certificate is valid for five years, and apps signed with it keep working after it expires, but new builds need a new one. If the secrets are ever exposed, revoke the certificate at developer.apple.com and the app-specific password at account.apple.com, then make new ones. Until the first signed run has passed, the signed path is untested: the unsigned path is what has been run.
+
+### Signing the Windows installer
+
+A Windows code-signing certificate is a separate purchase from a certificate authority. With a `.pfx` file: base64 it the same way and add `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD`. Certificates that live on a hardware token or in a cloud signing service (most new ones do) can't be exported to a `.pfx` and need a change to the workflow first.
 
 ## Good to know
 
