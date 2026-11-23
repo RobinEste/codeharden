@@ -133,7 +133,7 @@ jobs:
           # curl's exit 23 when grep finds its match and closes the pipe before curl has written
           # everything (#539).
           curl -sf -H "cookie: codeden_token_4791=$TOKEN" http://127.0.0.1:4791/ > index.html
-          grep -q "<title>CodeDen" index.html
+          grep -q "<title>CodeHarden" index.html
           curl -sf -H "authorization: Bearer $TOKEN" http://127.0.0.1:4791/api/automations/templates > templates.json
           grep -q security-audit templates.json
           npx codeden stop --home "$CODEDEN_HOME" || true
