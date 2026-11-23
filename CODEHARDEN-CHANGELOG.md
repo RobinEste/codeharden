@@ -1,5 +1,21 @@
 # CodeHarden releases
 
+## 2026.1123.1325 — 2026-11-23 13:25
+
+### codeharden
+- docs(harden): mark release 2026.1123.1237 as superseded by the next release
+- fix: review findings on the carried fixes, second round
+- fix(secure-foundation): the project page keeps saying automatic work is off after the setup session leaves the snapshot
+- fix: review findings on the carried fixes
+- test(harden): drift guard for the command in message text, the fork's defaults and carried fixes
+- fix(server): keep ignore-scripts and min-release-age for the update install
+- fix(server): the project manager releases only factory holds it placed
+- fix(providers): stricter handling in the approval check, and long commands read in one pass
+- docs(harden): the fork's command, port and home in the remote-access, security and update guides
+- fix(harden): name the channel's command in messages and hints
+- feat(harden): ship the provider switch at a usage limit off
+- feat(secure-foundation): new projects start with automatic work off
+
 ## 2026.1123.1237 — 2026-11-23 12:37
 
 Superseded by the next release; not published.
