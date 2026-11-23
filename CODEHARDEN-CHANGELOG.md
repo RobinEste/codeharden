@@ -1,5 +1,27 @@
 # CodeHarden releases
 
+## 2026.1123.1155 — 2026-11-23 11:55
+
+### codeharden
+- fix(secure-foundation): closing the dialog ends a Go, and answers edited during a check are checked again
+- style(contracts): format the Vercel variable assertion
+- fix(secure-foundation): the Doppler token is the only Vercel variable the setup adds
+- docs(secure-foundation): comments name the sign-in checks, not a step
+- fix(secure-foundation): keep the buttons in reach and show the check's own message on sign-in rows
+- test(server): a left-out fake CLI is missing whatever the machine has installed
+- docs(harden): a session may sign in to npm for a publish the owner asked for
+- fix(harden): the npm release explains a publish E404 and names the sign-in fix
+- feat(secure-foundation): one form with Go and a verification view
+- test(server): the missing-CLI tests don't find a tool the machine has installed
+- docs: checks before a push and in CI, and one request, one pull request
+- ci(harden): the pre-push hook runs typecheck and lint only
+- ci: run the tests for pull requests into the working branch again
+- docs(harden): keep the hook and gate text changes to the sync skip alone
+- fix(harden): an allowed line of the drift guard can name two paths
+- fix(harden): the pre-push hook lets a sync branch through
+- test(harden): the drift guard fails when the vision file is upstream's again
+- docs: the project vision is CodeHarden's own
+
 ## 2026.1123.0947 — 2026-11-23 09:47
 
 ### codeharden

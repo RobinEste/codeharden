@@ -45,7 +45,7 @@ interface Running {
 }
 
 /**
- * Sign-in state and logins of the services' own CLIs, for the Connections step. Nothing a CLI
+ * Sign-in state and logins of the services' own CLIs, for the sign-in checks. Nothing a CLI
  * prints is logged or stored: a login's link and code live in memory until the form reads them,
  * and are gone with the server.
  */

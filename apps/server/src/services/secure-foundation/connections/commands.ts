@@ -9,7 +9,7 @@ import {
 import type { CliResult } from "./process";
 
 /**
- * The fixed commands of the Connections step: per service, one that asks its CLI whether this
+ * The fixed commands of the sign-in checks: per service, one that asks its CLI whether this
  * computer is signed in and one that starts its login. Every word is written here: nothing
  * comes from the form, a request or the template. Flags and output formats were read from each
  * CLI's own source and documentation.
