@@ -254,4 +254,4 @@ codeharden stop
 # then delete ~/.codeden (or your CODEDEN_HOME)
 ```
 
-Still stuck? [Open an issue](https://github.com/harperaa/codeharden/issues) with the `codeharden doctor` output and the end of `runner.log` (check it for anything private first).
+Still stuck? [Open an issue](https://github.com/harperaa/codeharden/issues/new/choose) with the `codeharden doctor` output and the end of `runner.log` (check it for anything private first). Security problems go through a private report instead, see [SECURITY.md](../SECURITY.md).
