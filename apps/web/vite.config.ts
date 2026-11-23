@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type ProxyOptions } from "vite";
+import { hardenVersionDefine } from "../../scripts/harden/version-define.mjs";
 
 const serverUrl = process.env.CODEDEN_SERVER_URL ?? "http://127.0.0.1:4318";
 const devHome = process.env.CODEDEN_HOME ?? resolve(import.meta.dirname, "../../.codeden-dev");
@@ -23,6 +24,7 @@ const withToken: ProxyOptions["configure"] = (proxy) => {
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: hardenVersionDefine(),
   resolve: {
     alias: { "@": resolve(import.meta.dirname, "src") },
   },

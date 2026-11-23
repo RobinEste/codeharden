@@ -1,4 +1,5 @@
 import { defineConfig } from "tsdown";
+import { hardenVersionDefine } from "../../scripts/harden/version-define.mjs";
 // @ts-expect-error: plain .mjs build helper without type declarations
 import { thirdPartyNotices } from "../cli/scripts/third-party-notices.mjs";
 
@@ -29,6 +30,7 @@ export default defineConfig([
     fixedExtension: false,
     sourcemap: true,
     deps: { onlyBundle: false, neverBundle: ["electron"] },
+    define: hardenVersionDefine(),
     plugins: [thirdPartyNotices({ fileName: "THIRD-PARTY-NOTICES-APP.txt" })],
   },
   {
@@ -42,6 +44,7 @@ export default defineConfig([
     fixedExtension: true,
     sourcemap: false,
     deps: { onlyBundle: false, neverBundle: ["electron"] },
+    define: hardenVersionDefine(),
   },
   {
     entry: { server: "src/server/host.ts", runner: "src/server/runner.ts" },
@@ -54,7 +57,7 @@ export default defineConfig([
     fixedExtension: false,
     sourcemap: true,
     deps: { onlyBundle: false, neverBundle: ON_DEMAND },
-    define: { __CODEDEN_CLAUDE_SDK_ON_DEMAND__: "true" },
+    define: { __CODEDEN_CLAUDE_SDK_ON_DEMAND__: "true", ...hardenVersionDefine() },
     plugins: [thirdPartyNotices({ forbidden: ON_DEMAND })],
   },
 ]);
