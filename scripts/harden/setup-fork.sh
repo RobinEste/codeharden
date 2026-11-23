@@ -344,7 +344,8 @@ cat << EOF
     then labelled sync-approved (it merges 48 hours later), sync-needs-review or sync-hold.
     A CodeDen automation can do the daily review, or you review them yourself and set the
     labels. The README section "Make your own hardened fork" has both.
-  - The local test gate, once per clone: git config core.hooksPath scripts/harden/hooks
+  - Optional, once per clone: git config core.hooksPath scripts/harden/hooks runs typecheck
+    and lint before each push. The tests run in CI, on pull requests into ${branch}.
   - Releases: scripts/harden/release.sh --dry-run, then --push. npm: scripts/harden/publish.sh,
     signed in to npm as the owner of ${package}.
   - The Release workflow (${RELEASE_WORKFLOW}) stays disabled; nothing publishes from CI.
