@@ -1,5 +1,17 @@
 # CodeHarden releases
 
+## 2026.1122.2240 — 2026-11-22 22:40
+
+### codeharden
+- docs: how to make your own hardened fork
+- feat(sync): add setup-fork.sh to set a hardened fork up on GitHub
+- feat(sync): read the upstream, the branches and the package from repository variables
+- feat(release): take the release repository from origin and the docs branch from the build
+- fix(ci): keep git's hook variables out of the local test run
+- ci: run the tests locally before a push while CI's test step is switched off
+- docs(release): the owner can ask an agent to run the publish and open npm's approval page
+- ci(sync): leave sync pull requests that touch scripts/harden/ for a manual merge
+
 ## 2026.1122.2133 — 2026-11-22 21:33
 
 ### codeharden
