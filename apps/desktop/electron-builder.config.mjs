@@ -18,6 +18,10 @@
 import { existsSync } from "node:fs";
 import { chmod, cp, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { readHardenChannel } from "../../scripts/harden/channel-define.mjs";
+
+/** The GitHub repository the app updates from (CodeHarden's own, never upstream's). */
+const channel = readHardenChannel();
 
 /** electron-builder's `Arch` enum values, by name. */
 const ARCH_NAMES = { 0: "ia32", 1: "x64", 2: "armv7l", 3: "arm64", 4: "universal" };
@@ -90,7 +94,9 @@ export default {
   files: ["**/*", "!**/*.map", "!**/*.d.ts"],
   afterPack: prepareNativeModules,
   protocols: [{ name: "CodeDen", schemes: ["codeden"] }],
-  publish: [{ provider: "github", owner: "leonvanzyl", repo: "codeden", releaseType: "release" }],
+  publish: [
+    { provider: "github", owner: channel.owner, repo: channel.repo, releaseType: "release" },
+  ],
   electronFuses: {
     // The server and runner run on the app's binary as Node.js (ELECTRON_RUN_AS_NODE).
     runAsNode: true,
