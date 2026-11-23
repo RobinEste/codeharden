@@ -1,5 +1,12 @@
 # CodeHarden releases
 
+## 2026.1122.2302 — 2026-11-22 23:02
+
+### codeharden
+- docs: CodeHarden's own home and app identity, next to CodeDen
+- feat: CodeHarden runs as its own app, with its own home, port and app id
+- feat(contracts): give the fork its own install identity in the channel module
+
 ## 2026.1122.2240 — 2026-11-22 22:40
 
 ### codeharden
