@@ -1,4 +1,9 @@
-import { CODEDEN_VERSION, isNewerVersion, UpdateStatus } from "@codeden/contracts";
+import {
+  CODEDEN_VERSION,
+  HARDEN_UPDATE_COMMAND,
+  isNewerVersion,
+  UpdateStatus,
+} from "@codeden/contracts";
 import {
   applyRollback,
   ensureInstallToken,
@@ -35,7 +40,9 @@ export async function updateCommand(
   if (opts.rollback) {
     const result = applyRollback(home, opts.launch.binVersion);
     if (!result) {
-      console.log("Nothing to roll back to: no version was installed by `codeden update`.");
+      console.log(
+        `Nothing to roll back to: no version was installed by \`${HARDEN_UPDATE_COMMAND}\`.`,
+      );
       return 1;
     }
     console.log(

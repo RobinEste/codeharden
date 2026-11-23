@@ -1,11 +1,14 @@
-import type { ReleaseNotes } from "@codeden/contracts";
+import {
+  hardenChangelogUrl,
+  hardenReleaseApiUrl,
+  hardenReleaseUrl,
+  hardenVersionOf,
+  type ReleaseNotes,
+} from "@codeden/contracts";
 import { PACKAGE_NAME } from "./app-dir";
 
 /** The public npm registry; `CODEDEN_UPDATE_REGISTRY` overrides it (tests only). */
 export const DEFAULT_REGISTRY = "https://registry.npmjs.org";
-const RELEASES_API = "https://api.github.com/repos/leonvanzyl/codeden/releases/tags/v{version}";
-const RELEASE_PAGE = "https://github.com/leonvanzyl/codeden/releases/tag/v{version}";
-const CHANGELOG = "https://raw.githubusercontent.com/leonvanzyl/codeden/main/CHANGELOG.md";
 const TIMEOUT_MS = 5_000;
 
 /** The registry this process checks and installs from. */
@@ -14,14 +17,15 @@ export function updateRegistry(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 /**
- * `dist-tags.latest` of the `codeden` package. Only the package name goes out: no ids, no
+ * `dist-tags.latest` of the channel's package (`HARDEN_PACKAGE_NAME`). Only the package name goes out: no ids, no
  * machine details, no usage data.
  */
 export async function fetchLatestVersion(
   registry: string,
   doFetch: typeof fetch = fetch,
 ): Promise<string> {
-  const res = await doFetch(`${registry}/-/package/${PACKAGE_NAME}/dist-tags`, {
+  // A scoped name keeps its `@` and escapes the slash, as the registry expects.
+  const res = await doFetch(`${registry}/-/package/${PACKAGE_NAME.replace("/", "%2f")}/dist-tags`, {
     headers: { accept: "application/json" },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
@@ -54,9 +58,10 @@ export async function fetchReleaseNotes(
   doFetch: typeof fetch = fetch,
 ): Promise<ReleaseNotes> {
   const fill = (template: string) => template.replaceAll("{version}", encodeURIComponent(version));
-  let url = fill(RELEASE_PAGE);
+  let url = hardenReleaseUrl(version);
   try {
-    const res = await doFetch(fill(sources.releaseApi ?? RELEASES_API), {
+    const api = sources.releaseApi ? fill(sources.releaseApi) : hardenReleaseApiUrl(version);
+    const res = await doFetch(api, {
       headers: { accept: "application/vnd.github+json" },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
@@ -70,12 +75,13 @@ export async function fetchReleaseNotes(
   } catch {
     // Offline or rate limited: try the changelog.
   }
-  const changelog = sources.changelog ?? CHANGELOG;
+  const changelog = sources.changelog ?? hardenChangelogUrl();
   if (changelog) {
     try {
       const res = await doFetch(changelog, { signal: AbortSignal.timeout(TIMEOUT_MS) });
       if (res.ok) {
-        const section = changelogSection(await res.text(), version);
+        // The changelog is headed by CodeHarden versions (`2026.0105.0518`), not npm ones.
+        const section = changelogSection(await res.text(), hardenVersionOf(version));
         if (section) return { version, body: section, url };
       }
     } catch {

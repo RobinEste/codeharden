@@ -220,7 +220,7 @@ Opt-in proxies next to the browser's speech APIs (which stay the default). Keys 
 
 ## Update check (§16)
 
-`GET /api/updates?refresh=1` -> `UpdateStatus`. `UpdateService` asks `https://registry.npmjs.org/codeden/latest` at most once a day (or on `refresh`), only while `settings.updates.check` is on; `CODEDEN_UPDATE_CHECK=0` turns it off (tests set it). The UI shows the result in Settings > About and a one-time toast per new version.
+`GET /api/updates?refresh=1` -> `UpdateStatus`. `UpdateService` asks the npm registry for the `latest` dist-tag of the channel's package (`HARDEN_PACKAGE_NAME` in `packages/contracts/src/harden-channel.ts`) at most once a day (or on `refresh`), only while `settings.updates.check` is on; `CODEDEN_UPDATE_CHECK=0` turns it off (tests set it). The UI shows the result in Settings > About and a one-time toast per new version.
 
 ## Autonomy modes, the software factory and the dark factory (§10.1, experimental)
 

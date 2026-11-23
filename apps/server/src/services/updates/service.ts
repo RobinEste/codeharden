@@ -1,6 +1,7 @@
 import {
   CODEDEN_VERSION,
   compareVersions,
+  HARDEN_INSTALL_COMMAND,
   type InstallSource,
   isNewerVersion,
   type ReleaseNotes,
@@ -86,7 +87,7 @@ const DEV_HOST: SelfUpdateHost = {
 };
 
 /**
- * Update checks and one-click self-update (§16). Asks the npm registry for `codeden`'s
+ * Update checks and one-click self-update (§16). Asks the npm registry for the channel package's
  * `latest` dist-tag on start and every 6 hours (unless the mode is `off`); installs a version
  * side by side into `<home>/app/<version>`, points `current.json` at it and hands over to it
  * through the host's `restart`. In `auto` mode a new version is installed in the background
@@ -177,7 +178,7 @@ export class UpdateService {
       mode: this.deps.mode(),
       checkedAt: this.checkedAt === null ? null : new Date(this.checkedAt).toISOString(),
       error: enabled ? this.error : null,
-      command: "npm i -g codeden@latest",
+      command: HARDEN_INSTALL_COMMAND,
       source: this.host.source,
       state,
       target,
