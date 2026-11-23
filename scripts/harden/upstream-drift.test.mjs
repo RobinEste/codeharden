@@ -138,6 +138,11 @@ const WHY = {
  * text its pattern matches, in the files it names; anything else on the same line or in the
  * same file is still checked. Add an entry only with a reason a reviewer can judge ("the test
  * failed" is not one). An entry that no longer matches anything fails the test.
+ *
+ * `files` is one path, a pattern, or a list of them. A list is for a line upstream moves to
+ * another file: the entry names the old and the new path, so it holds before and after that
+ * sync merges (one match in any of them makes it used), and goes back to the one path once
+ * the sync is in.
  */
 // biome-ignore format: one entry per line, read as a table
 const ALLOWED = [
@@ -179,7 +184,8 @@ const ALLOWED = [
   [/^packages\/providers\/src\/(?:acp|codex)\/process\.ts$/, /clientInfo: \{ name: "codeden", title: "CodeDen",/, WHY.hello],
   ["apps/server/src/services/automations/import-link.ts", /"user-agent": "codeden"/, WHY.hello],
   ["apps/server/src/services/remote-image.ts", /"user-agent": "CodeDen"/, WHY.hello],
-  ["packages/providers/src/opencode/session.ts", /INSTRUCTIONS_KEY = "codeden"/, "the key of the app's entry in an OpenCode session's instructions"],
+  // Two paths until the sync of 2026-11-23 is merged (upstream moved the line to session-open.ts); then only the new one.
+  [["packages/providers/src/opencode/session.ts", "packages/providers/src/opencode/session-open.ts"], /INSTRUCTIONS_KEY = "codeden"/, "the key of the app's entry in an OpenCode session's instructions"],
   ["apps/runner/src/git/checkpoints.ts", /GIT_(?:AUTHOR|COMMITTER)_NAME: "CodeDen"/, WHY.commits],
   ["apps/cli/docker/Dockerfile", /user\.name "CodeDen"/, WHY.commits],
   ["packages/contracts/src/network.ts", /^\s*"codeden",$/, "an entry in the list of passwords too easy to guess"],
@@ -196,11 +202,12 @@ const ALLOWED = [
   ["apps/web/src/components/automations/meta.ts", /database: "CodeDen"/, WHY.brand],
   [/^apps\/server\/src\/services\/sessions\/(?:handoff-brief|transcript-items)\.ts$/, /codeden: "CodeDen"/, WHY.brand],
   ["apps/server/src/services/agent-config/agent-config-service.ts", /file: "CodeDen"/, WHY.brand],
-].map(([file, pattern, reason]) => ({
-  file,
-  pattern: new RegExp(pattern.source, `${pattern.flags}g`),
-  reason,
-}));
+].map(allowedEntry);
+
+/** An ALLOWED row as the scanner uses it; its pattern is applied to every match on a line. */
+function allowedEntry([file, pattern, reason]) {
+  return { file, pattern: new RegExp(pattern.source, `${pattern.flags}g`), reason };
+}
 
 /**
  * A script's text without its comments (line breaks kept). Strings and template strings are
@@ -246,12 +253,21 @@ function codeLines(file, text) {
   return text.split("\n").map((line) => (hash && /^\s*#/.test(line) ? "" : line));
 }
 
-const appliesTo = (entry, file) =>
-  typeof entry.file === "string" ? entry.file === file : entry.file.test(file);
+/** True when `where` (a path, a pattern, or a list of them) names `file`. */
+const names = (where, file) =>
+  Array.isArray(where)
+    ? where.some((one) => names(one, file))
+    : typeof where === "string"
+      ? where === file
+      : where.test(file);
+const appliesTo = (entry, file) => names(entry.file, file);
 
-/** Upstream identity values used in `text`, after the allowed uses are taken out. */
-function scan(file, text, used = new Set()) {
-  const entries = ALLOWED.filter((entry) => appliesTo(entry, file));
+/**
+ * Upstream identity values used in `text`, after the allowed uses are taken out. Every entry
+ * of `allowed` that took something out is added to `used`.
+ */
+function scan(file, text, used = new Set(), allowed = ALLOWED) {
+  const entries = allowed.filter((entry) => appliesTo(entry, file));
   const hits = [];
   codeLines(file, text).forEach((code, index) => {
     if (!/codeden|leonvanzyl|4317/i.test(code)) return;
@@ -267,6 +283,14 @@ function scan(file, text, used = new Set()) {
     }
   });
   return hits;
+}
+
+/** The entries of `allowed` that took nothing out of any scanned file, as the report lists them. */
+function staleEntries(allowed, used) {
+  const where = (file) => (Array.isArray(file) ? file.map(String).join(" | ") : String(file));
+  return allowed
+    .filter((entry) => !used.has(entry))
+    .map((entry) => `${where(entry.file)}: ${entry.pattern.source}\n    (${entry.reason})`);
 }
 
 function hitReport(hits) {
@@ -460,9 +484,7 @@ describe("upstream's identity does not come back into product code", () => {
     const hits = files.flatMap((file) => scan(file, read(file) ?? "", used));
     expect(hits.length, hitReport(hits)).toBe(0);
 
-    const stale = ALLOWED.filter((entry) => !used.has(entry)).map(
-      (entry) => `${String(entry.file)}: ${entry.pattern.source}\n    (${entry.reason})`,
-    );
+    const stale = staleEntries(ALLOWED, used);
     expect(
       stale.length,
       `\n\nThese ALLOWED entries match nothing any more: upstream changed or removed the text. Remove each entry, or correct it if the same text only moved or changed shape.\n\n${stale.join("\n\n")}\n`,
@@ -553,6 +575,40 @@ describe("upstream's identity does not come back into product code", () => {
       ],
     ];
     for (const [file, text] of quiet) expect(scan(file, text), file).toEqual([]);
+  });
+
+  it("an entry that names two paths holds on either, and one that matches nothing is stale", () => {
+    const before = "packages/x/src/session.ts";
+    const after = "packages/x/src/session-open.ts";
+    const line = 'const KEY = "codeden";';
+    const moved = () => [allowedEntry([[before, after], /KEY = "codeden"/, "a stored key"])];
+    // Before the sync the line is in the old file, after it in the new one: used either way.
+    for (const file of [before, after]) {
+      const allowed = moved();
+      const used = new Set();
+      expect(scan(file, line, used, allowed), file).toEqual([]);
+      expect(staleEntries(allowed, used), file).toEqual([]);
+    }
+    // Both files on the way (a merge in progress) is one use, not a problem.
+    const allowed = moved();
+    const used = new Set();
+    expect([before, after].flatMap((file) => scan(file, line, used, allowed))).toEqual([]);
+    expect(staleEntries(allowed, used)).toEqual([]);
+    // Only the named paths and only the entry's text: a third file, or another value in a
+    // named one, is still a hit.
+    expect(scan("packages/x/src/other.ts", line, new Set(), moved())).toHaveLength(1);
+    expect(scan(after, 'const service = "codeden";', new Set(), moved())).toHaveLength(1);
+    // The line is in neither file: the entry is stale and the report names both paths.
+    const unused = new Set();
+    expect(scan(before, "const KEY = HARDEN_APP_SLUG;", unused, allowed)).toEqual([]);
+    expect(staleEntries(allowed, unused)).toEqual([
+      `${before} | ${after}: KEY = "codeden"\n    (a stored key)`,
+    ]);
+    // A list may hold patterns too.
+    const mixed = [allowedEntry([[/^packages\/x\/src\/a-/, before], /KEY = "codeden"/, "a key"])];
+    const viaPattern = new Set();
+    expect(scan("packages/x/src/a-1.ts", line, viaPattern, mixed)).toEqual([]);
+    expect(staleEntries(mixed, viaPattern)).toEqual([]);
   });
 });
 
