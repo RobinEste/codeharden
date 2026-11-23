@@ -175,7 +175,7 @@ describe("release links", () => {
     const calls: string[] = [];
     const fetch = (async (url: string) => {
       calls.push(String(url));
-      if (String(url).includes("api.github.com")) {
+      if (new URL(String(url)).hostname === "api.github.com") {
         return release
           ? new Response(JSON.stringify(release), { status: 200 })
           : new Response("{}", { status: 404 });

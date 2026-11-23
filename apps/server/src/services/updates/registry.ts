@@ -25,7 +25,7 @@ export async function fetchLatestVersion(
   doFetch: typeof fetch = fetch,
 ): Promise<string> {
   // A scoped name keeps its `@` and escapes the slash, as the registry expects.
-  const res = await doFetch(`${registry}/-/package/${PACKAGE_NAME.replace("/", "%2f")}/dist-tags`, {
+  const res = await doFetch(`${registry}/-/package/${PACKAGE_NAME.replaceAll("/", "%2f")}/dist-tags`, {
     headers: { accept: "application/json" },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
