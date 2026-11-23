@@ -1,5 +1,14 @@
 # CodeHarden releases
 
+## 2026.1123.0059 — 2026-11-23 00:59
+
+### codeharden
+- fix(harden): count the card surface for the wordmark's contrast, and tidy two string replacements
+- feat(harden): a red and white shield logo, the CodeHarden wordmark and its own icons
+- test: run the installer build step's signing guards, not just read them
+- docs: sign a release cut after the strict signature check
+- ci: give each system's installer build only its own signing secrets
+
 ## 2026.1123.0007 — 2026-11-23 00:07
 
 ### codeharden
