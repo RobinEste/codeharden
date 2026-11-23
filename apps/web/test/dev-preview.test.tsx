@@ -312,6 +312,36 @@ describe("the project's dev preview settings", () => {
     expect(screen.queryByTestId("dev-preview-remove")).toBeNull();
   });
 
+  it("lets the same settings be saved again when the project's base branch changed", async () => {
+    const config = {
+      command: "pnpm dev",
+      prepareCommand: null,
+      portVars: ["PORT"],
+      urlFrom: "port" as const,
+      urlPattern: null,
+      pmEnabled: true,
+      confirmedAt: "2026-11-23T10:00:00.000Z",
+      baseBranch: "harden",
+    };
+    const confirmProject = vi.fn(async () => view({ config, suggestion: null }));
+    renderWithClient(
+      <DevPreviewProjectSettings project={project} />,
+      clientWith({
+        project: async () => view({ config, suggestion: null, baseBranch: "release" }),
+        confirmProject,
+      }),
+    );
+    expect((await screen.findByTestId("dev-preview-branch-changed")).textContent).toMatch(
+      /now release.*saved for harden/,
+    );
+    const save = screen.getByTestId("dev-preview-save");
+    expect(save).toHaveProperty("disabled", false);
+    fireEvent.click(save);
+    expect((await screen.findByTestId("dev-preview-confirm")).textContent).toContain("(release)");
+    fireEvent.click(screen.getByTestId("dev-preview-confirm-run"));
+    await waitFor(() => expect(confirmProject).toHaveBeenCalled());
+  });
+
   it("turns the form into settings", () => {
     const form = {
       command: " node dev.mjs ",

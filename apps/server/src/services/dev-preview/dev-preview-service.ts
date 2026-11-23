@@ -283,6 +283,7 @@ export class DevPreviewService {
     // The PM threads' previews stay stopped until a person starts them again: without this
     // the next look at the base branch would bring each one back.
     this.bases.holdAll();
+    this.starter.cancelPending();
     await Promise.all(
       running.map((p) =>
         p.target.kind === "base"

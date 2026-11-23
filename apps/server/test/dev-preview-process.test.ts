@@ -15,7 +15,6 @@ import { waitUntil } from "./support/harness";
  * tested without any process in `dev-preview-leftovers.test.ts`.
  */
 const posix = process.platform !== "win32";
-const node = JSON.stringify(process.execPath);
 
 let dir: string;
 let started: PreviewProcess[];
@@ -28,10 +27,14 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+/**
+ * Write a fake dev command into the folder and return the command line that runs it. The
+ * line holds no path: node comes from the environment and the file name is relative to the
+ * folder the command runs in, as a person would type it.
+ */
 function script(name: string, source: string): string {
-  const file = join(dir, name);
-  writeFileSync(file, source);
-  return `${node} ${JSON.stringify(file)}`;
+  writeFileSync(join(dir, name), source);
+  return `"$PREVIEW_NODE" ${name}`;
 }
 
 function run(command: string, extra: Record<string, string> = {}) {
@@ -41,7 +44,7 @@ function run(command: string, extra: Record<string, string> = {}) {
     cwd: dir,
     // A plain shell, given in the command's own environment: the person's would read their
     // profile on every start.
-    env: previewEnv({ SHELL: "/bin/sh", ...extra }),
+    env: previewEnv({ SHELL: "/bin/sh", PREVIEW_NODE: process.execPath, ...extra }),
     onOutput: (text) => {
       output += text;
     },
@@ -77,11 +80,10 @@ describe.skipIf(!posix)("a preview's process", () => {
 
   it("is stopped with everything it started", async () => {
     // The shell starts node, which starts a second node that does the listening.
-    const child = join(dir, "child.cjs");
-    writeFileSync(child, LISTEN);
+    writeFileSync(join(dir, "child.cjs"), LISTEN);
     const parent = script(
       "parent.cjs",
-      `const c = require("node:child_process").spawn(process.execPath, [${JSON.stringify(child)}], { stdio: "inherit" });
+      `const c = require("node:child_process").spawn(process.execPath, [require("node:path").join(__dirname, "child.cjs")], { stdio: "inherit" });
        console.log("child=" + c.pid);
        setInterval(() => {}, 1000);`,
     );
@@ -117,11 +119,10 @@ describe.skipIf(!posix)("a preview's process", () => {
   });
 
   it("ends what a leader left in its group after the leader itself exited", async () => {
-    const child = join(dir, "child.cjs");
-    writeFileSync(child, LISTEN);
+    writeFileSync(join(dir, "child.cjs"), LISTEN);
     const leader = script(
       "leader.cjs",
-      `const c = require("node:child_process").spawn(process.execPath, [${JSON.stringify(child)}], { stdio: "inherit" });
+      `const c = require("node:child_process").spawn(process.execPath, [require("node:path").join(__dirname, "child.cjs")], { stdio: "inherit" });
        console.log("child=" + c.pid);
        setTimeout(() => process.exit(0), 300);`,
     );

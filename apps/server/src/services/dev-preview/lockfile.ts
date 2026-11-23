@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
 import { readJsonFile, writeJsonFile } from "../../json-file";
@@ -26,6 +26,14 @@ const LOCKFILES = [
 /** A digest of the folder's lockfiles and the prepare command that would install from them. */
 export function prepareDigest(dir: string, prepareCommand: string): string {
   const hash = createHash("sha256").update(prepareCommand).update("\0");
+  // The folder itself: a worktree that was cleaned up and made again at the same path is a
+  // new folder with nothing installed in it, whatever its lockfiles say.
+  try {
+    const folder = statSync(dir);
+    hash.update(`${folder.ino}:${folder.birthtimeMs}`).update("\0");
+  } catch {
+    // No folder: nothing was prepared in it.
+  }
   for (const name of LOCKFILES) {
     try {
       const content = readFileSync(join(dir, name));

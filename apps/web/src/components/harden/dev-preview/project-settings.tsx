@@ -64,6 +64,9 @@ export function DevPreviewProjectSettings({ project }: { project: Project }) {
 
   if (!view.data) return null;
   const { remote, suggestion, baseBranch } = view.data;
+  // The project's base branch is no longer the one these settings were saved for: saving
+  // them again, unchanged, is how the PM thread's preview is pointed at the new one.
+  const branchChanged = config !== null && config.baseBranch !== baseBranch;
   const set = (patch: Partial<PreviewForm>) => {
     setForm((current) => ({ ...current, ...patch }));
     setProblem(null);
@@ -204,7 +207,7 @@ export function DevPreviewProjectSettings({ project }: { project: Project }) {
               <Button
                 size="sm"
                 onClick={ask}
-                disabled={save.isPending || !formChanged(form, config)}
+                disabled={save.isPending || !(formChanged(form, config) || branchChanged)}
                 data-testid="dev-preview-save"
               >
                 {config ? "Save changes…" : "Save…"}
@@ -221,6 +224,15 @@ export function DevPreviewProjectSettings({ project }: { project: Project }) {
                 </Button>
               )}
             </>
+          )}
+          {branchChanged && !remote && (
+            <span
+              className="text-2xs text-muted-foreground"
+              data-testid="dev-preview-branch-changed"
+            >
+              The base branch is now {baseBranch ?? "not set"}; these settings were saved for{" "}
+              {config?.baseBranch ?? "none"}. Save to follow it.
+            </span>
           )}
           {problem && (
             <span className="text-2xs text-status-failed" role="alert">

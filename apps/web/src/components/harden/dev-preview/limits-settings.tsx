@@ -21,7 +21,8 @@ export function DevPreviewLimitsSettings() {
   const view = useQuery({ queryKey: key, queryFn: () => client.devPreview.limits() });
   const save = useMutation({
     mutationFn: (limits: DevPreviewLimits) => client.devPreview.setLimits(limits),
-    onSuccess: (next) => queryClient.setQueryData(key, next),
+    // The form already shows what was sent. An answer isn't written back over it: by the
+    // time it arrives the person may have typed on, and the newer edit is on its way.
     onError: (e) => {
       toast.error("Setting not saved", { description: e.message });
       void queryClient.invalidateQueries({ queryKey: key });

@@ -128,3 +128,70 @@ describe("starts", () => {
     expect(env.service.log("session:s1").lines).toEqual([]);
   });
 });
+
+describe("Stop all and starts that are still on their way", () => {
+  it("a start that was looking for ports when Stop all came doesn't start afterwards", async () => {
+    let held: (() => void) | null = null;
+    env = createPreviewEnv({
+      overrides: {
+        portIsFree: () =>
+          new Promise<boolean>((resolve) => {
+            if (held === null) held = () => resolve(true);
+            else resolve(true);
+          }),
+      },
+    });
+    env.addProject("app");
+    env.addSession("s1", "app");
+    await env.service.setProject("app", SETTINGS);
+    const starting = env.service.startSession("s1").catch((e) => e);
+    while (held === null) await new Promise((r) => setImmediate(r));
+    await env.service.stopAll();
+    (held as () => void)();
+    expect(await starting).toMatchObject({ code: "stopped" });
+    expect(env.procs).toHaveLength(0);
+    // A click after that starts it as usual.
+    await env.service.startSession("s1");
+    expect(env.running()).toHaveLength(1);
+  });
+});
+
+describe("the prepare command and the folder it ran in", () => {
+  beforeEach(() => {
+    env = createPreviewEnv();
+    env.addProject("app");
+  });
+
+  it("runs again in a worktree that was cleaned up and made again at the same path", async () => {
+    const { rmSync, mkdirSync, writeFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    await env.service.setProject("app", { ...SETTINGS, prepareCommand: "install-deps" });
+    const session = env.addSession("s1", "app");
+    const path = session.worktreePath ?? "";
+    writeFileSync(join(path, "pnpm-lock.yaml"), "same\n");
+    await env.service.startSession("s1");
+    env.procs[0]?.exit(0);
+    await new Promise((r) => setImmediate(r));
+    await env.service.stopSession("s1");
+    await env.service.startSession("s1");
+    expect(env.procs.map((p) => p.spec.command)).toEqual(["install-deps", "run-dev", "run-dev"]);
+    await env.service.stopSession("s1");
+    // The worktree is removed and restored: same path, same lockfile, nothing installed.
+    rmSync(path, { recursive: true, force: true });
+    mkdirSync(join(path, "..", "placeholder"), { recursive: true });
+    mkdirSync(path, { recursive: true });
+    writeFileSync(join(path, "pnpm-lock.yaml"), "same\n");
+    await env.service.startSession("s1");
+    expect(env.procs.at(-1)?.spec.command).toBe("install-deps");
+  });
+
+  it("ends what the prepare command left running before the dev command starts", async () => {
+    await env.service.setProject("app", { ...SETTINGS, prepareCommand: "install-deps" });
+    env.addSession("s1", "app");
+    await env.service.startSession("s1");
+    env.procs[0]?.exit(0);
+    await new Promise((r) => setImmediate(r));
+    expect(env.procs[0]?.killed).toBe(true);
+    expect(env.procs[1]?.spec.command).toBe("run-dev");
+  });
+});

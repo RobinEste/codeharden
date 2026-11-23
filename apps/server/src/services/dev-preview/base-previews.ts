@@ -211,6 +211,8 @@ export class BasePreviews {
     // The app is closing, or the settings were changed or removed while git ran (that change
     // starts its own run).
     if (this.closed || this.deps.store.config(projectId) !== settings) return;
+    // Stop all came in while git ran.
+    if (!byPerson && this.held.has(projectId)) return;
     const unreachable = result.ok ? result.note : null;
     if (unreachable) this.notes.set(projectId, unreachable);
     else this.notes.delete(projectId);

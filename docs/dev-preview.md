@@ -102,6 +102,15 @@ Read this before you set a project up: a dev preview runs the project's code on 
 - **The output is yours.** A preview's log can hold whatever the project prints, secrets included. It is kept in memory only (the last 2,000 lines), shown when you open it, and never written into a transcript, an event or a file.
 - **Nothing left behind, and nobody else's process touched.** Each preview runs in its own process group. Stopping it ends the processes of that group and everything they started, one by one, each only while it is provably the process the app saw (same id and same start time). If the app is killed or crashes, the next start ends what was left running under the same rule; a record it can't prove (from before a restart of the computer, or whose id now names another process) is dropped and nothing is signalled.
 
+## Troubleshooting
+
+- **A preview says Failed and the log ends in "command not found".** The command runs in your login shell, with the environment the app was started with. If `pnpm` or `node` is only on your path in a terminal, start the app from that terminal.
+- **Preparing never ends.** The prepare command is ended after 15 minutes. Open **Log** to see what it waits for; a command that asks a question gets no answer, since it has no terminal.
+- **The PM thread's preview says the base branch changed.** Open the project's Settings › Dev preview and press **Save changes…**: it is enabled for exactly this, with the commands unchanged.
+- **The PM thread's preview says it can't be fast-forwarded.** Look at the checkout the message names. Commit elsewhere what you want to keep, put the folder back to the branch's tip or move it away, then press **Update now**.
+- **Something still runs after the app crashed.** On its next start the app ends what it can prove it started: the dev command's own process, and through it everything that process started. If the dev command's own process died in the crash and only what it had started lives on, the app has no proof those processes are its own, and it leaves them rather than risk ending someone else's. End them yourself: `lsof -nP -iTCP:<port> -sTCP:LISTEN` shows what holds a preview's port.
+- **A port is taken.** Previews skip ports in use. If the whole range is taken, widen it in Settings › Dev previews, or stop a preview.
+
 ## Limits of this version
 
 - Previews run on the computer the app runs on. Sessions in a sandbox (Docker) have none.

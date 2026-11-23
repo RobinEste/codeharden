@@ -224,6 +224,8 @@ export class Preview {
       this.note(`$ ${prepare}`);
       const proc = this.spawn(prepare);
       const exit = await proc.exited;
+      // What the prepare command left running in its group ends with it.
+      proc.killNow();
       this.deps.registry.remove(proc.pid);
       if (run !== this.run) return;
       this.proc = null;

@@ -11,9 +11,9 @@ import type { Exec } from "../exec";
  * or git refuses because of local changes, the update stops with a message and the checkout is
  * left exactly as it was. Nothing here resets, checks out over, cleans or prunes anything.
  *
- * Git's hooks are switched off for the two commands that write the checkout. A repository
- * whose hooks folder is a tracked one would otherwise run code from the branch (a
- * `post-checkout` or `post-merge` script) that nobody confirmed as a command.
+ * Git's hooks are switched off for every command here, the fetch included. A repository
+ * whose hooks folder is a tracked one would otherwise run its code (a `post-checkout`,
+ * `post-merge` or `reference-transaction` script) that nobody confirmed as a command.
  */
 const NO_HOOKS = ["-c", "core.hooksPath=/dev/null"];
 
@@ -115,7 +115,7 @@ export async function syncBaseCheckout(exec: Exec, base: BaseCheckout): Promise<
   }
   const env = gitEnv();
   const git = (cwd: string, args: string[], timeoutMs = 30_000) =>
-    exec("git", ["-C", cwd, ...args], { timeoutMs, env });
+    exec("git", [...NO_HOOKS, "-C", cwd, ...args], { timeoutMs, env });
 
   // The tip "as known from the remote": fetched when there is one, the local branch otherwise.
   const hasOrigin = (await git(repo, ["remote", "get-url", "origin"])).code === 0;
@@ -140,7 +140,7 @@ export async function syncBaseCheckout(exec: Exec, base: BaseCheckout): Promise<
 
   if (!existsSync(path)) {
     const add = (extra: string[]) =>
-      git(repo, [...NO_HOOKS, "worktree", "add", ...extra, "--detach", path, target], 300_000);
+      git(repo, ["worktree", "add", ...extra, "--detach", path, target], 300_000);
     let added = await add([]);
     // The folder was deleted by hand and git still has its record. `--force` reuses that one
     // record; the project's other worktrees (one on a drive that isn't mounted) are untouched,
@@ -186,7 +186,7 @@ export async function syncBaseCheckout(exec: Exec, base: BaseCheckout): Promise<
       message: `The preview checkout can't be fast-forwarded to ${branch}: it has commits the branch doesn't have, or the branch was rewritten. Nothing was changed. Look at ${path}, or move it away to let the preview make a new one.`,
     };
   }
-  const merged = await git(path, [...NO_HOOKS, "merge", "--ff-only", target], 300_000);
+  const merged = await git(path, ["merge", "--ff-only", target], 300_000);
   if (merged.code !== 0) {
     return {
       ok: false,
@@ -213,7 +213,7 @@ export async function removeBaseCheckout(
   const env = gitEnv();
   const status = await exec(
     "git",
-    ["-C", base.path, "status", "--porcelain", "--ignored", "--untracked-files=all"],
+    [...NO_HOOKS, "-C", base.path, "status", "--porcelain", "--ignored", "--untracked-files=all"],
     { timeoutMs: 60_000, env },
   );
   if (status.code !== 0) {
@@ -229,10 +229,14 @@ export async function removeBaseCheckout(
     const names = own.slice(0, 3).join(", ");
     return `The preview's checkout at ${base.path} was kept: it holds ignored files that can't be made again (${names}${own.length > 3 ? ", …" : ""}).`;
   }
-  const removed = await exec("git", ["-C", base.repo, "worktree", "remove", base.path], {
-    timeoutMs: 120_000,
-    env,
-  });
+  const removed = await exec(
+    "git",
+    [...NO_HOOKS, "-C", base.repo, "worktree", "remove", base.path],
+    {
+      timeoutMs: 120_000,
+      env,
+    },
+  );
   return removed.code === 0
     ? null
     : `The preview's checkout at ${base.path} was kept: git wouldn't remove it.`;

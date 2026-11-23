@@ -37,6 +37,8 @@ export const notConfigured = () =>
 export class PreviewStarter {
   private queue: Promise<unknown> = Promise.resolve();
   private closed = false;
+  /** Bumped by `cancelPending`: a start asked for before the bump doesn't spawn after it. */
+  private epoch = 0;
 
   constructor(private readonly deps: StarterDeps) {}
 
@@ -46,6 +48,11 @@ export class PreviewStarter {
     const own = this.deps.serverPort();
     if (own) ports.add(own);
     return ports;
+  }
+
+  /** Starts that are waiting their turn, or for ports, end without starting anything. */
+  cancelPending(): void {
+    this.epoch++;
   }
 
   /** No start after this; resolves when the one under way is done. */
@@ -61,8 +68,9 @@ export class PreviewStarter {
    */
   begin(preview: Preview, opts: { byPerson: boolean; restart?: boolean }): Promise<void> {
     preview.claimed++;
+    const epoch = this.epoch;
     const run = this.queue
-      .then(() => this.start(preview, opts))
+      .then(() => this.start(preview, opts, epoch))
       .finally(() => {
         preview.claimed--;
       });
@@ -73,11 +81,14 @@ export class PreviewStarter {
   private async start(
     preview: Preview,
     opts: { byPerson: boolean; restart?: boolean },
+    epoch: number,
   ): Promise<void> {
     const { store } = this.deps;
+    const stopped = () => conflict("The previews were stopped.", "stopped");
     const projectId = preview.target.projectId;
     for (let attempt = 0; attempt < 3; attempt++) {
       if (this.closed) throw conflict("The app is closing.", "closing");
+      if (epoch !== this.epoch) throw stopped();
       const settings = store.config(projectId);
       if (!settings) throw notConfigured();
       if (preview.active && !opts.restart) return;
@@ -106,6 +117,7 @@ export class PreviewStarter {
       }
       // The waits above let other requests in. Start only if the settings are still these;
       // `Preview.start` takes them and marks itself active before it waits for anything.
+      if (epoch !== this.epoch) throw stopped();
       if (this.closed || store.config(projectId) !== settings) continue;
       await preview.start(settings, ports);
       return;
