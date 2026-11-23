@@ -109,7 +109,7 @@ OpenCode with no connected provider is a warning rather than an error: its own f
 
 ### The orchestrator or a PM runs on a provider I can't use
 
-Their turns fail with the provider's own error, such as "Not logged in", and the model picker in their chat shows the other providers greyed out. A session can't change provider, so the picker can't move them. Open **Settings → Providers → Defaults per role** (the picker's **Change provider** goes there) and choose a provider you are signed in to for **Orchestrator** and **Project managers**. The next message you send starts a fresh orchestrator or PM on it; a message that was still waiting for the old provider is dropped, so send it again. See [orchestration](orchestration.md).
+Their turns fail with the provider's own error, such as "Not logged in", and the model picker in their chat shows the other providers greyed out. A session can't change provider, so the picker can't move them. Open **Settings → Providers → Defaults per role** (the picker's **Change provider** goes there) and choose a provider you are signed in to for **Orchestrator** and **Project managers**. The next message you send starts a fresh orchestrator or PM on it, and messages that were still waiting for the old provider are sent to it. If the setting already named that provider and they still run on the old one (it was chosen in a version that couldn't move them), choose another provider and then that one again. See [orchestration](orchestration.md).
 
 ### CodeDen's sessions show up in the Codex app
 
