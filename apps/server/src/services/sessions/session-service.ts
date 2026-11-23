@@ -701,16 +701,32 @@ export class SessionService {
     const connected = this.deps.runner.isConnected();
     if (req.provider && req.provider !== "auto") {
       if (connected && !available.includes(req.provider)) {
-        throw badRequest(`Provider ${req.provider} is not available`, "unknown_provider");
+        throw badRequest(
+          `Provider ${req.provider} is not available. Loaded providers: ${available.join(", ") || "none"}`,
+          "unknown_provider",
+        );
       }
       return req.provider;
     }
-    const roleDefault = this.deps.settings.get().providers[req.role].provider;
+    const configured = this.configuredProvider(req.role, projectDefault);
+    if (configured) return configured;
+    const auto = [...AUTO_ORDER, ...available].find((id) => available.includes(id));
+    return auto ?? "claude";
+  }
+
+  /**
+   * The provider that settings name for a role's new sessions: the project's default, else the
+   * role's (`settings.providers.<role>`). Null when both leave it to Auto, or name a provider
+   * the connected runner doesn't have.
+   */
+  configuredProvider(role: Session["role"], projectDefault: string | null): string | null {
+    const available = this.deps.runner.providers().map((p) => p.id);
+    const connected = this.deps.runner.isConnected();
+    const roleDefault = this.deps.settings.get().providers[role].provider;
     for (const choice of [projectDefault, roleDefault === "auto" ? null : roleDefault]) {
       if (choice && (!connected || available.includes(choice))) return choice;
     }
-    const auto = [...AUTO_ORDER, ...available].find((id) => available.includes(id));
-    return auto ?? "claude";
+    return null;
   }
 
   private buildSession(

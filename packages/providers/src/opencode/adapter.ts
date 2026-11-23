@@ -8,8 +8,9 @@ import type { ProviderAdapter, ProviderSession, RefreshModelsOptions } from "../
 import { executableFingerprint, ModelFreshness } from "../freshness";
 import { ModelCatalog } from "../models";
 import type { ResolvedCommand } from "../util/exec";
+import { ensureLocated } from "../util/locate";
 import type { UtilityModel } from "../utility";
-import { detectOpenCode } from "./detect";
+import { detectOpenCode, OPENCODE_MIN_VERSION } from "./detect";
 import { locateOpenCode } from "./locate";
 import { fallbackOpenCodeModels, modelEfforts } from "./models";
 import { OpenCodeUtilityModel } from "./one-shot";
@@ -69,6 +70,14 @@ export class OpenCodeAdapter implements ProviderAdapter {
   }
 
   /**
+   * Before a runner's first session or model list: check the copies once (`ensureLocated`),
+   * so `executable()` skips an old or broken one although no detection has run yet.
+   */
+  private async located(): Promise<void> {
+    if (!this.options.executable) await ensureLocated("opencode", OPENCODE_MIN_VERSION);
+  }
+
+  /**
    * Finds a working copy (validating each one, so a broken shim never wins), then probes it
    * for providers; the probe also refreshes the models.
    */
@@ -97,6 +106,7 @@ export class OpenCodeAdapter implements ProviderAdapter {
    * the list is recent and `opencode` has not changed. Never throws.
    */
   async refreshModels(opts: RefreshModelsOptions = {}): Promise<void> {
+    await this.located();
     const exe = this.executable();
     if (!exe) return;
     if (
@@ -110,6 +120,7 @@ export class OpenCodeAdapter implements ProviderAdapter {
   }
 
   async openSession(opts: SessionOptions): Promise<ProviderSession> {
+    await this.located();
     const executable = this.executable();
     if (!executable) throw new Error("OpenCode is not installed (no `opencode` on PATH)");
     const efforts = (model: string | undefined) => {
