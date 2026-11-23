@@ -89,7 +89,8 @@ export const SecureFoundationName = z
 /**
  * The folder a project name is created in, inside the projects folder: lower case, every other
  * run of characters one dash, 40 characters at most. Only `[a-z0-9-]`, never empty for a valid
- * `SecureFoundationName`. The template derives its Convex and Doppler project names the same way.
+ * `SecureFoundationName`. The template derives its Convex project name the same way, and its
+ * Doppler project name nearly so (`secureFoundationDopplerProject`).
  */
 export function secureFoundationFolder(name: string): string {
   // One pass, no regular expression: the cost is linear whatever the input.
@@ -102,6 +103,24 @@ export function secureFoundationFolder(name: string): string {
   folder = folder.slice(0, 40);
   while (folder.endsWith("-")) folder = folder.slice(0, -1);
   return folder;
+}
+
+/**
+ * The Doppler project the template's install creates for a project name
+ * (`scripts/setup.mjs doppler-bootstrap --project-name`): lower case, every other run of
+ * characters one dash, no dash at either end, then the first 40 characters. Kept in step with
+ * the template: unlike `secureFoundationFolder` it cuts last, so a name can end in a dash.
+ */
+export function secureFoundationDopplerProject(name: string): string {
+  // One pass, no regular expression: the cost is linear whatever the input.
+  let slug = "";
+  for (const ch of name.slice(0, 200).toLowerCase()) {
+    const kept = (ch >= "a" && ch <= "z") || (ch >= "0" && ch <= "9");
+    if (kept) slug += ch;
+    else if (slug && !slug.endsWith("-")) slug += "-";
+  }
+  while (slug.endsWith("-")) slug = slug.slice(0, -1);
+  return slug.slice(0, 40);
 }
 
 /** Addresses the template's install refuses as placeholders. */
@@ -296,7 +315,7 @@ export function secureFoundationCreates(answers: {
     created.push({
       service: "Doppler",
       short: "a Doppler project",
-      item: `a Doppler project named "${slug}" with the configs dev and prd, holding the app's secrets`,
+      item: `a Doppler project named "${secureFoundationDopplerProject(answers.name)}" with the configs dev and prd, holding the app's secrets`,
       removeAt: "the Doppler dashboard, in the project's settings",
     });
   }

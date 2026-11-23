@@ -1,8 +1,10 @@
 import {
   CreateSecureFoundationRequest,
   type CreateSecureFoundationResponse,
+  SECURE_FOUNDATION_NO_DEV_PREVIEW,
   type SecureFoundationConnections,
   SecureFoundationConnectionsQuery,
+  type SecureFoundationDevPreview,
   type SecureFoundationFinish,
   type SecureFoundationLogin,
   type SecureFoundationOptions,
@@ -17,7 +19,7 @@ import { type Context, Hono } from "hono";
 import { isRemoteRequest } from "../security";
 import type { AppServices } from "../services/container";
 import { forbidden } from "../services/errors";
-import { holdsPmWakes } from "../services/secure-foundation/quiet";
+import { hasSetupSession, holdsPmWakes } from "../services/secure-foundation/quiet";
 import { jsonBody, queryOf } from "./validate";
 
 /**
@@ -29,6 +31,10 @@ import { jsonBody, queryOf } from "./validate";
  * `/verify` is what "Go" checks first (fields, folder, template commit, provider); the sign-in
  * checks are not part of it and stay the Connections routes. `/projects/:id/quiet` says whether
  * automatic work is still off in a project Secure Foundation set up (false for any other id).
+ * `/projects/:id/dev-preview` gives the values the dev preview's settings form is filled with
+ * for such a project. It is a suggestion, read-only: no route here takes a command, and the dev
+ * preview's own settings are written only by its own route, after the person's confirmation.
+ * Another device gets nothing to fill in, since commands can't be set from one.
  */
 /** Sign-ins read and change this computer's own state and start processes on it. */
 function requireLocal(c: Context): void {
@@ -83,5 +89,17 @@ export function secureFoundationRoutes(s: AppServices) {
     )
     .get("/projects/:id/quiet", (c) =>
       c.json<SecureFoundationQuiet>({ quiet: holdsPmWakes(s, c.req.param("id")) }),
-    );
+    )
+    .get("/projects/:id/dev-preview", (c) => {
+      if (isRemoteRequest(c)) {
+        return c.json<SecureFoundationDevPreview>(SECURE_FOUNDATION_NO_DEV_PREVIEW);
+      }
+      const id = c.req.param("id");
+      return c.json<SecureFoundationDevPreview>(
+        sf.devPreview(id, {
+          setUp: () => hasSetupSession(s, id),
+          baseCheckout: s.devPreview.baseCheckoutPath(id),
+        }),
+      );
+    });
 }

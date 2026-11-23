@@ -112,6 +112,31 @@ describe.skipIf(!posix)("a preview's process", () => {
     expect(output()).toContain("no");
   });
 
+  it("has no terminal and no input: a command that asks a question reads the end of input at once", async () => {
+    // What a dev server's "Upgrade now?" menu meets in a preview: nobody can answer, so it
+    // must not wait. Tools check for a terminal first and take their non-interactive path;
+    // one that reads anyway gets the end of input instead of hanging.
+    const ask = script(
+      "ask.cjs",
+      `console.log("stdin tty=" + Boolean(process.stdin.isTTY) + " stdout tty=" + Boolean(process.stdout.isTTY));
+       process.stdout.write("Upgrade now? ");
+       let read = "";
+       process.stdin.on("data", (chunk) => { read += chunk; });
+       process.stdin.on("end", () => { console.log("answer=" + JSON.stringify(read)); process.exit(7); });`,
+    );
+    const { proc, output } = run(ask);
+    expect(await proc.exited).toMatchObject({ code: 7, signal: null });
+    expect(output()).toContain("stdin tty=false stdout tty=false");
+    expect(output()).toContain('answer=""');
+    // The shell's own `read` fails at once too, instead of waiting for a line.
+    const shell = run(
+      'if [ -t 0 ]; then echo terminal; else echo "no terminal"; fi; read answer; echo "read=$?"',
+    );
+    expect(await shell.proc.exited).toMatchObject({ code: 0 });
+    expect(shell.output()).toContain("no terminal");
+    expect(shell.output()).toContain("read=1");
+  });
+
   it("reports a command that exits, with its code", async () => {
     const { proc, output } = run(script("exit.cjs", `console.log("bye"); process.exit(3);`));
     expect(await proc.exited).toEqual({ code: 3, signal: null });

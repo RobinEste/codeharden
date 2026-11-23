@@ -134,6 +134,14 @@ The app runs as processes of the setup session. **The URL only works while those
 
 The status follows the setup session: if the processes end while the session is still open and the agent doesn't notice, it can still read "Running".
 
+## Dev preview
+
+The URL above is the app running in the project folder. To see what a session changes while it works, set up a [dev preview](dev-preview.md): the app then runs the dev server in each session's own worktree, and one for the base branch on the PM thread.
+
+Once the setup has finished, the project's **Secure Foundation setup** card shows **Set up the dev preview**. It opens the project's Settings › Dev preview with the fields filled in for this project: `npm ci` as the prepare command, and as the dev command `doppler run --project <project> --config dev -- npm run dev` with Doppler, or `npm run dev` with `.env.local`. Check them, press **Save…** and confirm with **Save and allow**; nothing is stored or run before that. With `.env.local` you also copy that file into the preview's folder yourself, since git ignores it. [Why these values, and what stays for you](dev-preview.md#secure-foundation-projects).
+
+**Convex is not part of a preview.** Keep the Convex dev process running yourself, in a terminal in the project folder: `npm run convex:doppler` (with `.env.local`: `npm run convex`). The setup session runs it for as long as its processes live. Every preview of the project uses that one Convex dev deployment.
+
 ## If something fails
 
 - **Before the project exists** (a sign-in is missing, the template can't be fetched, the folder exists, the session can't start): the verification view marks the check that failed and says what to do, and what that attempt created is removed.

@@ -414,6 +414,8 @@ const CALL_SITES = [
   ["apps/web/src/lib/api/http-client.ts", "the web client's Secure Foundation calls", /secureFoundation: httpSecureFoundationApi\(http\)/],
   ["apps/server/src/routes/api.ts", "the Secure Foundation routes", /\.route\("\/secure-foundation", secureFoundationRoutes\(s\)\)/],
   ["apps/server/src/services/container.ts", "the Secure Foundation service", /secureFoundation: createSecureFoundation\(/],
+  ["apps/server/src/services/container.ts", "where Secure Foundation keeps the answers a dev preview depends on: the app's home", /secureFoundation: createSecureFoundation\(\{\n\s+exec,\n\s+home: opts\.paths\.home,/],
+  ["packages/contracts/src/index.ts", "exports the contract of a Secure Foundation project's dev preview", /export \* from "\.\/secure-foundation-dev-preview"/],
   ["apps/server/src/services/orchestration/orchestration-service.ts", "a quiet Secure Foundation project's manager is not woken", /if \(holdsPmWakes\(this\.deps, projectId\)\) return "empty";/],
   ["apps/server/src/services/secure-foundation/index.ts", "the template comes from the fork's configuration, never from a request", "HARDEN_TEMPLATE_REPOSITORY", "HARDEN_TEMPLATE_BRANCH", "hardenTemplateUrl"],
   ["packages/contracts/src/harden-channel.ts", "the Secure Foundation template in the fork's configuration", "HARDEN_TEMPLATE_REPOSITORY", "HARDEN_TEMPLATE_BRANCH", "__CODEHARDEN_TEMPLATE_REPOSITORY__", "__CODEHARDEN_TEMPLATE_BRANCH__"],

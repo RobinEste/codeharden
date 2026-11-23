@@ -20,6 +20,7 @@ import {
   secureFoundationQuietUrl,
   secureFoundationRemovalUrl,
 } from "./copy";
+import { SecureFoundationDevPreviewLink } from "./dev-preview-offer";
 import { secureFoundationKey } from "./use-secure-foundation";
 
 const LABEL: Record<SecureFoundationPhase, string> = {
@@ -45,7 +46,7 @@ const HINT: Partial<Record<SecureFoundationPhase, string>> = {
  * it says that automatic work is off and opens the autonomy dialog to turn it on. The snapshot
  * drops a setup session some time after it is archived; the server still keeps such a project
  * quiet, so a project in the quiet mode without a setup session here is asked about, and the
- * notice stays. Renders nothing for any other project.
+ * notice stays, with the way to the dev preview's settings. Renders nothing for any other project.
  */
 export function SecureFoundationStatus({ projectId }: { projectId: string }) {
   const client = useClient();
@@ -82,6 +83,8 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
           <span className="font-medium">Secure Foundation setup</span>
         </div>
         <QuietNotice project={project} />
+        {/* The setup session is gone, so the setup is over: the way to the dev preview stays. */}
+        <SecureFoundationDevPreviewLink projectId={projectId} />
       </section>
     );
   }
@@ -153,6 +156,7 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
           </span>
         </p>
       )}
+      {finished && <SecureFoundationDevPreviewLink projectId={projectId} />}
       {(finished || status.phase === "failed") && (
         <p className="mt-2 text-2xs text-muted-foreground" data-testid="secure-foundation-created">
           The setup session's first message lists everything it was allowed to create in your

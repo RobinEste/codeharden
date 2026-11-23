@@ -297,6 +297,12 @@ export class DevPreviewService {
     return running.length;
   }
 
+  /** Where the project's base checkout is, or will be; null for a project that is gone. */
+  baseCheckoutPath(projectId: string): string | null {
+    const project = this.findProject(projectId);
+    return project ? this.bases.path(project) : null;
+  }
+
   private findProject(id: string): Project | undefined {
     try {
       return this.deps.project(id);

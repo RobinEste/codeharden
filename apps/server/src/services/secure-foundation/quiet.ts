@@ -30,11 +30,21 @@ export function holdsPmWakes(
   }
   // Most projects: no query.
   if (project.autonomyMode !== SECURE_FOUNDATION_PROJECT_MODE) return false;
-  const setup = deps.db
+  const setup = setupSession(deps, projectId);
+  return isSecureFoundationQuiet(project, setup ? [setup] : []);
+}
+
+/** The project's setup session, archived or not. */
+function setupSession(deps: { db: Db }, projectId: string) {
+  return deps.db
     .select({ workKey: sessions.workKey })
     .from(sessions)
     .where(and(eq(sessions.projectId, projectId), eq(sessions.workKey, SECURE_FOUNDATION_WORK_KEY)))
     .limit(1)
     .get();
-  return isSecureFoundationQuiet(project, setup ? [setup] : []);
+}
+
+/** Whether Secure Foundation set the project up: it has a setup session, archived or not. */
+export function hasSetupSession(deps: { db: Db }, projectId: string): boolean {
+  return setupSession(deps, projectId) !== undefined;
 }
