@@ -1,6 +1,7 @@
 import {
   type CodedenDesktopApi,
   type CodedenDesktopBrowserApi,
+  HARDEN_FAVICON_PATH,
   HARDEN_PRODUCT_NAME,
 } from "@codeden/contracts";
 import { copyText } from "./clipboard";
@@ -74,7 +75,11 @@ export function createWebPlatform(): PlatformBridge {
     },
     notify(title, opts) {
       if (!hasNotifications || Notification.permission !== "granted") return;
-      const n = new Notification(title, { body: opts?.body, tag: opts?.tag, icon: "/favicon.svg" });
+      const n = new Notification(title, {
+        body: opts?.body,
+        tag: opts?.tag,
+        icon: HARDEN_FAVICON_PATH,
+      });
       n.onclick = () => {
         window.focus();
         opts?.onClick?.();
