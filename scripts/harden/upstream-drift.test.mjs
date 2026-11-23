@@ -393,6 +393,8 @@ const CALL_SITES = [
   ["packages/contracts/src/harden-channel.ts", "the Secure Foundation template in the fork's configuration", "HARDEN_TEMPLATE_REPOSITORY", "HARDEN_TEMPLATE_BRANCH", "__CODEHARDEN_TEMPLATE_REPOSITORY__", "__CODEHARDEN_TEMPLATE_BRANCH__"],
   ["packages/contracts/src/provider.ts", "the capability the setup brief reads instead of a provider id", "projectCommands"],
   ["packages/providers/src/claude/adapter.ts", "the provider that runs project command files says so", /projectCommands: true/],
+  // --- the vision the project manager reads: the fork's own text in a file upstream ships too
+  [".codeden/VISION.md", "the fork's own vision (a conflict on this file is resolved to the fork's text)", /^CodeHarden is a hardened fork/],
 ];
 
 /** True when every `define` block of a bundler config spreads the version and the channel. */
@@ -753,5 +755,20 @@ describe("the fork's call sites are still there", () => {
     expect(
       callSiteProblem(status, page.replace(/ *<SecureFoundationStatus [^>]*\/>\n/, "")),
     ).toMatch(/project\.tsx no longer has/);
+  });
+
+  it("fails when the vision file goes back to upstream's", () => {
+    const vision = CALL_SITES.find(([file]) => file === ".codeden/VISION.md");
+    const ours = read(vision[0]) ?? "";
+    expect(callSiteProblem(vision, ours)).toBeNull();
+    // A sync resolved to upstream's side: its first line, whatever follows.
+    const upstream =
+      "CodeDen is the ultimate tool for Agentic Coding.\n- It has support for all major providers.\n";
+    expect(callSiteProblem(vision, upstream)).toMatch(
+      /VISION\.md no longer has `\^CodeHarden is a hardened fork`/,
+    );
+    // The fork's sentence further down is not the fork's vision: it must open the file.
+    expect(callSiteProblem(vision, `${upstream}${ours}`)).not.toBeNull();
+    expect(callSiteProblem(vision, null)).toMatch(/VISION\.md is gone/);
   });
 });
