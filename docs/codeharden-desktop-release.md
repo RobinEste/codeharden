@@ -77,7 +77,7 @@ You do these steps yourself, signed in to your Apple account and to GitHub. **Th
 
    Then delete the `.p12` file from your disk (the certificate stays in your keychain), and clear the clipboard by copying something else.
 
-6. **Run the workflow** for a release tag, with **dry-run** on first. The macOS job's log says "signing with the Developer ID certificate and notarizing"; notarization adds a few minutes. The signature check is then strict: it fails unless each app is signed with your Developer ID, has Apple's notarization ticket stapled to it, and is accepted by Gatekeeper as a downloaded app. Open the `.dmg` from the run's `desktop-macos-latest` artifact on a Mac if you want to see it open without a warning. Then run it again with **dry-run** off.
+6. **Run the workflow** for a release tag made after the secrets were added (cut a new release first: the workflow runs the signature check of the tag it builds, and `v2026.1122.2302` has the older, lenient one), with **dry-run** on first. The macOS job's log says "signing with the Developer ID certificate and notarizing"; notarization adds a few minutes. The signature check is then strict: it fails unless each app is signed with your Developer ID, has Apple's notarization ticket stapled to it, and is accepted by Gatekeeper as a downloaded app. Open the `.dmg` from the run's `desktop-macos-latest` artifact on a Mac if you want to see it open without a warning. Then run it again with **dry-run** off.
 
 **What changes for people using the app:**
 
