@@ -15,6 +15,8 @@ import { CLI_ROOT, type FakeRegistry, packCli, startFakeRegistry } from "./suppo
 import { installPublishedCopy } from "./support/published-install";
 
 const NEXT = "99.0.0-test";
+/** What `--version` prints for a person, whichever copy answers. */
+const VERSION_LINE = /^CodeHarden \d{4}\.\d{4}\.\d{4} · CodeDen \d+\.\d+\.\d+ \(upstream\)$/;
 const built = existsSync(join(CLI_ROOT, "dist", "cli.js"));
 if (!built && process.env.CODEDEN_REQUIRE_CLI_DIST === "1") {
   throw new Error("apps/cli/dist is missing: run `pnpm build` first");
@@ -39,7 +41,8 @@ describe.skipIf(!built)("self-update with a fake registry (§16)", () => {
     home = join(base, "home");
     // Linked runtime deps in <base>/node_modules also serve the version installed under <base>/home.
     entry = installPublishedCopy(base, { linkDeps: true });
-    current = run(["--version"]);
+    // The updater's probe: the bare package version (plain `--version` prints the version line).
+    current = run(["--version"], { CODEDEN_NO_SWITCH: "1" });
     registry = await startFakeRegistry();
     registry.publish(NEXT, packCli({ version: NEXT, stripDependencies: true }));
   }, 120_000);
@@ -79,7 +82,9 @@ describe.skipIf(!built)("self-update with a fake registry (§16)", () => {
     expect(registry.requests).toContain("GET /-/package/codeden/dist-tags");
 
     // The published-style copy's launcher now loads the installed version in-process.
-    expect(run(["--version"])).toBe(NEXT);
+    // It answers with the version line, which doesn't name the package version; the pointer and
+    // the installed list above do.
+    expect(run(["--version"])).toMatch(VERSION_LINE);
     expect(run(["--version"], { CODEDEN_NO_SWITCH: "1" })).toBe(current);
     // doctor exits non-zero without an agent CLI installed (CI); only its rows matter here.
     const doctor = spawnSync(process.execPath, [entry, "doctor", "--home", home], {
@@ -95,6 +100,6 @@ describe.skipIf(!built)("self-update with a fake registry (§16)", () => {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
     });
-    expect(out.trim()).toBe(current);
+    expect(out.trim()).toMatch(VERSION_LINE);
   });
 });

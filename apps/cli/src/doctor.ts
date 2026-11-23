@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import { CODEDEN_VERSION, type SetupCheck } from "@codeden/contracts";
+import { formatHardenVersion, type SetupCheck } from "@codeden/contracts";
 import {
   CLAUDE_SDK_VERSION,
   claudeSdkSource,
@@ -93,7 +93,7 @@ export async function doctor(
   ]);
   const runner = readLiveRunnerLock(paths.runnerLock);
   const rows: Array<[string, string, string]> = [
-    ["ok", "CodeDen", CODEDEN_VERSION],
+    ["ok", "Version", formatHardenVersion()],
     ...versionRows(home, opts.launch),
     [existsSync(home) ? "ok" : "--", "Data directory", home],
     [

@@ -77,7 +77,10 @@ async function run(): Promise<void> {
   }
 
   globals[VERSION_KEY] = selfVersion;
-  if (args.includes("--version") || args.includes("-v")) {
+  // The updater's probe (`--version` with CODEDEN_NO_SWITCH=1, `reportedVersion`) reads the bare
+  // package version; anyone else gets the version line from `main.ts`.
+  const probe = process.env.CODEDEN_NO_SWITCH === "1";
+  if (probe && (args.includes("--version") || args.includes("-v"))) {
     console.log(selfVersion);
     process.exit(0);
   }
