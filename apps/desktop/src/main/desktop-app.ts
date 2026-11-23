@@ -4,7 +4,9 @@ import {
   type DesktopUpdateCommand,
   deepLinkPath,
   formatHardenVersion,
+  HARDEN_PRODUCT_NAME,
   hardenDocsUrl,
+  hardenVersionOf,
   parseDeepLink,
 } from "@codeden/contracts";
 import { app, dialog, Menu, Notification, shell } from "electron";
@@ -146,8 +148,8 @@ export class DesktopApp {
       this.log(`app: no server: ${String(error)}`);
       await dialog.showMessageBox({
         type: "error",
-        title: "CodeDen could not start",
-        message: "CodeDen could not start its server.",
+        title: `${HARDEN_PRODUCT_NAME} could not start`,
+        message: `${HARDEN_PRODUCT_NAME} could not start its server.`,
         detail: `${error instanceof Error ? error.message : String(error)}\n\nSee ${homeFiles(this.args.home).logs}.`,
       });
       app.quit();
@@ -272,8 +274,8 @@ export class DesktopApp {
     }
     const { response } = await dialog.showMessageBox({
       type: "error",
-      title: "CodeDen",
-      message: "The CodeDen server stopped unexpectedly.",
+      title: HARDEN_PRODUCT_NAME,
+      message: `The ${HARDEN_PRODUCT_NAME} server stopped unexpectedly.`,
       detail: `Agents keep running in the runner. See ${homeFiles(this.args.home).logs}.`,
       buttons: ["Restart", "Quit"],
       defaultId: 0,
@@ -331,10 +333,10 @@ export class DesktopApp {
     if (this.notifiedUpdate === key) return;
     this.notifiedUpdate = key;
     new Notification({
-      title: `CodeDen ${state.latest} is ${state.phase === "downloaded" ? "ready" : "available"}`,
+      title: `${HARDEN_PRODUCT_NAME} ${hardenVersionOf(state.latest)} is ${state.phase === "downloaded" ? "ready" : "available"}`,
       body:
         state.phase === "downloaded"
-          ? "It installs when you quit CodeDen, or choose Restart to update in the tray menu."
+          ? `It installs when you quit ${HARDEN_PRODUCT_NAME}, or choose Restart to update in the tray menu.`
           : "Download it from the tray menu.",
     }).show();
   }

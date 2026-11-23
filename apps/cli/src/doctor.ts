@@ -17,6 +17,7 @@ import {
   readLiveRunnerLock,
   readPointer,
 } from "@codeden/server";
+import { oldHomeNotice } from "./harden-home";
 import type { LaunchInfo } from "./launcher";
 import { findRunningServer } from "./running";
 
@@ -130,6 +131,8 @@ export async function doctor(
     }
   }
   for (const warning of status.warnings) console.log(`\nWarning: ${warning.message}`);
+  const notice = oldHomeNotice(home);
+  if (notice) console.log(`\nNote: ${notice}`);
   if (!status.ready) {
     console.log(
       "\nInstall and sign in to Claude Code, Codex or OpenCode: at least one agent provider is required.",

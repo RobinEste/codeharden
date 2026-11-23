@@ -127,7 +127,7 @@ describe("launcher (§16)", () => {
     expect(homeFromArgs(["--home", "x"], {})).toBe(resolve("x"));
     expect(homeFromArgs(["--port", "1", "--home=y"], {})).toBe(resolve("y"));
     expect(homeFromArgs([], { CODEDEN_HOME: "z" })).toBe(resolve("z"));
-    expect(homeFromArgs([], {})).toBe(join(homedir(), ".codeden"));
+    expect(homeFromArgs([], {})).toBe(join(homedir(), ".codeharden"));
   });
 
   it("compares versions like the contracts", () => {

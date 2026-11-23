@@ -114,10 +114,24 @@ check_signature() {
   [ "$helpers" -gt 0 ] || fail "$label: node-pty's spawn-helper is missing"
 }
 
+# The one .app in a folder (its name is the product's, which a fork sets).
+app_in() {
+  local found
+  for found in "$1"/*.app; do
+    if [ -d "$found" ]; then
+      echo "$found"
+      return 0
+    fi
+  done
+  fail "no .app in $1"
+  return 1
+}
+
 # --- 2. Launch ------------------------------------------------------------------------------
 check_launch() {
   local app="$1" label="$2"
-  local bin="$app/Contents/MacOS/CodeDen"
+  local bin
+  bin="$app/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")"
   local modules="$app/Contents/Resources/app/node_modules"
   local archs
   archs="$(lipo -archs "$bin")"
@@ -254,11 +268,13 @@ for dmg in "$release"/*.dmg; do
   with_timeout 300 hdiutil attach -nobrowse -readonly -noautoopen -mountpoint "$mnt" "$dmg" > /dev/null
   dest="$work/dmg-$label"
   mkdir -p "$dest"
-  ditto "$mnt/CodeDen.app" "$dest/CodeDen.app"
+  src="$(app_in "$mnt")" || { hdiutil detach -quiet "$mnt"; continue; }
+  app="$dest/$(basename "$src")"
+  ditto "$src" "$app"
   hdiutil detach -quiet "$mnt"
-  check_signature "$dest/CodeDen.app" "$label"
-  check_launch "$dest/CodeDen.app" "$label"
-  check_gatekeeper "$dest/CodeDen.app" "$label"
+  check_signature "$app" "$label"
+  check_launch "$app" "$label"
+  check_gatekeeper "$app" "$label"
 done
 
 for zip in "$release"/*.zip; do
@@ -269,8 +285,9 @@ for zip in "$release"/*.zip; do
   dest="$work/zip-$label"
   mkdir -p "$dest"
   ditto -x -k "$zip" "$dest"
-  check_signature "$dest/CodeDen.app" "$label"
-  check_gatekeeper "$dest/CodeDen.app" "$label"
+  app="$(app_in "$dest")" || continue
+  check_signature "$app" "$label"
+  check_gatekeeper "$app" "$label"
 done
 
 if [ "$dmg_count" -eq 0 ] || [ "$zip_count" -eq 0 ]; then

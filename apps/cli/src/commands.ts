@@ -14,6 +14,7 @@ import {
 } from "@codeden/server";
 import { DEFAULT_PORT, HELP, type ParsedCli } from "./args";
 import { doctor } from "./doctor";
+import { oldHomeNotice } from "./harden-home";
 import type { LaunchInfo } from "./launcher";
 import { networkCommand, passwordCommand } from "./network-command";
 import { openBrowser } from "./open-browser";
@@ -54,6 +55,8 @@ export async function runCommand(args: string[], parsed: ParsedCli): Promise<num
     return 2;
   }
 
+  const notice = oldHomeNotice(home);
+  if (notice) console.log(notice);
   const paths = ensureHome(home);
   const token = ensureInstallToken(paths.token);
   const running = await findRunningServer(paths.serverLock);

@@ -31,7 +31,7 @@ test.beforeAll(async () => {
   home = join(base, "home");
   const installer = randomBytes(256 * 1024);
   const sha512 = createHash("sha512").update(installer).digest("base64");
-  const file = `CodeDen-Setup-${NEXT}.exe`;
+  const file = `CodeHarden-Setup-${NEXT}.exe`;
   const latest = [
     `version: ${NEXT}`,
     "files:",

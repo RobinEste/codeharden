@@ -3,6 +3,7 @@ import {
   DesktopHostMessage,
   type DesktopServerMessage,
   formatHardenVersion,
+  HARDEN_PRODUCT_NAME,
 } from "@codeden/contracts";
 import { ensureHome, ensureInstallToken, resolveHome, startServer } from "@codeden/server";
 import { serverLog } from "./log";
@@ -32,7 +33,7 @@ export async function serve(opts: { home?: string; port: number; fake: boolean }
     onShutdownRequest: () => process.exit(0),
     selfUpdate: {
       source: "desktop",
-      restartCommand: "Quit CodeDen from the tray and open it again",
+      restartCommand: `Quit ${HARDEN_PRODUCT_NAME} from the tray and open it again`,
       launcherVersion: CODEDEN_VERSION,
       desktop,
     },
