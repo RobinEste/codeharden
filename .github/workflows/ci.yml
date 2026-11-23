@@ -70,7 +70,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
+      # CodeHarden: while the repository variable CI_TESTS is "off", the tests run on the
+      # author's machine before a push instead (scripts/harden/hooks/pre-push; see "Local
+      # test gate" in AGENTS.md). Delete the variable to run them here again.
       - run: pnpm test
+        if: ${{ vars.CI_TESTS != 'off' }}
+      - name: Tests are switched off in CI
+        if: ${{ vars.CI_TESTS == 'off' }}
+        run: echo "::warning::pnpm test is skipped in CI (repository variable CI_TESTS=off, a temporary measure since 2026-11-22). Tests run locally before a push. To turn them back on, delete the variable CI_TESTS."
       - run: pnpm build
       - name: Self-update against a local fake registry
         run: pnpm exec vitest run apps/cli/test/self-update.integration.test.ts
