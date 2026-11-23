@@ -111,7 +111,11 @@ export class OrchestrationService {
   private unsubscribe: (() => void) | undefined;
 
   constructor(private readonly deps: OrchestrationDeps) {
-    this.roles = new RoleSessions(deps);
+    this.roles = new RoleSessions({
+      ...deps,
+      // An `ask_pm` whose question moved with the queue gets its answer from the new session.
+      onMoved: (from, to) => this.asks.retarget(from.id, to.id),
+    });
     this.notices = new NoticeStore(deps.db, deps.store);
     this.cards = new NoticeCards(deps.store);
     this.notes = new ProjectNotes(deps.projects);

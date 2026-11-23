@@ -1,4 +1,9 @@
-import { type RoleSessionsRef, type Session, StartSessionRequest } from "@codeden/contracts";
+import {
+  type QueuedMessage,
+  type RoleSessionsRef,
+  type Session,
+  StartSessionRequest,
+} from "@codeden/contracts";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { rowToSession } from "../../db/rows";
@@ -15,6 +20,8 @@ export type OrchestrationRole = "orchestrator" | "pm";
 /** A role session with a turn starting, running or waiting on the user is left where it is. */
 const BUSY = new Set<Session["status"]>(["created", "queued", "starting", "running", "waiting"]);
 
+const keyOf = (role: OrchestrationRole, projectId: string | null) => `${role}:${projectId ?? ""}`;
+
 /**
  * The long-lived role sessions (§8.1): one orchestrator (cwd `<home>/orchestrator/`) and one
  * PM per project (cwd: the project root, read-only). Created lazily on first use; afterwards
@@ -23,11 +30,15 @@ const BUSY = new Set<Session["status"]>(["created", "queued", "starting", "runni
  *
  * A session can't change provider, so a role moves to another one with a fresh session: when
  * the settings name a provider other than the one the role session runs on, that session is
- * retired (stopped and archived, its transcript kept) once no turn is running, and the next
- * use of the role starts a new one on the chosen provider.
+ * retired (stopped and archived, its transcript kept) once no turn is
+ * running, and the next use of the role starts a new one on the chosen provider. Messages
+ * waiting in the retired session's queue move to the new one, which is then started at once.
  */
 export class RoleSessions {
-  private readonly creating = new Map<string, Promise<Session>>();
+  /** The change of a role's session under way (retire, create or both), by role key. */
+  private readonly changing = new Map<string, Promise<Session | undefined>>();
+  /** The last `applyProviderSettings` run: they follow each other. */
+  private applying: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly deps: {
@@ -36,6 +47,8 @@ export class RoleSessions {
       sessions: SessionService;
       inbox: Pick<InboxService, "list" | "close">;
       projects: ProjectService;
+      /** A role's session was replaced by a new one, which took over its queued messages. */
+      onMoved?: (from: Session, to: Session) => void;
       log?: (message: string) => void;
     },
   ) {}
@@ -88,18 +101,11 @@ export class RoleSessions {
     return ref;
   }
 
-  /** The current role sessions: the orchestrator's and every project's PM. */
-  private current(): Session[] {
-    const ref = this.refs();
-    const ids = [ref.orchestrator, ...Object.values(ref.pms)].filter((id) => id !== null);
-    return ids.flatMap((id) => this.deps.repo.find(id)?.session ?? []);
-  }
-
   /**
    * The provider the settings now name for this role session, when it is another one than the
    * session runs on (null otherwise, and while the settings leave the choice to Auto).
    */
-  private movedTo(session: Session): string | null {
+  private moveTarget(session: Session): string | null {
     const project = session.projectId ? this.deps.projects.get(session.projectId) : null;
     const wanted = this.deps.sessions.configuredProvider(
       session.role,
@@ -108,20 +114,21 @@ export class RoleSessions {
     return wanted && wanted !== session.provider ? wanted : null;
   }
 
-  /**
-   * Retire a role session whose provider is no longer the one the settings name, so the role
-   * starts a fresh session there. A session with a turn under way (or on its way to the runner)
-   * stays until it is checked again: when the settings next change, or on the role's next
-   * message or wake. Returns whether it was retired.
-   *
-   * Stopping it drops its queued messages and dismisses its open approvals and questions, as
-   * stopping any session does. Its open failed runs are dismissed too: their Retry messages the
-   * session, which would bring the retired conversation back on the old provider.
-   */
-  private async retireIfMoved(session: Session): Promise<boolean> {
+  /** Whether the session is to be retired now: its role moved, and no turn is under way. */
+  private shouldRetire(session: Session): boolean {
     const underWay = BUSY.has(session.status) || this.deps.sessions.isDelivering(session.id);
-    if (underWay || !this.movedTo(session)) return false;
-    await this.deps.sessions.stop(session.id);
+    return !underWay && this.moveTarget(session) !== null;
+  }
+
+  /**
+   * Retire a role session (stop and archive it, its transcript kept) and return the messages
+   * that were waiting in its queue, which move to the role's new session. Its open approvals
+   * and questions are dismissed, as stopping any session does. Its open failed runs are
+   * dismissed too: their Retry messages the session, which would bring the retired
+   * conversation back on the old provider.
+   */
+  private async retire(session: Session): Promise<QueuedMessage[]> {
+    const queued = await this.deps.sessions.stopKeepingQueue(session.id);
     for (const item of this.deps.inbox.list({ sessionId: session.id })) {
       if (item.kind !== "run_failed") continue;
       this.deps.inbox.close(item, "dismissed", { reason: "moved to another provider" });
@@ -129,34 +136,110 @@ export class RoleSessions {
     this.deps.repo.update(session.id, (s) =>
       s.archivedAt ? s : { ...s, archivedAt: new Date().toISOString() },
     );
-    return true;
+    return queued;
   }
 
   /**
-   * Check every role session against the settings (after they change) and retire those whose
-   * provider was switched. Their roles show as not started until the next message or wake.
+   * Retire `existing` (when given) and start the role's new session, which takes over the
+   * queued messages in their order, each with its sender. With `always` false a new session
+   * is started only when there is something to hand over; otherwise the role shows as not
+   * started until its next message or wake.
+   *
+   * If the new session can't be started, the messages go back to the old one, which stays the
+   * role's session: nothing queued is lost, and the move is tried again on the next use.
    */
-  async applyProviderSettings(): Promise<void> {
-    for (const session of this.current()) {
+  private async replace(
+    existing: Session | undefined,
+    role: OrchestrationRole,
+    projectId: string | null,
+    always: boolean,
+  ): Promise<Session | undefined> {
+    const queued = existing ? await this.retire(existing) : [];
+    if (!always && queued.length === 0) return undefined;
+    let created: Session;
+    try {
+      created = await this.create(role, projectId);
+    } catch (error) {
+      if (existing && queued.length > 0) {
+        this.deps.repo.update(existing.id, (s) => ({ ...s, archivedAt: null }));
+        this.deps.sessions.restoreQueued(queued);
+      }
+      throw error;
+    }
+    if (existing) {
+      this.deps.sessions.adoptQueued(created.id, queued);
+      this.deps.onMoved?.(existing, created);
+    }
+    return created;
+  }
+
+  /**
+   * Run `work` as the one change of this role's session: until it ends, every `ensure` of the
+   * role waits for it instead of retiring or creating a session of its own.
+   */
+  private exclusive(
+    key: string,
+    work: () => Promise<Session | undefined>,
+  ): Promise<Session | undefined> {
+    const run = work().finally(() => this.changing.delete(key));
+    this.changing.set(key, run);
+    return run;
+  }
+
+  /**
+   * The settings changed: retire the role sessions whose provider was switched, one after the
+   * other. A session with a turn under way (or on its way to the runner) stays until it is
+   * checked again, on the role's next message or wake. Never rejects: failures are logged.
+   */
+  applyProviderSettings(): Promise<void> {
+    const run = this.applying.then(() => this.retireMoved());
+    this.applying = run;
+    return run;
+  }
+
+  private async retireMoved(): Promise<void> {
+    const ref = this.refs();
+    const roles: [OrchestrationRole, string | null][] = [
+      ["orchestrator", null],
+      ...Object.keys(ref.pms).map((id): [OrchestrationRole, string] => ["pm", id]),
+    ];
+    for (const [role, projectId] of roles) {
       try {
-        await this.retireIfMoved(session);
+        const key = keyOf(role, projectId);
+        // A change of this role's session is under way: it checked the settings itself.
+        if (this.changing.has(key)) continue;
+        const session = this.find(role, projectId);
+        if (!session || !this.shouldRetire(session)) continue;
+        await this.exclusive(key, () => this.replace(session, role, projectId, false));
       } catch (error) {
-        this.deps.log?.(`role sessions: could not retire ${session.id}: ${String(error)}`);
+        this.deps.log?.(`role sessions: could not move the ${role} session: ${String(error)}`);
       }
     }
   }
 
-  /** The role session, created when missing or when its provider was switched in settings. */
+  /**
+   * The role session, created when missing or when its provider was switched in settings.
+   * Retiring the old session and creating the new one are a single change under the role's
+   * key: nothing is awaited between looking the session up and taking the key, so concurrent
+   * callers (a wake and a message just after the setting changed) all get the same session.
+   */
   async ensure(role: OrchestrationRole, projectId: string | null): Promise<Session> {
-    const existing = this.find(role, projectId);
-    if (existing && !(await this.retireIfMoved(existing))) return existing;
-    const key = `${role}:${projectId ?? ""}`;
-    let pending = this.creating.get(key);
-    if (!pending) {
-      pending = this.create(role, projectId).finally(() => this.creating.delete(key));
-      this.creating.set(key, pending);
+    const key = keyOf(role, projectId);
+    for (;;) {
+      const pending = this.changing.get(key);
+      if (pending) {
+        // A retirement that started no session leaves the role to be created here.
+        const session = await pending;
+        if (session) return session;
+        continue;
+      }
+      const existing = this.find(role, projectId);
+      if (existing && !this.shouldRetire(existing)) return existing;
+      const session = await this.exclusive(key, () =>
+        this.replace(existing, role, projectId, true),
+      );
+      if (session) return session;
     }
-    return pending;
   }
 
   private async create(role: OrchestrationRole, projectId: string | null): Promise<Session> {

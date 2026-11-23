@@ -8,6 +8,7 @@ import type {
   HandoffSessionResponse,
   JsonValue,
   ProviderInfo,
+  QueuedMessage,
   QueueSender,
   RespondRequest,
   ReviewSessionRequest,
@@ -473,6 +474,38 @@ export class SessionService {
     return this.deps.repo.update(id, (s) =>
       FINISHED.has(s.status) ? s : { ...s, status: "stopped", endedAt: new Date().toISOString() },
     );
+  }
+
+  /**
+   * Stop a session whose queued messages move on to another session (a role moved to another
+   * provider, `RoleSessions`): they are returned instead of dropped. They leave the queue
+   * before anything is awaited, so no delivery can send one to the session being stopped; if
+   * the stop fails they go back in their places.
+   */
+  async stopKeepingQueue(id: string): Promise<QueuedMessage[]> {
+    const taken = this.deps.outbox.clear(id);
+    try {
+      await this.stop(id);
+    } catch (error) {
+      this.restoreQueued(taken);
+      throw error;
+    }
+    // Whatever was queued while the runner stopped it.
+    return [...taken, ...this.deps.outbox.clear(id)];
+  }
+
+  /** Put messages taken with `stopKeepingQueue` back in their session's queue, in their places. */
+  restoreQueued(messages: QueuedMessage[]): void {
+    for (const message of messages) this.deps.outbox.restore(message);
+  }
+
+  /**
+   * Queue messages taken from another session (`stopKeepingQueue`) for this one, in their
+   * order and each with its sender. They are delivered like any queued message.
+   */
+  adoptQueued(id: string, messages: QueuedMessage[]): void {
+    for (const message of messages) this.deps.outbox.push(id, message.input, message.from);
+    if (messages.length > 0) this.flushIfSettled(id);
   }
 
   /**
