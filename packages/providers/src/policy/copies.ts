@@ -65,8 +65,15 @@ function operands(bin: string, args: string[], ctx: CopyContext): string[] {
 /** `cp -t DIR a b` and `mv --target-directory=DIR a b` name the destination first. */
 function targetDirectory(bin: string, args: string[]): string | undefined {
   if (bin !== "cp" && bin !== "mv") return undefined;
+  let value = -1;
   for (const [i, arg] of args.entries()) {
+    if (i === value) continue;
     if (arg === "--") return undefined;
+    // `-S` and `--suffix` alone take the next word as the suffix, whatever it looks like.
+    if (/^-[a-su-zA-RT-Z]*S$/.test(arg) || arg === "--suffix") {
+      value = i + 1;
+      continue;
+    }
     const long = /^--target-directory(?:=(.*))?$/s.exec(arg);
     if (long) return long[1] ?? args[i + 1];
     // Not past `S`, which takes a value itself: `-Stilde` is a backup suffix, not `-t ilde`.

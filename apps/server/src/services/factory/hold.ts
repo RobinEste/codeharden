@@ -105,6 +105,20 @@ export async function holdIssue(
   if (issue.state !== "open") {
     throw conflict(`Issue #${issue.number} is closed: there is nothing to hold`, "issue_closed");
   }
+  // A hold a person placed stays theirs: the PM holding the issue again doesn't make it its own
+  // (which `releaseIssue` would then let it take off).
+  const held = ctx.store.loopOrNew(projectId, ctx.now()).holds;
+  const own = held.some((h) => h.issueNumber === issue.number && h.by === "pm");
+  if (by === "pm" && issue.labels.includes(FACTORY_HOLD_LABEL) && !own) {
+    const waiting = itemOf(ctx, projectId, issue.number);
+    return {
+      issueNumber: issue.number,
+      held: true,
+      itemId: waiting?.id ?? null,
+      stage: waiting?.stage ?? null,
+      message: `#${issue.number} is already held by a person: it stays their hold, and they release it.`,
+    };
+  }
   await ctx.github.labelIssue(projectId, issue.number, [FACTORY_HOLD_LABEL]);
   const record: FactoryHold = {
     issueNumber: issue.number,

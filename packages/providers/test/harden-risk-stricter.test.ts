@@ -61,6 +61,17 @@ describe("classifyCommand: stricter handling the fork keeps", () => {
     for (const cmd of ["cp -Stilde payload ~/.bashrc", "mv -Stilde payload /etc/x"]) {
       expect(action(cmd), cmd).toBe("outside_worktree");
     }
+    // A suffix given as a word of its own takes the next word, whatever it looks like.
+    for (const cmd of [
+      "cp -S -tdist payload /etc/x",
+      "mv -bS -tdist payload /etc/x",
+      "cp --suffix -tdist payload ~/.bashrc",
+      "cp -S --target-directory=dist payload /etc/x",
+    ]) {
+      expect(action(cmd), cmd).toBe("outside_worktree");
+    }
+    expect(action("cp -S .bak -t dist a b")).toBeNull();
+    expect(action("cp --suffix=.bak -t /etc a b")).toBe("outside_worktree");
     // The spellings that do name a target folder keep working, in or out of the worktree.
     expect(action("cp -t dist a b")).toBeNull();
     expect(action("cp -vtdist a b")).toBeNull();
@@ -83,6 +94,11 @@ describe("classifyCommand: stricter handling the fork keeps", () => {
     // On Windows it is cmd's own switch, as before.
     expect(action("cd /d sub && del x.txt", win)).toBeNull();
     expect(action("cd /d sub; rm -rf ../x", { ...win, shell: "posix" })).toBe("outside_worktree");
+    // Nor is it PowerShell's: its `cd` refuses the second word and stays where it is.
+    expect(action("cd /d sub; Remove-Item ../x", { ...win, shell: "powershell" })).toBe(
+      "outside_worktree",
+    );
+    expect(action("cd sub; Remove-Item x", { ...win, shell: "powershell" })).toBeNull();
     expect(action("cd sub; rm -rf x")).toBeNull();
   });
 });

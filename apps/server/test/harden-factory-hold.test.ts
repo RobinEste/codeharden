@@ -43,6 +43,33 @@ describe("releasing held issues: whose hold it is", () => {
     ]);
   });
 
+  it("keeps a person's hold theirs when the PM holds the same issue again", async () => {
+    env = createFactoryEnv();
+    s.enable();
+    const labelled = openIssue("Rotate the keys", true);
+    const inApp = openIssue("Change the billing plan");
+    await env.factory.hold(projectId(), { issueNumber: inApp.number, reason: "my call" }, "user");
+    const comments = env.gh.comments.length;
+
+    for (const issue of [labelled, inApp]) {
+      const again = await env.factory.hold(
+        projectId(),
+        { issueNumber: issue.number, reason: "mine now" },
+        "pm",
+      );
+      expect(again).toMatchObject({ held: true });
+      expect(again.message).toMatch(/already held by a person/);
+      const res = await env.factory.release(projectId(), { issueNumber: issue.number }, "pm");
+      expect(res).toMatchObject({ held: true });
+      expect(labels(issue.number)).toContain(FACTORY_HOLD_LABEL);
+    }
+    // The person's record and reason are as they left them, and nothing was posted.
+    expect(env.factory.data.loopOrNew(projectId()).holds).toEqual([
+      expect.objectContaining({ issueNumber: inApp.number, by: "user", reason: "my call" }),
+    ]);
+    expect(env.gh.comments).toHaveLength(comments);
+  });
+
   it("leaves a hold a person made through the app", async () => {
     env = createFactoryEnv();
     s.enable();

@@ -64,9 +64,10 @@ function afterCd<T extends PathContext>(cmd: SimpleCommand, ctx: T): T[] {
   }
   if (!CD.has(bin)) return [ctx];
   const { stack, args } = withoutStackName(tokens.slice(1));
-  // cmd's `/d` is a switch only where cmd may be the shell: on Windows, unless it is known to
-  // be a POSIX one (Git Bash), whose `cd` takes `/d` for a folder like any other.
-  const cmdSwitch = isWin(ctx) && (ctx as { shell?: string }).shell !== "posix";
+  // cmd's `/d` is a switch only where cmd may be the shell: on Windows, unless the shell is known
+  // to be a POSIX one (Git Bash) or PowerShell, whose `cd` takes `/d` for a folder like any other.
+  const shell = (ctx as { shell?: string }).shell;
+  const cmdSwitch = isWin(ctx) && shell !== "posix" && shell !== "powershell";
   const target = cdTarget(args, cmdSwitch);
   if (PUSH.has(bin)) {
     const saved: SavedLocation = { dir: ctx.dir, psDrive: ctx.psDrive, stack };
