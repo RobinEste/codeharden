@@ -202,30 +202,48 @@ const ALLOWED = [
   reason,
 }));
 
+/**
+ * A script's text without its comments (line breaks kept). Strings and template strings are
+ * followed, so a comment opener inside one never hides the code after it, and a comment must
+ * start a line or follow a space, so a glob ending in slash-star is not one. When in doubt the
+ * text is kept: a comment read as code can only cause a failure, never hide a value.
+ */
+function withoutComments(text) {
+  let out = "";
+  let state = "code";
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    const next = text[i + 1];
+    if (state === "line" || state === "block") {
+      if (ch === "\n") out += ch;
+      if (state === "line" ? ch === "\n" : ch === "*" && next === "/") {
+        if (state === "block") i++;
+        state = "code";
+      }
+    } else if (state !== "code") {
+      out += ch;
+      if (ch === "\\" && next !== undefined) out += text[++i];
+      else if (ch === state || (ch === "\n" && state !== "`")) state = "code";
+    } else if (
+      ch === "/" &&
+      (next === "/" || next === "*") &&
+      (i === 0 || /\s/.test(text[i - 1]))
+    ) {
+      state = next === "/" ? "line" : "block";
+      i++;
+    } else {
+      if (ch === '"' || ch === "'" || ch === "`") state = ch;
+      out += ch;
+    }
+  }
+  return out;
+}
+
 /** Lines of `text` with comments blanked, so prose about upstream is never a hit. */
 function codeLines(file, text) {
-  const script = /\.[cm]?[jt]sx?$/.test(file);
+  if (/\.[cm]?[jt]sx?$/.test(file)) return withoutComments(text).split("\n");
   const hash = /\.(?:sh|ya?ml)$|Dockerfile$/.test(file);
-  let inBlock = false;
-  return text.split("\n").map((raw) => {
-    let line = raw;
-    if (hash) return /^\s*#/.test(line) ? "" : line;
-    if (!script) return line;
-    if (inBlock) {
-      const end = line.indexOf("*/");
-      if (end < 0) return "";
-      inBlock = false;
-      line = line.slice(end + 2);
-    }
-    // A comment starts a line or follows a space: `"**/*"` and `https://` are not comments.
-    line = line.replace(/(^|\s)\/\*.*?\*\//g, "$1");
-    const start = /(^|\s)\/\*/.exec(line);
-    if (start) {
-      inBlock = true;
-      line = line.slice(0, start.index);
-    }
-    return line.replace(/(^|\s)\/\/.*$/, "");
-  });
+  return text.split("\n").map((line) => (hash && /^\s*#/.test(line) ? "" : line));
 }
 
 const appliesTo = (entry, file) =>
@@ -262,7 +280,8 @@ function hitReport(hits) {
 /**
  * Where the fork redirected upstream's code to its own channel, derived from the fork's diff
  * against upstream: `[file, what the fork changed there, ...what the file must still contain]`.
- * A name is looked for as a word in the file's code (comments don't count); a pattern as written.
+ * A name is looked for as a word in the file's code (comments don't count), a pattern as
+ * written, and a function is asked.
  */
 // biome-ignore format: one entry per line, read as a table
 const CALL_SITES = [
@@ -274,9 +293,9 @@ const CALL_SITES = [
   ["packages/contracts/src/desktop.ts", "the link scheme the desktop app registers", /DEEP_LINK_SCHEME = HARDEN_DEEP_LINK_SCHEME/],
   ["packages/contracts/src/ws.ts", "the two versions in the health answer and the snapshot", "hardenVersion", "upstreamVersion"],
   // --- every bundle gets both build-time defines
-  ["apps/cli/tsdown.config.ts", "injects the version and the channel into the CLI bundle", /\.\.\.hardenVersionDefine\(\)/, /\.\.\.hardenChannelDefine\(\)/],
-  ["apps/desktop/tsdown.config.ts", "injects the version and the channel into the desktop bundles", /\.\.\.hardenVersionDefine\(\)/, /\.\.\.hardenChannelDefine\(\)/],
-  ["apps/web/vite.config.ts", "injects the version and the channel into the web app", /\.\.\.hardenVersionDefine\(\)/, /\.\.\.hardenChannelDefine\(\)/],
+  ["apps/cli/tsdown.config.ts", "injects the version and the channel into the CLI bundle", bothDefinesInEveryBundle],
+  ["apps/desktop/tsdown.config.ts", "injects the version and the channel into the desktop bundles", bothDefinesInEveryBundle],
+  ["apps/web/vite.config.ts", "injects the version and the channel into the web app", bothDefinesInEveryBundle],
   // --- home, port, projects folder, keychain
   ["apps/server/src/paths.ts", "the default home folder", /join\(homedir\(\), HARDEN_HOME_DIRNAME\)/],
   ["apps/server/src/services/container.ts", "the default folder for clones", /join\(userHome, HARDEN_PROJECTS_DIRNAME\)/],
@@ -318,14 +337,29 @@ const CALL_SITES = [
   ["apps/web/src/routes/settings.tsx", "the version line in Settings", "formatHardenVersion"],
 ];
 
+/** True when every `define` block of a bundler config spreads the version and the channel. */
+function bothDefinesInEveryBundle(code) {
+  const count = (pattern) => code.match(pattern)?.length ?? 0;
+  const blocks = count(/\bdefine: \{/g);
+  return (
+    blocks > 0 &&
+    count(/\.\.\.hardenVersionDefine\(\)/g) === blocks &&
+    count(/\.\.\.hardenChannelDefine\(\)/g) === blocks
+  );
+}
+bothDefinesInEveryBundle.say =
+  "`...hardenVersionDefine()` and `...hardenChannelDefine()` in every `define` block (one per bundle)";
+
 /** A needed name or pattern as a reader would look for it in the file. */
 const say = (need) =>
   typeof need === "string"
     ? need
-    : `\`${need.source
-        .replace(/^\^ \{2\}/, "")
-        .replace(/\$$/, "")
-        .replace(/\\(.)/g, "$1")}\``;
+    : typeof need === "function"
+      ? need.say
+      : `\`${need.source
+          .replace(/^\^ \{2\}/, "")
+          .replace(/\$$/, "")
+          .replace(/\\(.)/g, "$1")}\``;
 
 /** What a call site lost, in words, or null when it is as the fork left it. */
 function callSiteProblem([file, what, ...needs], text) {
@@ -336,7 +370,9 @@ function callSiteProblem([file, what, ...needs], text) {
   const missing = needs.filter((need) =>
     typeof need === "string"
       ? !new RegExp(`(?<![\\w$])${need}(?![\\w$])`).test(code)
-      : !need.test(code),
+      : typeof need === "function"
+        ? !need(code)
+        : !need.test(code),
   );
   if (missing.length === 0) return null;
   return `${file} no longer has ${missing.map(say).join(", ")}.\n    The fork changed it for: ${what}. A merge took upstream's side here, or upstream rewrote this code: look at the file's history (git log -p -- ${file}), put the fork's change back, and check what the code uses in its place (often upstream's fixed value).`;
@@ -422,6 +458,8 @@ describe("upstream's identity does not come back into product code", () => {
     ["the link scheme", "packages/contracts/src/desktop.ts", 'export const DEEP_LINK_SCHEME = "codeden";', "bare-name"],
     ["a link built by hand", "apps/web/src/lib/new-links.ts", `const link = ${TICK}codeden://session/${D}{id}${TICK};`, "link-scheme"],
     ["the home folder in a file that also names the project folder", "apps/server/src/services/automations/sources.ts", 'const dir = join(homedir(), ".codeden", "automations");', "home-folder"],
+    ["a value after a string that looks like a comment start", "apps/server/src/new.ts", 'const hint = "Use /* to start a comment";\nconst port = 4317;', "default-port"],
+    ["a value after a URL and before a real comment", "apps/server/src/new.ts", 'const url = "https://registry.npmjs.org/codeden"; // the package', "npm-package"],
     ["an upstream value next to an allowed one", "apps/server/src/services/sessions/handoff.ts", '  send({ from: "codeden", service: "codeden" });', "bare-name"],
   ])("fails on %s", (_name, file, line, rule) => {
     expect(inScope(file), `${file} must be scanned`).toBe(true);
@@ -482,6 +520,13 @@ describe("the fork's call sites are still there", () => {
     expect(callSiteProblem(paths, null)).toMatch(
       /paths\.ts is gone[\s\S]*Find where that logic lives now/,
     );
+    // One bundle of three losing its defines is a loss.
+    const bundles = CALL_SITES.find(([file]) => file === "apps/desktop/tsdown.config.ts");
+    const oneLost = (read(bundles[0]) ?? "").replace(
+      "{ ...hardenVersionDefine(), ...hardenChannelDefine() }",
+      "{}",
+    );
+    expect(callSiteProblem(bundles, oneLost)).toMatch(/in every `define` block/);
     const config = CALL_SITES.find(([file]) => file === "apps/desktop/electron-builder.config.mjs");
     const upstreamConfig = (read(config[0]) ?? "").replace(
       /^ {2}appId,$/m,
