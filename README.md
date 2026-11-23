@@ -2,6 +2,7 @@
 > It stays close to upstream: new upstream changes are reviewed every day for security and function,
 > and merged 48 hours after they are approved. CodeHarden versions are timestamps; the app's own
 > version number stays upstream's. Everything below is CodeDen's own README.
+> Want the same for your own changes? See [Make your own hardened fork](#make-your-own-hardened-fork).
 
 <div align="center">
 
@@ -207,6 +208,48 @@ It's experimental. Start with the software factory on a test repository with aut
 | [Troubleshooting](docs/troubleshooting.md) | `doctor`, logs and common problems |
 | [Reference](docs/reference.md) | Settings, data folder, command-line options and updates |
 | [Architecture](docs/architecture.md) | How CodeDen is built |
+
+## Make your own hardened fork
+
+CodeHarden follows CodeDen: upstream changes are mirrored daily, reviewed, and merged 48 hours after approval; releases are timestamps; npm is published by hand. You can follow CodeHarden the same way, with your own changes on top and your own npm package. Three repository variables and one script point the same machinery at your names.
+
+| Variable | What it is | CodeHarden | Your fork |
+|---|---|---|---|
+| `UPSTREAM_REPO` | The repository you follow | `leonvanzyl/codeden` | `harperaa/codeharden` |
+| `UPSTREAM_BRANCH` | The branch of it you follow | `main` | `harden` |
+| `PACKAGE_NAME` | The npm package you publish; its last part is the command | `codeharden` | your own, for example `example-harden` |
+
+Your fork has two branches that matter. `harden` is your working and default branch: upstream plus your changes, where upstream only ever arrives by merge. `mirror` is a pure copy of CodeHarden's `harden`, only ever fast-forwarded and never committed to. (CodeHarden's own mirror is `main`, named after the branch it follows; yours can't be called `harden` twice, so it is `mirror`. A `main` branch copied by the fork button is not used and can stay.) Other names: `--branch` and `--mirror-branch`, stored as the variables `HARDEN_BRANCH` and `MIRROR_BRANCH`.
+
+1. **Fork** [harperaa/codeharden](https://github.com/harperaa/codeharden) on GitHub. Copying only the `harden` branch is enough.
+2. **Enable workflows** in the fork: open its Actions tab and press "I understand my workflows, go ahead and enable them". GitHub asks this of every new fork.
+3. **Clone it** and install the [GitHub CLI](https://cli.github.com), signed in as you (`gh auth login`).
+4. **Run the script**, first as a dry run:
+
+   ```sh
+   scripts/harden/setup-fork.sh --package example-harden --dry-run
+   scripts/harden/setup-fork.sh --package example-harden
+   ```
+
+   It creates the three variables, the `mirror` branch and the labels `sync-approved`, `sync-needs-review` and `sync-hold`, makes `harden` the default branch, enables Actions and the "Upstream sync merge" workflow, and disables the Release workflow (which stays disabled: nothing publishes from CI). Each step prints "already set" or "changed", so you can run it again at any time. It never force-pushes, never deletes anything and stores no token; what it may not do with your sign-in, it lists for you at the end.
+
+**How syncs get reviewed and merged.** Every day the workflow fast-forwards `mirror`. To take upstream changes, push them to a branch named `sync/...` and open a pull request into `harden`:
+
+```sh
+git fetch origin mirror
+git push origin FETCH_HEAD:refs/heads/sync/2026-01-05
+gh pr create --repo <you>/<your fork> --base harden --head sync/2026-01-05 --title "sync: upstream to 2026-01-05"
+```
+
+Review it, then label it: `sync-approved` (the workflow merges it 48 hours later, if its checks pass and nothing was pushed since), `sync-needs-review` or `sync-hold` (it waits for you). The daily review can be a CodeDen automation that opens the pull request, reads the changes and sets the label, or you do it yourself; the workflow only looks at the labels. Three things to expect:
+
+- If the pull request conflicts, merge `harden` into the sync branch and resolve there. `VERSION`, `CODEHARDEN-CHANGELOG.md` and `state/upstream-base` conflict once both sides have made a release: keep yours.
+- A sync that changes `scripts/harden/` (the release and sync scripts themselves) is never merged for you: it gets `sync-needs-review`, and you merge it by hand with a merge commit.
+- A sync that changes a workflow file can't be merged, or mirrored, by the workflow's own token; its log says so and you do that one by hand.
+
+**Releases and npm, under your name.** After the workflow merges a sync it makes a release on `harden` (a commit, a tag `v<version>` and a changelog entry). After merging your own changes, make one yourself: `scripts/harden/release.sh --dry-run`, then `scripts/harden/release.sh --push`. To publish a release to npm, check its tag out and run `scripts/harden/publish.sh --dry-run`, then `scripts/harden/publish.sh`, signed in to npm as the package's owner: [Publishing to npm](docs/codeharden-npm-release.md) has every step. The scripts read your variables from GitHub with `gh` (or from the environment), and refuse to release or publish in a repository that is not CodeHarden's until they are set, so your users are never updated onto `codeharden` by a default. The app's own name on screen is not changed by any of this; that is yours to change.
+
+Optional: `git config core.hooksPath scripts/harden/hooks` runs the tests on your machine before each push, and the repository variable `CI_TESTS=off` skips them in CI (see "Local test gate" in [AGENTS.md](AGENTS.md)). The script sets neither.
 
 ## Contributing
 

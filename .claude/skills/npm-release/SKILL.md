@@ -5,7 +5,7 @@ description: Cut a CodeHarden release and prepare its npm publish (the `codehard
 
 # Release CodeHarden and prepare the npm publish
 
-The steps for a person are in `docs/codeharden-npm-release.md`; read it first. Two scripts do the work: `scripts/harden/release.sh` (version, changelog, commit, tag) and `scripts/harden/publish.sh` (build, pack, check, publish). Never call `npm publish` directly, and never edit `apps/cli/package.json` to rename the package: the rename happens in a staging copy at pack time.
+The steps for a person are in `docs/codeharden-npm-release.md`; read it first. The package name below is CodeHarden's; in a fork it is the repository variable `PACKAGE_NAME`, which the scripts read themselves (they refuse outside `harperaa/codeharden` until it is set). Two scripts do the work: `scripts/harden/release.sh` (version, changelog, commit, tag) and `scripts/harden/publish.sh` (build, pack, check, publish). Never call `npm publish` directly, and never edit `apps/cli/package.json` to rename the package: the rename happens in a staging copy at pack time.
 
 ## Rules
 
