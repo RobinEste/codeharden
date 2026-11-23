@@ -5,8 +5,9 @@
 #
 # Not checked: tags, deletions, and pushes to harden, main or mirror (the working branch receives
 # merges and release commits, which were checked on their branches; main and, in a fork of
-# CodeHarden, mirror are pure copies of upstream), branches that change documentation only, and
-# a branch that isn't the checked-out commit (its files aren't here to check; CI checks it).
+# CodeHarden, mirror are pure copies of upstream), sync branches (sync/...), branches that change
+# documentation only, and a branch that isn't the checked-out commit (its files aren't here to
+# check; CI checks it).
 # Git's own `--no-verify` skips the hook; say so in the pull request if you ever use it.
 set -euo pipefail
 
@@ -18,6 +19,10 @@ while read -r local_ref local_sha remote_ref _remote_sha; do
   [ "$local_sha" = "$zero" ] && continue
   case "$remote_ref" in
     refs/tags/* | refs/heads/harden | refs/heads/main | refs/heads/mirror) continue ;;
+    # A sync branch (upstream merged with harden) is pushed so that its pull request can be
+    # reviewed. CI runs every check on that pull request, the tests included: a failing check
+    # there is a finding for the review, not a reason to keep the branch off GitHub.
+    refs/heads/sync/*) continue ;;
   esac
   # Documentation only, compared with harden: nothing to check (CI skips these too).
   base=$(git merge-base "$local_sha" refs/remotes/origin/harden 2> /dev/null || true)
