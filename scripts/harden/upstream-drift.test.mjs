@@ -306,13 +306,14 @@ const CALL_SITES = [
   ["apps/server/src/routes/api.ts", "the versions the server reports", "HARDEN_VERSION", "UPSTREAM_VERSION"],
   ["apps/cli/src/args.ts", "the CLI's default port, home and command in the help", /DEFAULT_PORT = HARDEN_DEFAULT_PORT/, "HARDEN_HOME_DISPLAY", "HARDEN_COMMAND", "formatHardenVersion"],
   ["apps/cli/src/network-command.ts", "the network command's port comes from the CLI's default", /import \{ DEFAULT_PORT \} from "\.\/args"/],
-  ["apps/cli/src/launcher.ts", "the launcher's home, the installed package it may start and the commands it prints", /join\(homedir\(\), HARDEN_HOME_DIRNAME\)/, /pkg\.name !== HARDEN_PACKAGE_NAME/, "HARDEN_PACKAGE_SEGMENTS", "HARDEN_NPX_COMMAND", "HARDEN_UPDATE_COMMAND", "HARDEN_COMMAND"],
+  ["apps/cli/src/launcher.ts", "the launcher's home, the installed package it may start and the commands it prints", /join\(homedir\(\), HARDEN_HOME_DIRNAME\)/, /pkg\.name !== HARDEN_PACKAGE_NAME/, "HARDEN_PACKAGE_SEGMENTS", "HARDEN_NPX_COMMAND", "HARDEN_UPDATE_COMMAND", "HARDEN_COMMAND", /export \{ HARDEN_PRODUCT_NAME \};/, /`\$\{HARDEN_PRODUCT_NAME\} \$\{pinned\} in /],
   ["apps/cli/src/harden-home.ts", "the notice about the old home", "HARDEN_HOME_DIRNAME", "UPSTREAM_HOME_DIRNAME", "hardenHomeNotice"],
-  ["apps/cli/src/cli.ts", "the bare package version is printed for the updater's probe only", /CODEDEN_NO_SWITCH === "1"/],
+  ["apps/cli/src/cli.ts", "the bare package version is printed for the updater's probe only, and the warning about an installed version that didn't load names the product", /CODEDEN_NO_SWITCH === "1"/, /`\$\{HARDEN_PRODUCT_NAME\} \$\{decision\.version\} failed to load/],
   ["apps/cli/src/main.ts", "the version line of `--version`", "formatHardenVersion"],
   ["apps/cli/src/commands.ts", "the version line and command name in CLI output", "formatHardenVersion", "HARDEN_COMMAND"],
   ["apps/cli/src/doctor.ts", "the version line and update command in `doctor`", "formatHardenVersion", "HARDEN_UPDATE_COMMAND"],
-  ["apps/cli/src/update-command.ts", "the update command it prints", "HARDEN_UPDATE_COMMAND"],
+  ["apps/cli/src/update-command.ts", "the update command it prints, and the product's name in every message of the update command", "HARDEN_UPDATE_COMMAND", productNameOnlyByConstant],
+  ["apps/cli/src/restart.ts", "the product's name in the messages of the restart into an updated version", productNameOnlyByConstant],
   // --- the sandbox in Docker: one Docker is shared by every product on the machine
   ["apps/server/src/execution/docker/args.ts", "the sandbox image's name and the labels on images, containers and volumes", /`\$\{HARDEN_APP_SLUG\}-runner:\$\{version\}`/, /install: `\$\{HARDEN_APP_SLUG\}\.install`/, /build: `\$\{HARDEN_APP_SLUG\}\.build`/],
   ["apps/server/src/execution/docker/backend.ts", "the names of sandbox containers (and through them their volumes)", /`\$\{HARDEN_APP_SLUG\}-\$\{recordId\}`/],
@@ -320,8 +321,9 @@ const CALL_SITES = [
   ["apps/server/src/services/updates/app-dir.ts", "the package self-update installs and may run", /PACKAGE_NAME = HARDEN_PACKAGE_NAME/, /pkg\.name !== PACKAGE_NAME/],
   ["apps/server/src/services/updates/registry.ts", "the registry lookup and the release notes links", /registryPackagePath\(PACKAGE_NAME\)/, "hardenReleaseUrl", "hardenReleaseApiUrl", "hardenChangelogUrl", "hardenVersionOf"],
   ["apps/server/src/services/updates/installer.ts", "what npm is asked to install", /`\$\{PACKAGE_NAME\}@\$\{version\}`/],
-  ["apps/server/src/services/updates/desktop.ts", "where desktop installers are downloaded from", /DESKTOP_RELEASES_URL = hardenLatestReleaseUrl\(\)/],
-  ["apps/server/src/services/updates/service.ts", "the manual install command", "HARDEN_INSTALL_COMMAND"],
+  ["apps/server/src/services/updates/desktop.ts", "where desktop installers are downloaded from, and the product's name in the restart hint", /DESKTOP_RELEASES_URL = hardenLatestReleaseUrl\(\)/, productNameOnlyByConstant],
+  ["apps/server/src/services/updates/service.ts", "the manual install command, the product's name in the update messages, and what a source build compares the registry's version with", "HARDEN_INSTALL_COMMAND", productNameOnlyByConstant, /isNewerVersion\(this\.latest, hardenUpdateBaseline\(this\.host\.source, current, this\.latest\)\)/],
+  ["apps/server/src/services/updates/harden-baseline.ts", "a source build compares the registry's version with the CodeHarden version it was made from, not with upstream's package version", "hardenUpdateBaseline", "HARDEN_VERSION", "hardenNpmVersion", /source !== "source"/],
   // --- desktop app and its packaging
   ["apps/desktop/electron-builder.config.mjs", "the installer's app id, names, link scheme, update feed and app icon (the product's own, not upstream's build/icon.png)", /readHardenChannel\(\)/, /^ {2}appId,$/m, /^ {2}productName,$/m, /schemes: \[slug\]/, /owner: channel\.owner, repo: channel\.repo/, /executableName: productName/, /executableName: slug/, /shortcutName: productName/, /icon: "build\/harden\/icon\.icns"/, /icon: "build\/harden\/icon\.ico"/, /icon: "build\/harden\/icons"/],
   ["apps/desktop/scripts/package.mjs", "the staged app's name and version", /readHardenChannel\(\)/, /name: channel\.slug/, /productName: channel\.productName/, /npmVersion\(readHardenVersion\(\)\)/],
@@ -351,7 +353,10 @@ const CALL_SITES = [
   ["apps/web/src/components/shell/sidebar/sidebar.tsx", "the wordmark beside the logo in the sidebar", /<Wordmark className=/],
   ["apps/web/src/components/shell/sign-in.tsx", "the wordmark in the sign-in heading", /Sign in to <Wordmark \/>/],
   ["apps/web/src/routes/setup.tsx", "the wordmark in the first-run heading", /Welcome to <Wordmark \/>/],
-  ["apps/web/src/lib/api/updates-api.ts", "release links", "hardenReleaseUrl"],
+  ["apps/web/src/lib/api/updates-api.ts", "release links, and the product's name in the mock client's update message", "hardenReleaseUrl", productNameOnlyByConstant],
+  ["apps/web/src/components/shell/update-banner.tsx", "the product's name in the update banner, in each of its states", productNameOnlyByConstant, /\{HARDEN_PRODUCT_NAME\} \{view\.version\} is available\./, /\{HARDEN_PRODUCT_NAME\} updated to \{view\.version\}\./],
+  ["apps/web/src/components/shell/whats-new-dialog.tsx", "the product's name in the title of \"What's new\"", productNameOnlyByConstant, /What's new in \{HARDEN_PRODUCT_NAME\} \{version\}/],
+  ["apps/web/src/components/settings/update-mode.tsx", "the product's name in the help of the Updates setting", productNameOnlyByConstant],
   ["apps/web/src/lib/factory-guide.ts", "docs links", "hardenDocsUrl"],
   ["apps/web/src/routes/settings.tsx", "the version line in Settings, its name as the wordmark", "formatHardenVersion", /<WordmarkLine text=\{versionLine\} \/>/],
   // --- Secure Foundation: the add-project option, slotted into upstream's files
@@ -378,6 +383,18 @@ function bothDefinesInEveryBundle(code) {
 }
 bothDefinesInEveryBundle.say =
   "`...hardenVersionDefine()` and `...hardenChannelDefine()` in every `define` block (one per bundle)";
+
+/**
+ * True when the file names the product through `HARDEN_PRODUCT_NAME` and nowhere as the fixed
+ * text `CodeDen`. For the files whose every mention of the product is the thing being updated
+ * (the update banner, "What's new", the update command): a new message upstream adds there
+ * with its own name fails too.
+ */
+function productNameOnlyByConstant(code) {
+  return /(?<![\w$])HARDEN_PRODUCT_NAME(?![\w$])/.test(code) && !/\bCodeDen\b/.test(code);
+}
+productNameOnlyByConstant.say =
+  "the product's name read from `HARDEN_PRODUCT_NAME` in every message (and no fixed `CodeDen` in the file's code)";
 
 /** True when the window's and the notifications' icon are both the product's own. */
 function bothWindowIconsAreTheForks(code) {
@@ -618,6 +635,45 @@ describe("the fork's call sites are still there", () => {
     const identity = site("scripts/harden/web-identity.mjs");
     const noSwap = text(identity[0]).replaceAll("brandedHtml", "sameHtml");
     expect(callSiteProblem(identity, noSwap)).toMatch(/no longer has .*brandedHtml/);
+  });
+
+  it("fails when an update message names the product as the fixed CodeDen again", () => {
+    const site = (file) => CALL_SITES.find(([path]) => path === file);
+    const text = (file) => read(file) ?? "";
+    // The banner as upstream writes it: "CodeDen 1.2.3 is available."
+    const banner = site("apps/web/src/components/shell/update-banner.tsx");
+    expect(callSiteProblem(banner, text(banner[0]))).toBeNull();
+    const upstream = text(banner[0]).replace(
+      "{HARDEN_PRODUCT_NAME} {view.version} is available.",
+      "CodeDen {view.version} is available.",
+    );
+    expect(upstream).not.toBe(text(banner[0]));
+    expect(callSiteProblem(banner, upstream)).toMatch(
+      /update-banner\.tsx no longer has the product's name read from `HARDEN_PRODUCT_NAME`/,
+    );
+    // A new state upstream adds with its own name, the fork's lines untouched.
+    const added = `${text(banner[0])}\nconst later = <span>CodeDen is up to date.</span>;\n`;
+    expect(callSiteProblem(banner, added)).toMatch(/update-banner\.tsx no longer has/);
+    // A mention in a comment or in an identifier is not a message.
+    expect(
+      productNameOnlyByConstant(
+        "// CodeDen upstream\nconst a: CodeDenClient = HARDEN_PRODUCT_NAME;",
+      ),
+    ).toBe(false);
+    expect(productNameOnlyByConstant("const a: CodeDenClient = HARDEN_PRODUCT_NAME;")).toBe(true);
+    // The update command's messages and the server's.
+    const command = site("apps/cli/src/update-command.ts");
+    const fixed = text(command[0]).replace(/`Installing \S+ /, "`Installing CodeDen ");
+    expect(fixed).not.toBe(text(command[0]));
+    expect(callSiteProblem(command, fixed)).toMatch(/update-command\.ts no longer has/);
+    // A source build comparing with upstream's package version again.
+    const service = site("apps/server/src/services/updates/service.ts");
+    const compared = text(service[0]).replace(
+      "hardenUpdateBaseline(this.host.source, current, this.latest)",
+      "current",
+    );
+    expect(compared).not.toBe(text(service[0]));
+    expect(callSiteProblem(service, compared)).toMatch(/service\.ts no longer has/);
   });
 
   it("fails when the Secure Foundation option's slot disappears from the dialog", () => {

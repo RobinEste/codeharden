@@ -109,7 +109,7 @@ test("the update banner drives the desktop updater", async () => {
 
   await test.step("the release is offered on launch", async () => {
     await expect(banner).toHaveAttribute("data-state", "available");
-    await expect(banner).toContainText(`CodeDen ${NEXT} is available.`);
+    await expect(banner).toContainText(`CodeHarden ${NEXT} is available.`);
     await expect(banner.getByRole("button", { name: "Update now" })).toBeVisible();
     const status = await (await api("/api/updates")).json();
     expect(status).toMatchObject({ source: "desktop", latest: NEXT, canRollback: false });

@@ -65,7 +65,7 @@ describe("launcher (§16)", () => {
     const decision = decideLaunch({ ...missing, selfVersion: "0.2.0", env: {} });
     expect(decision.kind).toBe("self");
     expect(decision.kind === "self" && decision.warning).toMatch(
-      /CodeDen 0\.3\.0 .* can't start \(its package\.json is missing\); running 0\.2\.0/,
+      /CodeHarden 0\.3\.0 .* can't start \(its package\.json is missing\); running 0\.2\.0/,
     );
     const mislabelled = setup("0.3.0", ["0.3.0"]);
     writeFileSync(

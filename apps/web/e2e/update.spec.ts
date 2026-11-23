@@ -33,14 +33,14 @@ test("banner -> What's new -> Update now -> reconnects to the new version", asyn
   await test.step("the banner offers the newer version on open", async () => {
     await page.goto(env.launchUrl);
     await expect(banner).toHaveAttribute("data-state", "available");
-    await expect(banner).toContainText(`CodeDen ${NEXT_VERSION} is available.`);
+    await expect(banner).toContainText(`CodeHarden ${NEXT_VERSION} is available.`);
     await expect(banner).toContainText(`You're on ${env.current}.`);
   });
 
   await test.step("What's new shows the release notes", async () => {
     await banner.getByRole("button", { name: "What's new" }).click();
     const dialog = page.getByTestId("whats-new");
-    await expect(dialog).toContainText(`What's new in CodeDen ${NEXT_VERSION}`);
+    await expect(dialog).toContainText(`What's new in CodeHarden ${NEXT_VERSION}`);
     await expect(dialog).toContainText("One-click updates.");
     await page.keyboard.press("Escape");
   });
@@ -49,7 +49,7 @@ test("banner -> What's new -> Update now -> reconnects to the new version", asyn
     await banner.getByRole("button", { name: "Update now" }).click();
     await expect(banner).toHaveAttribute("data-state", /installing|restarting/);
     await expect(banner).toHaveAttribute("data-state", "updated", { timeout: 180_000 });
-    await expect(banner).toContainText(`CodeDen updated to ${NEXT_VERSION}.`);
+    await expect(banner).toContainText(`CodeHarden updated to ${NEXT_VERSION}.`);
     const health = await (await page.request.get(`${env.origin}/api/health`)).json();
     expect(health.version).toBe(NEXT_VERSION);
     await banner.getByRole("button", { name: "Dismiss" }).click();
