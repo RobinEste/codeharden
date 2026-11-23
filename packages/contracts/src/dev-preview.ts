@@ -199,6 +199,11 @@ export const DevPreviewState = z.object({
   projectId: Id,
   sessionId: Id.nullable(),
   status: DevPreviewStatus,
+  /**
+   * A person asked for it: a session's preview that was started and not switched off, or the
+   * PM thread's preview while it is on for the project. It can be on and stopped or failed.
+   */
+  enabled: z.boolean(),
   /** Set while `running`: a `http://localhost:<port>` link something answers on. */
   url: z.string().nullable(),
   /** The ports given to the dev command, in the order of the project's variables. */

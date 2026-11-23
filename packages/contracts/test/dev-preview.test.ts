@@ -100,6 +100,7 @@ describe("dev preview contracts", () => {
       projectId: "p1",
       sessionId: null,
       status: "running" as const,
+      enabled: true,
       url: "http://localhost:43100",
       ports: [43100, 43101],
       message: null,

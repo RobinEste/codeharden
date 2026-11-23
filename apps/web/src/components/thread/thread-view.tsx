@@ -4,6 +4,7 @@ import { Sparkles } from "lucide-react";
 import { useMemo } from "react";
 import { EmptyState } from "@/components/common/bits";
 import { SessionComposer } from "@/components/composer/composer";
+import { DevPreviewBar } from "@/components/harden/dev-preview/bar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useClient } from "@/lib/api";
 import { useEarlierTurns, useSessionLookup, useSnapshotData, useTranscript } from "@/lib/queries";
@@ -127,6 +128,7 @@ export function ThreadView({
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <ThreadHeader session={session} running={running} />
+      <DevPreviewBar session={session} />
       <McpNotice session={session} />
       {error ? (
         <EmptyState icon={<Sparkles />} title="Couldn't load this session" className="flex-1">

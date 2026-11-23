@@ -65,6 +65,7 @@ import type {
   UserInputInit,
 } from "@codeden/contracts";
 import type { AutomationsApi } from "./automations-api";
+import type { DevPreviewApi } from "./dev-preview-api";
 import type { FactoryApi } from "./factory-api";
 import type {
   AgentConfigApi,
@@ -278,6 +279,7 @@ export interface CodeDenClient {
   readonly updates: UpdatesApi;
   /** The "Secure Foundation" add-project option. */
   readonly secureFoundation: SecureFoundationApi;
+  readonly devPreview: DevPreviewApi;
   loginCommand(tool: LoginToolId): Promise<LoginCommandResponse>;
   /** Ask a provider for its models again (a model was released, the CLI was updated). */
   refreshModels(providerId: string): Promise<RefreshModelsResponse>;

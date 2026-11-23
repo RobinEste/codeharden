@@ -359,6 +359,10 @@ export class DevPreviewService {
     return {
       ...target,
       status,
+      enabled:
+        target.kind === "base"
+          ? this.deps.store.config(target.projectId)?.pmEnabled === true
+          : status !== "off",
       url: preview?.url ?? null,
       ports: preview?.active ? preview.ports : [],
       message: preview?.message ?? null,
