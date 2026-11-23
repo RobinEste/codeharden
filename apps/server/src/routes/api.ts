@@ -1,6 +1,7 @@
 import {
   type ActivitySummary,
   CODEDEN_VERSION,
+  HARDEN_VERSION,
   type HealthResponse,
   type InboxItem,
   type Session,
@@ -8,6 +9,7 @@ import {
   type SettingsPatch,
   type Snapshot,
   summarizeActivity,
+  UPSTREAM_VERSION,
 } from "@codeden/contracts";
 import { eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
@@ -66,6 +68,8 @@ export function createApi(ctx: ApiContext) {
           ok: true,
           name: "codeden",
           version: CODEDEN_VERSION,
+          hardenVersion: HARDEN_VERSION,
+          upstreamVersion: UPSTREAM_VERSION,
           uptimeSec: (Date.now() - ctx.startedAt) / 1000,
         };
         return c.json(body);
@@ -144,6 +148,8 @@ function buildSnapshot(ctx: ApiContext): Snapshot {
   return {
     seq,
     serverVersion: CODEDEN_VERSION,
+    hardenVersion: HARDEN_VERSION,
+    upstreamVersion: UPSTREAM_VERSION,
     generatedAt: new Date().toISOString(),
     settings: s.settings.get(),
     projects: s.projects.list(),
