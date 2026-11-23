@@ -2,6 +2,8 @@
 
 ## 2026.1123.1237 — 2026-11-23 12:37
 
+Superseded by the next release; not published.
+
 ### upstream (leonvanzyl/codeden)
 - chore(release): 0.7.9
 - fix(providers): classify credential reads through interpreters, package-manager tools and more wrappers (#642)
