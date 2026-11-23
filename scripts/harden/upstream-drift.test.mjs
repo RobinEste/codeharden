@@ -288,7 +288,9 @@ const CALL_SITES = [
   // --- the channel itself
   ["packages/contracts/src/harden-channel.ts", "the one module that names the package, repository and identity", "HARDEN_PACKAGE_NAME", "HARDEN_REPOSITORY", "HARDEN_PRODUCT_NAME", "HARDEN_APP_ID", "HARDEN_HOME_DIRNAME", "HARDEN_PROJECTS_DIRNAME", "HARDEN_KEYCHAIN_SERVICE", "HARDEN_DEEP_LINK_SCHEME", "HARDEN_DEFAULT_PORT", "__CODEHARDEN_PACKAGE__", "__CODEHARDEN_SLUG__", "__CODEHARDEN_PORT__"],
   ["packages/contracts/src/harden-version.ts", "the version line every display uses", "formatHardenVersion", "HARDEN_VERSION", "UPSTREAM_VERSION", "__CODEHARDEN_VERSION__"],
-  ["packages/contracts/src/index.ts", "exports the channel and the version module", /export \* from "\.\/harden-channel"/, /export \* from "\.\/harden-version"/],
+  ["packages/contracts/src/index.ts", "exports the channel, the version and the brand modules", /export \* from "\.\/harden-channel"/, /export \* from "\.\/harden-version"/, /export \* from "\.\/harden-brand"/, /export \* from "\.\/harden-mark"/],
+  ["packages/contracts/src/harden-brand.ts", "the wordmark's two parts and the paths of the product's own web icons", "hardenWordmark", "hardenWordmarkHtml", "HARDEN_WEB_ICONS", "HARDEN_PUBLIC_ICON_PATHS", "HARDEN_FAVICON_PATH"],
+  ["packages/contracts/src/harden-mark.ts", "the mark's shapes and the brand's colours, written by scripts/harden/brand/make.mjs", "HARDEN_MARK", "HARDEN_BRAND_RED", "HARDEN_BRAND_RED_ON_DARK", "HARDEN_BRAND_WHITE"],
   ["packages/contracts/package.json", "lets the CLI launcher load the channel alone", /"\.\/harden-channel": "\.\/src\/harden-channel\.ts"/],
   ["packages/contracts/src/desktop.ts", "the link scheme the desktop app registers", /DEEP_LINK_SCHEME = HARDEN_DEEP_LINK_SCHEME/],
   ["packages/contracts/src/ws.ts", "the two versions in the health answer and the snapshot", "hardenVersion", "upstreamVersion"],
@@ -300,7 +302,7 @@ const CALL_SITES = [
   ["apps/server/src/paths.ts", "the default home folder", /join\(homedir\(\), HARDEN_HOME_DIRNAME\)/],
   ["apps/server/src/services/container.ts", "the default folder for clones", /join\(userHome, HARDEN_PROJECTS_DIRNAME\)/],
   ["apps/server/src/services/secrets.ts", "the keychain service secrets are kept under", /service = HARDEN_KEYCHAIN_SERVICE/],
-  ["apps/server/src/security.ts", "the command the locked page tells people to run, and that page's title", "HARDEN_NPX_COMMAND", /<title>\$\{HARDEN_PRODUCT_NAME\}<\/title>/],
+  ["apps/server/src/security.ts", "the command the locked page tells people to run, that page's title and wordmark, and the product's icons a browser may fetch without a cookie", "HARDEN_NPX_COMMAND", /<title>\$\{HARDEN_PRODUCT_NAME\}<\/title>/, /<h1>\$\{hardenWordmarkHtml\("dark"\)\} is locked<\/h1>/, /\.\.\.HARDEN_PUBLIC_ICON_PATHS,/],
   ["apps/server/src/routes/api.ts", "the versions the server reports", "HARDEN_VERSION", "UPSTREAM_VERSION"],
   ["apps/cli/src/args.ts", "the CLI's default port, home and command in the help", /DEFAULT_PORT = HARDEN_DEFAULT_PORT/, "HARDEN_HOME_DISPLAY", "HARDEN_COMMAND", "formatHardenVersion"],
   ["apps/cli/src/network-command.ts", "the network command's port comes from the CLI's default", /import \{ DEFAULT_PORT \} from "\.\/args"/],
@@ -321,29 +323,37 @@ const CALL_SITES = [
   ["apps/server/src/services/updates/desktop.ts", "where desktop installers are downloaded from", /DESKTOP_RELEASES_URL = hardenLatestReleaseUrl\(\)/],
   ["apps/server/src/services/updates/service.ts", "the manual install command", "HARDEN_INSTALL_COMMAND"],
   // --- desktop app and its packaging
-  ["apps/desktop/electron-builder.config.mjs", "the installer's app id, names, link scheme and update feed", /readHardenChannel\(\)/, /^ {2}appId,$/m, /^ {2}productName,$/m, /schemes: \[slug\]/, /owner: channel\.owner, repo: channel\.repo/, /executableName: productName/, /executableName: slug/, /shortcutName: productName/],
+  ["apps/desktop/electron-builder.config.mjs", "the installer's app id, names, link scheme, update feed and app icon (the product's own, not upstream's build/icon.png)", /readHardenChannel\(\)/, /^ {2}appId,$/m, /^ {2}productName,$/m, /schemes: \[slug\]/, /owner: channel\.owner, repo: channel\.repo/, /executableName: productName/, /executableName: slug/, /shortcutName: productName/, /icon: "build\/harden\/icon\.icns"/, /icon: "build\/harden\/icon\.ico"/, /icon: "build\/harden\/icons"/],
   ["apps/desktop/scripts/package.mjs", "the staged app's name and version", /readHardenChannel\(\)/, /name: channel\.slug/, /productName: channel\.productName/, /npmVersion\(readHardenVersion\(\)\)/],
   ["apps/desktop/scripts/check-mac-signature.sh", "finds the app by its own name", "app_in", "CFBundleExecutable"],
   ["apps/desktop/src/main/args.ts", "the desktop app's default port and home", /DEFAULT_PORT = HARDEN_DEFAULT_PORT/, /join\(home, HARDEN_HOME_DIRNAME\)/],
   ["apps/desktop/src/main/main.ts", "the app's name, About panel and Windows app id", /app\.setName\(HARDEN_PRODUCT_NAME\)/, /setAppUserModelId\(HARDEN_APP_ID\)/, "hardenAboutPanel"],
   ["apps/desktop/src/main/harden-display.ts", "the window title (the page name it replaces is the product name) and About panel", "hardenWindowTitle", "hardenAboutPanel", /PAGE_NAME = HARDEN_PRODUCT_NAME/],
   ["apps/desktop/src/main/window.ts", "the window title", "hardenWindowTitle"],
-  ["apps/desktop/src/main/desktop-app.ts", "the app's name, version line and docs links", "HARDEN_PRODUCT_NAME", "formatHardenVersion", "hardenDocsUrl", "hardenVersionOf"],
+  ["apps/desktop/src/main/desktop-app.ts", "the app's name, version line and docs links, and its own tray, menu-bar and window icons", "HARDEN_PRODUCT_NAME", "formatHardenVersion", "hardenDocsUrl", "hardenVersionOf", /"harden\/trayTemplate\.png" : "harden\/tray\.png"/, bothWindowIconsAreTheForks],
   ["apps/desktop/src/main/menu.ts", "the app's name in the menu", "HARDEN_PRODUCT_NAME"],
   ["apps/desktop/src/main/tray.ts", "the app's name in the tray", "HARDEN_PRODUCT_NAME"],
   ["apps/desktop/src/main/tray-view.ts", "the app's name and version in the tray menu", "HARDEN_PRODUCT_NAME", "hardenVersionOf"],
   ["apps/desktop/src/server/serve.ts", "the name and version line of the server the app hosts", "HARDEN_PRODUCT_NAME", "formatHardenVersion"],
   // --- web UI
-  ["scripts/harden/web-identity.mjs", "the build step that names the page and the web manifest after the product", /readHardenChannel\(env, options\)/, "productName", "titledHtml", "namedManifest"],
-  ["apps/web/index.html", "the places the build puts the product name in (the page title, the home-screen title)", /<title>[^<]+<\/title>/, /name="apple-mobile-web-app-title" content="/, /rel="manifest" href="\/manifest\.webmanifest"/],
-  ["apps/web/public/manifest.webmanifest", "the installed web app's name, which the build replaces with the product name; a build does not fail when this file is gone", /"name": "/, /"short_name": "/],
+  ["scripts/harden/web-identity.mjs", "the build step that names the page and the web manifest after the product and points them at its icons", /readHardenChannel\(env, options\)/, "productName", "titledHtml", "namedManifest", "brandedHtml", "brandedManifest", "HARDEN_ICONS"],
+  ["apps/web/index.html", "the places the build puts the product name in (the page title, the home-screen title) and the icon links it points at the product's icons", /<title>[^<]+<\/title>/, /name="apple-mobile-web-app-title" content="/, /rel="manifest" href="\/manifest\.webmanifest"/, /<link rel="icon"[^>]* href="/, /<link rel="apple-touch-icon" href="/],
+  ["apps/web/public/manifest.webmanifest", "the installed web app's name and icons, which the build replaces with the product's; a build does not fail when this file is gone", /"name": "/, /"short_name": "/, /"icons": \[/],
   ["apps/web/src/lib/attention/title.ts", "the tab title, bare, counted and waiting", /APP_TITLE = HARDEN_PRODUCT_NAME/, /Waiting on you · \$\{APP_TITLE\}/],
-  ["apps/web/src/lib/platform.ts", "the tab title the badge falls back to", /document\.title : HARDEN_PRODUCT_NAME/],
-  ["apps/server/src/routes/static.ts", "the title of the page served when the web UI is not built", /<title>\$\{HARDEN_PRODUCT_NAME\}<\/title>/],
-  ["apps/web/src/components/shell/unauthorized.tsx", "the command the locked page tells people to run", "HARDEN_NPX_COMMAND"],
+  ["apps/web/src/lib/platform.ts", "the tab title the badge falls back to, and the icon of browser notifications", /document\.title : HARDEN_PRODUCT_NAME/, /icon: HARDEN_FAVICON_PATH/],
+  ["apps/server/src/routes/static.ts", "the title of the page served when the web UI is not built", /<title>\$\{HARDEN_PRODUCT_NAME\}<\/title>/, /hardenWordmarkHtml\("light"\)/],
+  ["apps/web/src/components/shell/unauthorized.tsx", "the command the locked page tells people to run, and the wordmark in its heading", "HARDEN_NPX_COMMAND", /<Wordmark \/>/],
+  // --- the logo and the wordmark
+  ["apps/web/src/components/shell/logo.tsx", "the logo: the product's mark (a shield), not upstream's", "HARDEN_MARK", "HARDEN_BRAND_RED", "HARDEN_BRAND_WHITE"],
+  ["apps/web/src/components/shell/wordmark.tsx", "the product name as the brand, in two colours", "hardenWordmark", /text-brand-text/],
+  ["apps/web/src/index.css", "the brand's colour tokens (written by scripts/harden/brand/make.mjs)", /@import "\.\/harden-brand\.css";/],
+  ["apps/web/src/harden-brand.css", "the brand's colour tokens for both themes", /--color-brand-text: var\(--brand-text\)/, /--brand: #[0-9a-f]{6};/, /\.dark \{\n {2}--brand-text: #[0-9a-f]{6};/],
+  ["apps/web/src/components/shell/sidebar/sidebar.tsx", "the wordmark beside the logo in the sidebar", /<Wordmark className=/],
+  ["apps/web/src/components/shell/sign-in.tsx", "the wordmark in the sign-in heading", /Sign in to <Wordmark \/>/],
+  ["apps/web/src/routes/setup.tsx", "the wordmark in the first-run heading", /Welcome to <Wordmark \/>/],
   ["apps/web/src/lib/api/updates-api.ts", "release links", "hardenReleaseUrl"],
   ["apps/web/src/lib/factory-guide.ts", "docs links", "hardenDocsUrl"],
-  ["apps/web/src/routes/settings.tsx", "the version line in Settings", "formatHardenVersion"],
+  ["apps/web/src/routes/settings.tsx", "the version line in Settings, its name as the wordmark", "formatHardenVersion", /<WordmarkLine text=\{versionLine\} \/>/],
 ];
 
 /** True when every `define` block of a bundler config spreads the version and the channel. */
@@ -358,6 +368,16 @@ function bothDefinesInEveryBundle(code) {
 }
 bothDefinesInEveryBundle.say =
   "`...hardenVersionDefine()` and `...hardenChannelDefine()` in every `define` block (one per bundle)";
+
+/** True when the window's and the notifications' icon are both the product's own. */
+function bothWindowIconsAreTheForks(code) {
+  return (
+    code.match(/icon: this\.asset\("harden\/icon\.png"\)/g)?.length === 2 &&
+    !/this\.asset\("icon\.png"\)/.test(code)
+  );
+}
+bothWindowIconsAreTheForks.say =
+  '`icon: this.asset("harden/icon.png")` for the window and for notifications (and no `this.asset("icon.png")`, upstream\'s icon)';
 
 /** A needed name or pattern as a reader would look for it in the file. */
 const say = (need) =>
@@ -553,5 +573,40 @@ describe("the fork's call sites are still there", () => {
     expect(callSiteProblem(config, upstreamConfig)).toMatch(
       /electron-builder\.config\.mjs no longer has/,
     );
+  });
+
+  it("fails when the logo or an icon goes back to upstream's", () => {
+    const site = (file) => CALL_SITES.find(([path]) => path === file);
+    const text = (file) => read(file) ?? "";
+    // Upstream's logo component: its own path, drawn in the theme's accent.
+    const logo = site("apps/web/src/components/shell/logo.tsx");
+    expect(callSiteProblem(logo, text(logo[0]))).toBeNull();
+    expect(
+      callSiteProblem(
+        logo,
+        'const MARK_PATH = "M15.04 5.78L10.7 5.78Z";\nexport function Logo() {\n  return <path d={MARK_PATH} className="fill-primary" />;\n}\n',
+      ),
+    ).toMatch(/logo\.tsx no longer has HARDEN_MARK/);
+    // The name beside it as plain text again.
+    const sidebar = site("apps/web/src/components/shell/sidebar/sidebar.tsx");
+    const plain = text(sidebar[0]).replace(/<Wordmark className=[^>]*\/>/, "<span>CodeDen</span>");
+    expect(callSiteProblem(sidebar, plain)).toMatch(/sidebar\.tsx no longer has/);
+    // The packaged app without its own icon falls back to upstream's build/icon.png.
+    const config = site("apps/desktop/electron-builder.config.mjs");
+    const noIcon = text(config[0]).replace('    icon: "build/harden/icon.icns",\n', "");
+    expect(callSiteProblem(config, noIcon)).toMatch(/no longer has .*icon\.icns/);
+    // One of the two window icons, and the tray, back on upstream's files.
+    const app = site("apps/desktop/src/main/desktop-app.ts");
+    const oneBack = text(app[0]).replace('this.asset("harden/icon.png")', 'this.asset("icon.png")');
+    expect(callSiteProblem(app, oneBack)).toMatch(/for the window and for notifications/);
+    const tray = text(app[0]).replace(
+      '"harden/trayTemplate.png" : "harden/tray.png"',
+      '"trayTemplate.png" : "tray.png"',
+    );
+    expect(callSiteProblem(app, tray)).toMatch(/desktop-app\.ts no longer has/);
+    // The build step that swaps the page's and the manifest's icons.
+    const identity = site("scripts/harden/web-identity.mjs");
+    const noSwap = text(identity[0]).replaceAll("brandedHtml", "sameHtml");
+    expect(callSiteProblem(identity, noSwap)).toMatch(/no longer has .*brandedHtml/);
   });
 });

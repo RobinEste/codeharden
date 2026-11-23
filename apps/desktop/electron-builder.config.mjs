@@ -114,6 +114,7 @@ export default {
   win: {
     target: [{ target: "nsis", arch: ["x64"] }],
     executableName: productName,
+    icon: "build/harden/icon.ico",
   },
   nsis: {
     // Per-user install: no admin prompt, installs to %LOCALAPPDATA%\Programs\<name>.
@@ -132,6 +133,7 @@ export default {
       { target: "zip", arch: ["arm64", "x64"] },
     ],
     category: "public.app-category.developer-tools",
+    icon: "build/harden/icon.icns",
     hardenedRuntime: true,
     entitlements: "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.plist",
@@ -147,6 +149,7 @@ export default {
   linux: {
     target: ["AppImage", "deb"],
     category: "Development",
+    icon: "build/harden/icons",
     executableName: slug,
     synopsis: "A local-first harness for coding agents",
     maintainer: "Leon van Zyl",

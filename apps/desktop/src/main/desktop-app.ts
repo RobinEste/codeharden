@@ -102,7 +102,7 @@ export class DesktopApp {
 
     Menu.setApplicationMenu(Menu.buildFromTemplate(this.menu()));
     this.tray = new AppTray(
-      this.asset(process.platform === "darwin" ? "trayTemplate.png" : "tray.png"),
+      this.asset(process.platform === "darwin" ? "harden/trayTemplate.png" : "harden/tray.png"),
       {
         open: () => this.show(),
         openInbox: () => this.navigate("/inbox"),
@@ -112,7 +112,7 @@ export class DesktopApp {
     );
     this.window = new MainWindow({
       preload: join(this.dist, "preload.cjs"),
-      icon: this.asset("icon.png"),
+      icon: this.asset("harden/icon.png"),
       stateFile: join(homeFiles(this.args.home).desktop, "window-state.json"),
       show: !this.args.hidden && !openedAtLogin(),
       hideOnClose: () => this.status.settings?.desktop.closeToTray ?? true,
@@ -126,7 +126,7 @@ export class DesktopApp {
       window: () => this.window.window,
       showWindow: () => this.show(),
       setBadge: (count) => this.badge.set(count),
-      icon: this.asset("icon.png"),
+      icon: this.asset("harden/icon.png"),
       log: this.log,
       browser: this.browser.browsers,
     });

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { HARDEN_PRODUCT_NAME } from "@codeden/contracts";
+import { HARDEN_PRODUCT_NAME, hardenWordmarkHtml } from "@codeden/contracts";
 import { serveStatic } from "@hono/node-server/serve-static";
 import type { Hono } from "hono";
 
@@ -27,7 +27,7 @@ export function mountWeb(app: Hono, webDir: string | undefined): void {
   });
 }
 
-const NOT_BUILT = `<!doctype html><title>${HARDEN_PRODUCT_NAME}</title><p>The web UI is not built. Run <code>pnpm dev</code> or <code>pnpm build</code>.</p>`;
+const NOT_BUILT = `<!doctype html><title>${HARDEN_PRODUCT_NAME}</title><h1>${hardenWordmarkHtml("light")}</h1><p>The web UI is not built. Run <code>pnpm dev</code> or <code>pnpm build</code>.</p>`;
 
 /**
  * Reads `index.html` again whenever it changes on disk (a rebuild while the server runs points

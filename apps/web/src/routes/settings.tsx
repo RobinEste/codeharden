@@ -34,6 +34,7 @@ import { SettingsSection } from "@/components/settings/settings-ui";
 import { UpdateCheck } from "@/components/settings/update-check";
 import { Logo } from "@/components/shell/logo";
 import { ShortcutList } from "@/components/shell/shortcuts";
+import { WordmarkLine } from "@/components/shell/wordmark";
 import { isMockMode } from "@/lib/api";
 import { platform } from "@/lib/platform";
 import { useSnapshot } from "@/lib/queries";
@@ -51,7 +52,7 @@ function About() {
           <Logo className="size-10 @[30rem]:size-12" />
           <div className="min-w-0">
             <div className="text-[15px] font-semibold" data-testid="version-line">
-              {versionLine}
+              <WordmarkLine text={versionLine} />
             </div>
             <p className="mt-0.5 text-[13px] text-muted-foreground">
               A local-first harness for coding agents. Open source under the MIT license. No
