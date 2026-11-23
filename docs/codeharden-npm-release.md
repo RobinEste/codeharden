@@ -66,5 +66,6 @@ The package is `codeharden`. The repository's `apps/cli/package.json` keeps upst
 
 - **A version can't be published twice**, and npm restricts unpublishing after 72 hours. If a release is wrong, publish a newer one and mark the bad one: `npm deprecate codeharden@<version> "<reason>"`.
 - **The registry is always named** (`https://registry.npmjs.org`), so an npm config pointing elsewhere can't redirect a publish. `--registry` exists for tests.
-- **Nothing is published from CI.** The Release workflow stays disabled, no npm token is stored anywhere, and there is no Trusted Publishing or provenance: every publish is you, signed in, at your machine.
+- **Desktop installers** are a separate, manual step on GitHub: [Publishing CodeHarden's desktop installers](codeharden-desktop-release.md).
+- **Nothing is published to npm from CI.** The Release workflow stays disabled, no npm token is stored anywhere, and there is no Trusted Publishing or provenance: every publish is you, signed in, at your machine.
 - **A fork's own package:** in a fork of CodeHarden the package is the fork's `PACKAGE_NAME` repository variable, the links point at the fork's own repository (the `origin` remote) and its working branch; `publish.sh` reads them with `gh`, or from the environment (`PACKAGE_NAME`, `RELEASE_REPOSITORY`, `HARDEN_BRANCH`). Outside `harperaa/codeharden` there is no default package name: packing refuses until `PACKAGE_NAME` is set. Setting a fork up: [Make your own hardened fork](../README.md#make-your-own-hardened-fork).

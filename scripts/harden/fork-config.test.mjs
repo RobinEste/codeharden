@@ -177,7 +177,7 @@ describe("the fork's configuration", () => {
       );
     }
     expect(workflow).toContain("needs.config.result == 'success'");
-    expect(workflow).toMatch(/^ {2}PROTECTED_PATHS: scripts\/harden\/$/m);
+    expect(workflow).toMatch(/^ {2}PROTECTED_PATHS: scripts\/harden\/(?: \S+)*$/m);
   });
 });
 

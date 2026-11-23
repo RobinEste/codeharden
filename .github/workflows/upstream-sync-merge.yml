@@ -41,7 +41,7 @@ name: Upstream sync merge
 #      bring upstream code plus the reviewer's conflict-resolution merge; a label alone can't
 #      get an arbitrary branch merged.
 #   6. Its changes against harden touch none of the paths in PROTECTED_PATHS (this fork's own
-#      release scripts). One that does gets the label `sync-needs-review` and is left for a
+#      release scripts, and what builds the desktop installers). One that does gets the label `sync-needs-review` and is left for a
 #      manual merge.
 #   7. Every check on the head commit has finished and passed (at least one check must
 #      exist), and GitHub reports the pull request as mergeable.
@@ -108,7 +108,7 @@ env:
   RELEASE_SCRIPT: scripts/harden/release.sh
   FORK_CONFIG_SCRIPT: scripts/harden/fork-config.sh
   # Paths a sync pull request may not change and still merge by itself (space separated).
-  PROTECTED_PATHS: scripts/harden/
+  PROTECTED_PATHS: scripts/harden/ .github/workflows/harden-desktop.yml apps/desktop/scripts/ apps/desktop/electron-builder.config.mjs
   REVIEW_LABEL: sync-needs-review
   RELEASE_TZ: America/New_York
 
