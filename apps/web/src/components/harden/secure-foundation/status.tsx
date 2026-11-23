@@ -46,7 +46,7 @@ const HINT: Partial<Record<SecureFoundationPhase, string>> = {
  * it says that automatic work is off and opens the autonomy dialog to turn it on. The snapshot
  * drops a setup session some time after it is archived; the server still keeps such a project
  * quiet, so a project in the quiet mode without a setup session here is asked about, and the
- * notice stays. Renders nothing for any other project.
+ * notice stays, with the way to the dev preview's settings. Renders nothing for any other project.
  */
 export function SecureFoundationStatus({ projectId }: { projectId: string }) {
   const client = useClient();
@@ -83,6 +83,8 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
           <span className="font-medium">Secure Foundation setup</span>
         </div>
         <QuietNotice project={project} />
+        {/* The setup session is gone, so the setup is over: the way to the dev preview stays. */}
+        <SecureFoundationDevPreviewLink projectId={projectId} />
       </section>
     );
   }

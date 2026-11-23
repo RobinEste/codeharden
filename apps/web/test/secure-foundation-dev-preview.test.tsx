@@ -218,13 +218,18 @@ describe("the dev preview settings of a Secure Foundation project", () => {
 });
 
 describe("the Secure Foundation card", () => {
-  async function card(offer: SecureFoundationDevPreview, config: DevPreviewConfig | null = null) {
+  /** Without `setup` the setup session has left the snapshot (it was archived long ago). */
+  async function card(
+    offer: SecureFoundationDevPreview,
+    config: DevPreviewConfig | null = null,
+    setup = true,
+  ) {
     const client = clientWith(offer, {
       project: async () => view({ config }),
       confirmProject: vi.fn(async () => view()),
     });
     const snapshot = await client.getSnapshot();
-    const first = snapshot.projects[0] as Project;
+    const first = { ...(snapshot.projects[0] as Project), autonomyMode: "manual" } as Project;
     const session = {
       ...(snapshot.sessions[0] as Session),
       id: "s-setup",
@@ -234,10 +239,14 @@ describe("the Secure Foundation card", () => {
       progress: { text: "Secure Foundation: running at http://localhost:3000", at: "" },
       archivedAt: null,
     } as Session;
-    const world: Snapshot = { ...snapshot, projects: [first], sessions: [session] };
+    const world: Snapshot = { ...snapshot, projects: [first], sessions: setup ? [session] : [] };
     renderWithClient(
       <SecureFoundationStatus projectId={first.id} />,
-      { ...client, getSnapshot: async () => world },
+      {
+        ...client,
+        getSnapshot: async () => world,
+        secureFoundation: { ...client.secureFoundation, quiet: async () => ({ quiet: true }) },
+      },
       { withRouter: true },
     );
     return { client, section: await screen.findByTestId("secure-foundation-status") };
@@ -262,6 +271,18 @@ describe("the Secure Foundation card", () => {
     const { section } = await card(withDoppler, stored);
     const link = await within(section).findByTestId("secure-foundation-dev-preview-link");
     expect(link.textContent).toBe("Dev preview settings");
+  });
+
+  it("keeps the way to the settings after the setup session has left the snapshot", async () => {
+    const { section } = await card(withDoppler, null, false);
+    // The card of a quiet project without its setup session: the notice, and the link.
+    await within(section).findByTestId("secure-foundation-quiet");
+    const link = await within(section).findByTestId("secure-foundation-dev-preview-link");
+    expect(link.textContent).toBe("Set up the dev preview");
+    expect(link.getAttribute("href")).toContain("#dev-preview");
+    expect(within(section).getByTestId("secure-foundation-convex").textContent).toContain(
+      "npm run convex:doppler",
+    );
   });
 
   it("shows nothing about a dev preview where none is offered", async () => {
