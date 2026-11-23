@@ -126,8 +126,10 @@ export function createApi(ctx: ApiContext) {
         }
         s.store.append([{ type: "settings.updated", sessionId: null, payload: { settings } }]);
         if (patch.imageGeneration) s.images.invalidate();
-        // A role moved to another provider gets a fresh session there (§8.1).
-        if (patch.providers) await s.orchestration.roles.applyProviderSettings(before);
+        // A role moved to another provider gets a fresh session there (§8.1). Stopping the old
+        // one can take the runner a while, so the response doesn't wait for it; failures are
+        // logged by the role sessions.
+        if (patch.providers) void s.orchestration.roles.applyProviderSettings(before);
         return c.json(settings);
       })
       .post("/shutdown", async (c) => {
