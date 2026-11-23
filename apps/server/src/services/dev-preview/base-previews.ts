@@ -1,10 +1,5 @@
 import { join } from "node:path";
-import {
-  type DevPreviewBase,
-  type DevPreviewSettings,
-  devPreviewBaseKey,
-  type Project,
-} from "@codeden/contracts";
+import { type DevPreviewBase, devPreviewBaseKey, type Project } from "@codeden/contracts";
 import { ServiceError } from "../errors";
 import type { Exec } from "../exec";
 import { removeBaseCheckout, syncBaseCheckout } from "./base-checkout";
@@ -22,7 +17,7 @@ export interface BasePreviewsDeps {
   preview: (target: PreviewTarget) => Preview;
   existing: (key: string) => Preview | undefined;
   /** Make room, take ports and start (the service's own start path). */
-  begin: (preview: Preview, settings: DevPreviewSettings, byPerson: boolean) => Promise<void>;
+  begin: (preview: Preview, byPerson: boolean) => Promise<void>;
   prepared: PreparedStore;
   now: () => number;
   /** The least time between two looks at a project's base branch. */
@@ -107,6 +102,7 @@ export class BasePreviews {
   /** The project's preview was removed: take its checkout away when git lets it go. */
   async forget(project: Project): Promise<void> {
     await this.busy.get(project.id)?.catch(() => {});
+    await this.deps.existing(devPreviewBaseKey(project.id))?.stop("off");
     this.infos.delete(project.id);
     this.checked.delete(project.id);
     const path = this.path(project);
@@ -154,7 +150,7 @@ export class BasePreviews {
       return;
     }
     try {
-      await this.deps.begin(preview, settings, byPerson);
+      await this.deps.begin(preview, byPerson);
     } catch (error) {
       if (byPerson || !(error instanceof ServiceError)) throw error;
       await preview.stop("stopped", error.message);

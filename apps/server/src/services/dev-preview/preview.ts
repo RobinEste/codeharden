@@ -5,6 +5,7 @@ import {
   type DevPreviewStatus,
   expandDevPreviewCommand,
   previewUrlInLine,
+  stripTerminalCodes,
 } from "@codeden/contracts";
 import type { RunningRegistry } from "./leftovers";
 import type { PreparedStore } from "./lockfile";
@@ -168,7 +169,13 @@ export class Preview {
   }
 
   private env(): NodeJS.ProcessEnv {
-    const extra: Record<string, string> = { HOST: "127.0.0.1", BROWSER: "none" };
+    // Loopback as the host to bind, no browser window of the dev server's own, plain output.
+    const extra: Record<string, string> = {
+      HOST: "127.0.0.1",
+      BROWSER: "none",
+      NO_COLOR: "1",
+      FORCE_COLOR: "0",
+    };
     (this.settings?.portVars ?? []).forEach((name, i) => {
       const port = this.ports[i];
       if (port !== undefined) extra[name] = String(port);
@@ -248,7 +255,7 @@ export class Preview {
   }
 
   private push(line: string): void {
-    this.lines.push(line.slice(0, 4000));
+    this.lines.push(stripTerminalCodes(line).slice(0, 4000));
     if (this.lines.length > DEV_PREVIEW_LOG_LINES) {
       this.lines.splice(0, this.lines.length - DEV_PREVIEW_LOG_LINES);
     }

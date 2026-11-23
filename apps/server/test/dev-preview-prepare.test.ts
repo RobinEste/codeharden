@@ -112,3 +112,45 @@ describe("the prepare command", () => {
     expect(env.service.sessionState("s1", false).status).toBe("off");
   });
 });
+
+describe("what is run is what is confirmed now", () => {
+  it("a start already under way when the command changed never runs the old command", async () => {
+    await env.service.setProject("app", SETTINGS);
+    env.addSession("s1", "app");
+    const starting = env.service.startSession("s1").catch(() => null);
+    const changing = env.service.setProject("app", { ...SETTINGS, command: "new-dev" });
+    await Promise.all([starting, changing]);
+    expect(env.procs.map((p) => p.spec.command)).not.toContain("run-dev");
+    // And a start under way when the preview was removed runs nothing at all.
+    await env.service.stopAll();
+    const before = env.procs.length;
+    const again = env.service.startSession("s1").catch(() => null);
+    const removing = env.service.removeProject("app");
+    await Promise.all([again, removing]);
+    await env.service.tick();
+    expect(env.running()).toHaveLength(0);
+    expect(env.procs.slice(before).every((p) => p.stopped)).toBe(true);
+  });
+
+  it("keeps the log readable: no colour codes, and only the last lines", async () => {
+    await env.service.setProject("app", SETTINGS);
+    env.addSession("s1", "app");
+    await env.service.startSession("s1");
+    env.procs[0]?.print("\u001b[32m  ready\u001b[0m in 80 ms\npart");
+    env.procs[0]?.print("ial line\n");
+    for (let i = 0; i < 2100; i++) env.procs[0]?.print(`line ${i}\n`);
+    const { lines } = env.service.log("session:s1");
+    expect(lines).toHaveLength(2000);
+    expect(lines.at(-1)).toBe("line 2099");
+    await env.service.stopSession("s1");
+    await env.service.startSession("s1");
+    env.procs[1]?.print("\u001b[32m  ready\u001b[0m in 80 ms\npart");
+    env.procs[1]?.print("ial line\n");
+    expect(env.service.log("session:s1").lines).toEqual([
+      "$ run-dev",
+      "  ready in 80 ms",
+      "partial line",
+    ]);
+    expect(env.procs[1]?.spec.env).toMatchObject({ NO_COLOR: "1", BROWSER: "none" });
+  });
+});

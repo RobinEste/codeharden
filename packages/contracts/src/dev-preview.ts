@@ -291,12 +291,17 @@ export function localPreviewUrl(text: string): { url: string; port: number } | n
 const ANSI = /\u001b\[[0-9;?]*[ -/]*[@-~]/g;
 const ANY_LOCAL_URL = /https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\]):\d{1,5}[^\s"'<>)\]]*/;
 
+/** A line of output without terminal colour and cursor codes. */
+export function stripTerminalCodes(text: string): string {
+  return text.replace(ANSI, "");
+}
+
 /** The local URL in one line of output, by the project's pattern or the first one printed. */
 export function previewUrlInLine(
   line: string,
   pattern: string | null,
 ): { url: string; port: number } | null {
-  const text = line.replace(ANSI, "").slice(0, 2000);
+  const text = stripTerminalCodes(line).slice(0, 2000);
   let match: RegExpMatchArray | null;
   try {
     match = text.match(pattern ? new RegExp(pattern) : ANY_LOCAL_URL);

@@ -98,7 +98,7 @@ export class DevPreviewService {
       project: (id) => this.findProject(id),
       preview: (target) => this.previewFor(target),
       existing: (key) => this.previews.get(key),
-      begin: (preview, settings, byPerson) => this.begin(preview, settings, byPerson),
+      begin: (preview, byPerson) => this.begin(preview, byPerson),
       prepared: this.prepared,
       now: this.now,
       checkEveryMs: deps.baseCheckEveryMs ?? 90_000,
@@ -236,8 +236,7 @@ export class DevPreviewService {
   async startSession(sessionId: string): Promise<DevPreviewState> {
     const session = this.deps.session(sessionId);
     if (!session?.projectId) throw notFound("Session not found");
-    const settings = this.deps.store.config(session.projectId);
-    if (!settings) throw this.notConfigured();
+    if (!this.deps.store.config(session.projectId)) throw this.notConfigured();
     const reason = this.unavailable(session);
     if (reason || !session.worktreePath) throw conflict(reason ?? "No worktree", "unavailable");
     const preview = this.previewFor({
@@ -247,7 +246,7 @@ export class DevPreviewService {
       sessionId,
       cwd: session.worktreePath,
     });
-    if (!preview.active) await this.begin(preview, settings, true);
+    if (!preview.active) await this.begin(preview, true);
     return this.sessionState(sessionId, false);
   }
 
@@ -317,8 +316,12 @@ export class DevPreviewService {
    * Make room, take ports and start. A person's start may stop the oldest idle preview to
    * make room; one the app starts by itself never stops anyone's.
    */
-  private begin(preview: Preview, settings: DevPreviewSettings, byPerson: boolean): Promise<void> {
+  private begin(preview: Preview, byPerson: boolean): Promise<void> {
     const run = this.queue.then(async () => {
+      // Read here, at the moment of starting, and from nowhere else: what runs is always
+      // what is confirmed now, never settings a caller picked up before they were changed.
+      const settings = this.deps.store.config(preview.target.projectId);
+      if (!settings) throw this.notConfigured();
       await makeRoom({
         previews: [...this.previews.values()],
         preview,
