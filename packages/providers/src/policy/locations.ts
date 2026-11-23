@@ -76,7 +76,10 @@ function afterCd<T extends PathContext>(cmd: SimpleCommand, ctx: T): T[] {
     return [{ ...moved, pushed: [...(ctx.pushed ?? []), saved] }];
   }
   if (stack !== undefined) return [{ ...ctx, pushed: undefined }];
-  return [moveTo(target ?? "~", ctx)];
+  const moved = moveTo(target ?? "~", ctx);
+  // The shell isn't known: one that isn't cmd refuses `cd /d dir` and stays where it is.
+  const refused = cmdSwitch && args.length > 1 && /^\/d$/i.test(args[0] ?? "");
+  return refused ? [moved, ctx] : [moved];
 }
 
 /**

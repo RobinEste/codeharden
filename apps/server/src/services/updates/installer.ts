@@ -42,9 +42,12 @@ const inheritedNpmConfig = new Set([
   "ca",
   "strict_ssl",
   "userconfig",
-  // Settings that only restrict what an install may do, so a person's own stay in force.
-  "ignore_scripts",
+  // Settings that only restrict which versions and sources an install may take, so a person's
+  // own stay in force. Not `ignore_scripts`: the terminal's native module is built or put in
+  // place by its install script, so an update installed without it would start and not work.
   "min_release_age",
+  "before",
+  "allow_git",
 ]);
 
 /**

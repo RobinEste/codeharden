@@ -53,6 +53,8 @@ export interface RoleEnv {
   set(settings: SettingsInput): Promise<void>;
   /** Change the settings file only, as a version without this feature did. */
   setQuietly(settings: SettingsInput): void;
+  /** The settings of a new install, as the product ships them (the provider switch off). */
+  asShipped(): void;
   /** End the session's turn with `status`. */
   settle(id: string, status?: Session["status"]): void;
   /** The session's queue: sender and text, next first. */
@@ -218,6 +220,9 @@ export function withRoles(run: (env: RoleEnv) => Promise<void>) {
         },
         setQuietly: (next) => {
           settings = withSwitchOn(next);
+        },
+        asShipped: () => {
+          settings = Settings.parse({});
         },
         settle: (id, status = "idle") => {
           repo.update(id, (s) => ({ ...s, status }));

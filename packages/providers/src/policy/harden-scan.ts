@@ -89,3 +89,74 @@ export function quotedSpans(
   }
   return out;
 }
+
+/**
+ * True when some match of `head` is followed by a match of `tail` that starts at or after the
+ * head's end, with no `stop` character in between: what `head[^stop]*tail` tests, for two patterns
+ * that each read their own text once. Written as one pattern, every `head` in the text reads on
+ * to the next `stop`, which takes time with the square of the text's length when there is none.
+ * Both patterns need the `g` flag. `accept`: a test a match of `tail` must also pass.
+ */
+export function followedBy(
+  text: string,
+  head: RegExp,
+  tail: RegExp,
+  stop: string,
+  accept: (match: RegExpMatchArray) => boolean = () => true,
+): boolean {
+  const tails = [...text.matchAll(tail)].filter(accept).map((m) => m.index);
+  let k = 0;
+  /** The first `stop` at or after the latest head's end; -1 for none. */
+  let stopAt = -2;
+  for (const match of text.matchAll(head)) {
+    const from = match.index + match[0].length;
+    while (k < tails.length && (tails[k] as number) < from) k += 1;
+    if (k === tails.length) return false;
+    if (stopAt !== -1 && stopAt < from) stopAt = text.indexOf(stop, from);
+    if (stopAt === -1 || stopAt > (tails[k] as number)) return true;
+  }
+  return false;
+}
+
+/**
+ * The most script text read for one command, in characters, over every way it is read (each
+ * escape reading, each reading of its variables, each script it hands to a shell). A command
+ * that nests scripts can be read many times over; past this it isn't read further and asks.
+ */
+export const MAX_WORK_CHARS = 2_000_000;
+
+/** The verdict on a command that takes too much reading, or nests deeper than can be followed. */
+export const TOO_INVOLVED: RiskAssessment = {
+  risky: true,
+  action: "outside_worktree",
+  reason: "Runs a command too involved to check",
+  always: true,
+};
+
+class WorkLimit extends Error {}
+let spent = 0;
+let depth = 0;
+
+/** Count `chars` of script text as read for the command being judged (`bounded`). */
+export function spend(chars: number): void {
+  spent += chars;
+  if (depth > 0 && spent > MAX_WORK_CHARS) throw new WorkLimit();
+}
+
+/**
+ * Run one judgement of a command within the work limit: `otherwise` when it reads more than
+ * `MAX_WORK_CHARS`, or nests so deep that the reader runs out of stack. Any other error is the
+ * caller's, as before.
+ */
+export function bounded<T>(run: () => T, otherwise: T): T {
+  if (depth === 0) spent = 0;
+  depth += 1;
+  try {
+    return run();
+  } catch (error) {
+    if (error instanceof WorkLimit || error instanceof RangeError) return otherwise;
+    throw error;
+  } finally {
+    depth -= 1;
+  }
+}

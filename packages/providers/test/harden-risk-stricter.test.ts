@@ -57,6 +57,65 @@ describe("classifyCommand: stricter handling the fork keeps", () => {
     expect(action("HOME=/tmp/h npm test", under)).toBeNull();
   });
 
+  it("keeps the reading an assignment gives beside the one without it", () => {
+    const verdict = (command: string, ctx: RiskContext = posix) => {
+      const r = classifyCommand(command, ctx);
+      return r.risky ? `${r.action}${r.always ? ", every level" : ""}` : null;
+    };
+    // Reads: an agent CLI's login folder, whichever value the variable has.
+    for (const cmd of [
+      "HOME=$(echo ~); tar czf /tmp/c.tgz $HOME/.codex",
+      "TMPDIR=~/.codex; tar czf - $TMPDIR | base64",
+      "false && HOME=.; tar czf - $HOME/.codex | base64",
+    ]) {
+      expect(verdict(cmd), cmd).toBe("secrets, every level");
+    }
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: a shell variable, not a template
+    expect(action("export HOME=${HOME:-/root}; cp -r $HOME/.gemini /tmp/g")).not.toBeNull();
+    // A value handed on to another variable, also when a command was repeated for several.
+    for (const cmd of [
+      "TMPDIR=/etc; f=$TMPDIR/passwd; rm -f $f",
+      "PWD=/etc; f=$PWD/passwd; rm -f $f",
+      "TMPDIR=/etc; for f in $TMPDIR/passwd; do rm -f $f; done",
+      "x=.; x=/etc; y=$x/hosts; rm -f $y",
+    ]) {
+      expect(action(cmd), cmd).toBe("outside_worktree");
+    }
+    // A folder change through such a variable.
+    for (const cmd of [
+      "false && HOME=/work/repo; cd $HOME; rm -rf Documents",
+      "false && HOME=/work/repo; pushd $HOME; rm -rf Documents",
+      'false && HOME=/work/repo; cd "$HOME"; rm -rf Documents',
+      "false && HOME=/work/repo/a; cd $HOME/..; rm -rf Documents",
+      "read TMPDIR <<< /etc; cd $TMPDIR; rm -rf passwd",
+    ]) {
+      expect(action(cmd), cmd).toBe("outside_worktree");
+    }
+  });
+
+  it("asks when such a variable is set by a builtin or added to", () => {
+    const mac: RiskContext = {
+      cwd: "/Users/me/repo",
+      platform: "darwin",
+      home: "/Users/me",
+      tempRoots: ["/tmp", "/var/folders/x"],
+    };
+    for (const cmd of [
+      "unset TMPDIR; rm -rf $TMPDIR/Users/me/x",
+      "TMPDIR+=/../../..; rm -rf $TMPDIR/Users/me/x",
+      "read TMPDIR <<< /etc; rm -rf $TMPDIR/passwd",
+      "read -r TMPDIR < name.txt; echo x > $TMPDIR/passwd",
+      "printf -v TMPDIR /etc; rm -rf $TMPDIR/passwd",
+    ]) {
+      expect(action(cmd, mac), cmd).toBe("outside_worktree");
+    }
+    // The name as an ordinary word, or the variable left alone, changes nothing.
+    expect(action("grep TMPDIR build.sh > $TMPDIR/out.txt", mac)).toBeNull();
+    expect(action("echo TMPDIR; rm -rf $TMPDIR/build-cache", mac)).toBeNull();
+    expect(action("unset FOO; rm -rf $TMPDIR/build-cache", mac)).toBeNull();
+    expect(action("for f in $TMPDIR/a $TMPDIR/b; do rm -f $f; done", mac)).toBeNull();
+  });
+
   it("reads a cp or mv option cluster one letter at a time", () => {
     for (const cmd of ["cp -Stilde payload ~/.bashrc", "mv -Stilde payload /etc/x"]) {
       expect(action(cmd), cmd).toBe("outside_worktree");
@@ -72,6 +131,8 @@ describe("classifyCommand: stricter handling the fork keeps", () => {
     }
     expect(action("cp -S .bak -t dist a b")).toBeNull();
     expect(action("cp --suffix=.bak -t /etc a b")).toBe("outside_worktree");
+    expect(action("cp -S -t. payload ~/.bashrc")).toBe("outside_worktree");
+    expect(action("mv --suffix -t. payload /etc/x")).toBe("outside_worktree");
     // The spellings that do name a target folder keep working, in or out of the worktree.
     expect(action("cp -t dist a b")).toBeNull();
     expect(action("cp -vtdist a b")).toBeNull();
@@ -99,6 +160,13 @@ describe("classifyCommand: stricter handling the fork keeps", () => {
       "outside_worktree",
     );
     expect(action("cd sub; Remove-Item x", { ...win, shell: "powershell" })).toBeNull();
+    expect(action("cd /d sub; Remove-Item -Recurse ..\\x", { ...win, shell: "powershell" })).toBe(
+      "outside_worktree",
+    );
+    // A shell that isn't known may be cmd or not: both are followed.
+    expect(action("cd /d sub; Remove-Item -Recurse ..\\x", win)).toBe("outside_worktree");
+    expect(action("cd /d C:\\work\\repo\\src && del x.txt", win)).toBeNull();
+    expect(action("cd /d C:\\other && del x.txt", win)).toBe("outside_worktree");
     expect(action("cd sub; rm -rf x")).toBeNull();
   });
 });

@@ -202,7 +202,7 @@ const ALLOWED = [
   ["apps/cli/docker/Dockerfile", /user\.name "CodeDen"/, WHY.commits],
   ["apps/runner/src/git/checkpoints.ts", /"-m", "codeden checkpoint"/, "the reflog message of a checkpoint ref, written into repositories' git data: a stored label shared with upstream, not a command"],
   // --- the command name where it is not something a person is told to type
-  ["apps/cli/src/args.ts", /^ {2}codeden (?=[a-z[])/, "a line of the CLI's help, inside `HELP = named(...)`: `named()` rewrites every such line to the channel's command before it is shown (the file's CALL_SITES entry checks the help is still wrapped)"],
+  ["apps/cli/src/args.ts", /^ {2}codeden (?=[a-z[])/, "a line of the CLI's help, inside `HELP = named(...)`: `named()` rewrites every such line to the channel's command before it is shown (the file's CALL_SITES entry checks that the help is still wrapped and that no such line stands outside it)"],
   ["apps/runner/src/main.ts", /(?<=["`])codeden runner: /, WHY.runnerLabel],
   ["apps/runner/src/link/runner-link.ts", /(?<=`)codeden runner-link: /, WHY.runnerLabel],
   ["packages/contracts/src/network.ts", /^\s*"codeden",$/, "an entry in the list of passwords too easy to guess"],
@@ -345,7 +345,7 @@ const CALL_SITES = [
   ["apps/server/src/services/secrets.ts", "the keychain service secrets are kept under", /service = HARDEN_KEYCHAIN_SERVICE/],
   ["apps/server/src/security.ts", "the command the locked page tells people to run, that page's title and wordmark, and the product's icons a browser may fetch without a cookie", "HARDEN_NPX_COMMAND", /<title>\$\{HARDEN_PRODUCT_NAME\}<\/title>/, /<h1>\$\{hardenWordmarkHtml\("dark"\)\} is locked<\/h1>/, /\.\.\.HARDEN_PUBLIC_ICON_PATHS,/],
   ["apps/server/src/routes/api.ts", "the versions the server reports", "HARDEN_VERSION", "UPSTREAM_VERSION"],
-  ["apps/cli/src/args.ts", "the CLI's default port, home and command in the help (every help line is renamed by `named()`)", /DEFAULT_PORT = HARDEN_DEFAULT_PORT/, "HARDEN_HOME_DISPLAY", "HARDEN_COMMAND", "formatHardenVersion", /export const HELP = named\(`/],
+  ["apps/cli/src/args.ts", "the CLI's default port, home and command in the help (every help line is renamed by `named()`)", /DEFAULT_PORT = HARDEN_DEFAULT_PORT/, "HARDEN_HOME_DISPLAY", "HARDEN_COMMAND", "formatHardenVersion", /export const HELP = named\(`/, helpLinesOnlyInHelp],
   ["apps/cli/src/network-command.ts", "the network command's port comes from the CLI's default, and its usage and hints name the channel's command", /import \{ DEFAULT_PORT \} from "\.\/args"/, /`Usage: \$\{HARDEN_COMMAND\} network /, /`Run: \$\{HARDEN_COMMAND\} password`/],
   ["apps/cli/src/launcher.ts", "the launcher's home, the installed package it may start and the commands it prints", /join\(homedir\(\), HARDEN_HOME_DIRNAME\)/, /pkg\.name !== HARDEN_PACKAGE_NAME/, "HARDEN_PACKAGE_SEGMENTS", "HARDEN_NPX_COMMAND", "HARDEN_UPDATE_COMMAND", "HARDEN_COMMAND", /export \{ HARDEN_PRODUCT_NAME \};/, /`\$\{HARDEN_PRODUCT_NAME\} \$\{pinned\} in /],
   ["apps/cli/src/harden-home.ts", "the notice about the old home", "HARDEN_HOME_DIRNAME", "UPSTREAM_HOME_DIRNAME", "hardenHomeNotice"],
@@ -421,18 +421,50 @@ const CALL_SITES = [
   ["packages/providers/src/opencode/commands.ts", "the commands OpenCode lists pass the fork's switch before they are reported or routed", /commands = hardenListedCommands\(/],
   ["packages/providers/src/opencode/harden-commands.ts", "the switch itself, off in the product", "hardenListedCommands", /^let run = false;$/m],
   // --- fixes the fork carries in upstream's files until upstream has its own. Each has tests of its own (packages/providers/test/harden-risk-stricter.test.ts, harden-scan.test.ts; apps/server/test/harden-factory-hold.test.ts, harden-update-install-env.test.ts): when upstream's fix replaces one in a sync and those tests still pass, take upstream's form and remove the entry.
-  ["packages/providers/src/policy/harden-scan.ts", "the fork's reading of quoted strings in one pass, and the longest command the classifier reads", "quotedSpans", "MAX_COMMAND_CHARS", "TOO_LONG"],
-  ["packages/providers/src/policy/risk.ts", "a command longer than the limit asks instead of being read", holds("if (command.length > MAX_COMMAND_CHARS) return TOO_LONG;")],
-  ["packages/providers/src/policy/inline-code.ts", "string literals and backtick commands are read in one pass (not by a regular expression that starts over from every quote)", holds("quotedSpans(read, QUOTES)"), holds("quotedSpans(code, QUOTES)"), holds('quotedSpans(code, "`", false)'), lacks("matchAll(LITERAL)")],
-  ["packages/providers/src/policy/variables.ts", "a variable the path rules know keeps its own value beside one the command line assigns; a mktemp template and a braced variable are matched in one pass", holds("table.has(name) ? table.get(name) : ambient(name)"), holds("value(name) ?? (ambient(name) ? EITHER : ref)"), holds("/X{3}/i.test(template)"), lacks("X{3,}[\\w.-]*"), lacks("\\{[^}]+\\}")],
+  ["packages/providers/src/policy/harden-scan.ts", "the fork's reading of quoted strings and two-part patterns in one pass, the longest command the classifier reads and the work limit", "quotedSpans", "followedBy", "MAX_COMMAND_CHARS", "TOO_LONG", "MAX_WORK_CHARS", "TOO_INVOLVED", "bounded", "spend", holds("if (error instanceof WorkLimit || error instanceof RangeError) return otherwise;")],
+  ["packages/providers/src/policy/risk.ts", "a command longer than the limit, or too involved to read, asks instead of being read or failing; the download check reads its two parts in one pass", holds("if (command.length > MAX_COMMAND_CHARS) return TOO_LONG;"), holds("return bounded(() => classifyWithin(command, given), TOO_INVOLVED);"), holds("followedBy("), lacks("[^|]*\\b(irm|iwr")],
+  ["packages/providers/src/policy/read-only.ts", "a command longer than the limit is refused in a read-only session", holds("if (command.length > MAX_COMMAND_CHARS) {")],
+  ["packages/providers/src/policy/workdir.ts", "a line too long or too involved to read is not known to only read", holds("(line) => line.length <= MAX_COMMAND_CHARS && readsOnly("), holds("return bounded(")],
+  ["packages/providers/src/policy/paths.ts", "a brace expansion in a cd is found without reading on to a far closing brace", holds("\\{[^{}]*\\}/.test(raw)")],
+  ["packages/providers/src/policy/inline-code.ts", "string literals, backtick commands and the two `open` checks are read in one pass (not by a pattern that starts over from every quote or every `open`)", holds("quotedSpans(read, QUOTES)"), holds("quotedSpans(code, QUOTES)"), holds('quotedSpans(code, "`", false)'), lacks("matchAll(LITERAL)"), holds("if (!WRITES.test(code) && !opensToWrite(code)) return [];"), lacks("open\\s*\\([^)]*,")],
+  ["packages/providers/src/policy/variables.ts", "a command line that sets a variable the path rules know, or repeats a command for several values, is also read with the other possibilities; a mktemp template, a braced variable and a temp default are matched in one pass", "variableReadings", holds("if (seen.ambient) readings.push(read({ keepAmbient: true }));"), holds("if (seen.ambient || seen.spread) readings.push(read({ every: true }));"), holds("if (how.keepAmbient) return;"), holds("for (const copy of how.every && copies.length > 1 ? copies : [copies[0] ?? cmd]) {"), holds("if (how.every) table.set(name, null);"), holds("if (moves) return EITHER;"), holds("for (const word of (cmd as Marked).unsure ?? []) {"), ambientNames, holds("/X{3}/i.test(template)"), lacks("X{3,}[\\w.-]*"), lacks("\\{[^}]+\\}"), holds(":?-[^{}]*\\}/g")],
   ["packages/providers/src/policy/copies.ts", "a cp or mv option cluster is not read past `S`, which takes a value (the next word, when it stands alone)", holds("/^-[a-su-zA-RT-Z]*t(.*)$/s"), holds('if (/^-[a-su-zA-RT-Z]*S$/.test(arg) || arg === "--suffix") {')],
-  ["packages/providers/src/policy/shell-readings.ts", "a POSIX script holding `$'` is read both ways on every platform", holds('(win && escapes) || ansiC ? ["posix", "keep"] : ["posix"]')],
-  ["packages/providers/src/policy/locations.ts", "cmd's `cd /d` is a switch only where cmd may be the shell", holds("if (cmdSwitch && i === 0"), holds('isWin(ctx) && shell !== "posix" && shell !== "powershell"')],
-  ["apps/server/src/services/factory/hold.ts", "the project manager releases only a hold it placed itself, and holding an issue a person holds doesn't make the hold its own", holds('if (by === "pm" && labelled && !own) {'), holds('if (by === "pm" && issue.labels.includes(FACTORY_HOLD_LABEL) && !own) {')],
-  ["apps/server/src/services/updates/installer.ts", "the update install keeps a person's `ignore_scripts` and `min_release_age` npm settings", holds('"ignore_scripts",'), holds('"min_release_age",')],
+  ["packages/providers/src/policy/shell-readings.ts", "a POSIX script holding `$'` is read both ways on every platform, each reading is made for every way its variables may be followed, and the text read is counted", holds('(win && escapes) || ansiC ? ["posix", "keep"] : ["posix"]'), holds("variableReadings(() => groupInputs(parseShell(src, dialect, mode)), scope)"), holds("spend(src.length * modes.length);")],
+  ["packages/providers/src/policy/locations.ts", "cmd's `cd /d` is a switch only where cmd may be the shell, and a shell that isn't known is followed both ways", holds("if (cmdSwitch && i === 0"), holds('isWin(ctx) && shell !== "posix" && shell !== "powershell"'), holds("return refused ? [moved, ctx] : [moved];")],
+  ["apps/server/src/services/factory/hold.ts", "the project manager releases only a hold it placed itself, and holding an issue a person holds doesn't make the hold its own", holds('if (by === "pm" && labelled && !own) {'), holds('if (by === "pm" && issue.labels.includes(FACTORY_HOLD_LABEL) && !own) {'), holds('const own = held.some((h) => h.issueNumber === issue.number && h.by === "pm");'), holds('const own = loop.holds.some((h) => h.issueNumber === issue.number && h.by === "pm");')],
+  ["apps/server/src/mcp/tools/pm/github.ts", "the project manager's triage tool neither puts nor takes the hold label", holds("if (named.some((label) => label.trim().toLowerCase() === FACTORY_HOLD_LABEL)) {")],
+  ["apps/server/src/services/updates/installer.ts", "the update install keeps a person's npm settings that only restrict versions and sources (and not `ignore_scripts`, which would leave native modules unbuilt)", holds('"min_release_age",'), holds('"before",'), holds('"allow_git",'), lacks('"ignore_scripts",')],
   // --- the vision the project manager reads: the fork's own text in a file upstream ships too
   [".codeden/VISION.md", "the fork's own vision (a conflict on this file is resolved to the fork's text)", /^CodeHarden is a hardened fork/],
 ];
+
+/**
+ * True when every line written as a help line (two spaces, upstream's command, a word) stands
+ * inside `HELP = named(`…`)`, the one text `named()` rewrites: the ALLOWED entry for those lines
+ * must not excuse one anywhere else in the file.
+ */
+function helpLinesOnlyInHelp(code) {
+  const start = code.indexOf("export const HELP = named(`");
+  const end = start < 0 ? -1 : code.indexOf("`);", start);
+  if (start < 0 || end < 0) return false;
+  const outside = code.slice(0, start) + code.slice(end);
+  return !/^ {2}codeden (?=[a-z[])/m.test(outside);
+}
+helpLinesOnlyInHelp.say =
+  "every help line (`  codeden <word>`) inside `HELP = named(...)`, none before or after it";
+
+/** True when the set of variables the path rules know is the one the fork's readings are for. */
+function ambientNames(code) {
+  const set = /const AMBIENT = new Set\(\[([^\]]*)\]\)/.exec(code)?.[1] ?? "";
+  const names = [...set.matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort();
+  const want = ["CODEDEN_HOME", "HOME", "PWD", "TEMP", "TMP", "TMPDIR", "ps:home", "ps:pwd"];
+  return (
+    JSON.stringify(names) === JSON.stringify(want) &&
+    code.includes("const ambient = (name: string): boolean => AMBIENT.has(name);")
+  );
+}
+ambientNames.say =
+  "`AMBIENT` holding HOME, PWD, TMPDIR, TEMP, TMP, CODEDEN_HOME, ps:home and ps:pwd, read through `ambient()`";
 
 /** A check that the file's code holds `text` exactly as written (no pattern to escape). */
 function holds(text) {
@@ -858,6 +890,11 @@ describe("the fork's call sites are still there", () => {
     expect(bare).not.toBe(text(args[0]));
     expect(rulesHit(args[0], bare)).toEqual([]);
     expect(callSiteProblem(args, bare)).toMatch(/args\.ts no longer has/);
+    // A line shaped like a help line in another text of that file: the allowance for the help's
+    // lines lets it through the scan, so the call site speaks.
+    const elsewhere = `${text(args[0])}\nexport const MORE = \`\n  codeden sync           Fetch\n\`;\n`;
+    expect(rulesHit(args[0], elsewhere)).toEqual([]);
+    expect(callSiteProblem(args, elsewhere)).toMatch(/none before or after it/);
     // The hint in Settings.
     const hint = site("apps/web/src/components/settings/sections-network.tsx");
     const plain = text(hint[0]).replace(
@@ -877,15 +914,30 @@ describe("the fork's call sites are still there", () => {
     const cases = [
       ["packages/providers/src/policy/risk.ts", "  if (command.length > MAX_COMMAND_CHARS) return TOO_LONG;\n", ""],
       ["packages/providers/src/policy/inline-code.ts", "quotedSpans(read, QUOTES)", "read.matchAll(LITERAL)"],
-      ["packages/providers/src/policy/variables.ts", "table.has(name) ? table.get(name) : ambient(name)", "table.get(name)"],
-      ["packages/providers/src/policy/variables.ts", "(ambient(name) ? EITHER : ref)", "ref"],
+      ["packages/providers/src/policy/risk.ts", "return bounded(() => classifyWithin(command, given), TOO_INVOLVED);", "return classifyWithin(command, given);"],
+      ["packages/providers/src/policy/variables.ts", "    if (how.keepAmbient) return;\n", ""],
+      ["packages/providers/src/policy/variables.ts", "how.every && copies.length > 1 ? copies : [copies[0] ?? cmd]", "[copies[0] ?? cmd]"],
+      ["packages/providers/src/policy/variables.ts", '"TMPDIR",', ""],
+      ["packages/providers/src/policy/variables.ts", ":?-[^{}]*\\}/g", ":?-[^}]*\\}/g"],
+      ["packages/providers/src/policy/shell-readings.ts", "variableReadings(() => groupInputs(parseShell(src, dialect, mode)), scope)", "resolveVariables(groupInputs(parseShell(src, dialect, mode)), new Map(scope))"],
+      ["packages/providers/src/policy/shell-readings.ts", "  spend(src.length * modes.length);\n", ""],
+      ["packages/providers/src/policy/read-only.ts", "if (command.length > MAX_COMMAND_CHARS) {", "if (false) {"],
+      ["packages/providers/src/policy/workdir.ts", "line.length <= MAX_COMMAND_CHARS && readsOnly(", "readsOnly("],
+      ["packages/providers/src/policy/paths.ts", "\\{[^{}]*\\}/.test(raw)", "\\{[^}]*\\}/.test(raw)"],
+      ["packages/providers/src/policy/inline-code.ts", "if (!WRITES.test(code) && !opensToWrite(code)) return [];", "if (!WRITES.test(code)) return [];"],
+      ["packages/providers/src/policy/locations.ts", "return refused ? [moved, ctx] : [moved];", "return [moved];"],
+      ["packages/providers/src/policy/locations.ts", ' && shell !== "powershell"', ""],
+      ["packages/providers/src/policy/copies.ts", 'if (/^-[a-su-zA-RT-Z]*S$/.test(arg) || arg === "--suffix") {', "if (false) {"],
+      ["apps/server/src/services/factory/hold.ts", 'if (by === "pm" && issue.labels.includes(FACTORY_HOLD_LABEL) && !own) {', "if (false) {"],
+      ["apps/server/src/services/factory/hold.ts", 'held.some((h) => h.issueNumber === issue.number && h.by === "pm")', "held.some((h) => h.issueNumber === issue.number)"],
+      ["apps/server/src/mcp/tools/pm/github.ts", "if (named.some((label) => label.trim().toLowerCase() === FACTORY_HOLD_LABEL)) {", "if (false) {"],
       ["packages/providers/src/policy/variables.ts", "mktemp(?: -d)?(?: ([\\w.-]+))?", "mktemp(?: -d)?(?: [\\w.-]*X{3,}[\\w.-]*)?"],
       ["packages/providers/src/policy/variables.ts", "\\{[^}]|", "\\{[^}]+\\}|"],
       ["packages/providers/src/policy/copies.ts", "[a-su-zA-RT-Z]", "[a-su-zA-Z]"],
       ["packages/providers/src/policy/shell-readings.ts", "(win && escapes) || ansiC ?", "win && escapes ?"],
       ["packages/providers/src/policy/locations.ts", "if (cmdSwitch && i === 0", "if (i === 0"],
       ["apps/server/src/services/factory/hold.ts", 'if (by === "pm" && labelled && !own) {', "if (false) {"],
-      ["apps/server/src/services/updates/installer.ts", '  "ignore_scripts",\n', ""],
+      ["apps/server/src/services/updates/installer.ts", '  "min_release_age",\n', ""],
     ];
     // A file may have more than one entry (the installer has the channel's too): any may speak.
     const problems = (file, code) =>

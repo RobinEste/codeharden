@@ -1,5 +1,8 @@
 import { FACTORY_HOLD_LABEL } from "@codeden/contracts";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ServerToolContext } from "../src/mcp/define";
+import { triageIssue } from "../src/mcp/tools/pm/github";
+import type { AppServices } from "../src/services/container";
 import { createFactoryEnv, type FactoryEnv } from "./support/factory-env";
 import { factorySteps } from "./support/factory-steps";
 
@@ -109,5 +112,35 @@ describe("releasing held issues: whose hold it is", () => {
     const free = openIssue("Add XML export");
     const res = await env.factory.release(projectId(), { issueNumber: free.number }, "pm");
     expect(res.message).toMatch(/wasn't held/);
+  });
+
+  it("never takes or puts the hold label through the PM's triage tool", async () => {
+    const triage = vi.fn(async () => ({ decision: "ready" }));
+    const services = {
+      projects: { get: () => ({ id: "p1", name: "Demo", kind: "github" }) },
+      orchestration: { github: { triageIssue: triage } },
+    } as unknown as AppServices;
+    const ctx = {
+      services,
+      sessionId: null,
+      projectId: "p1",
+      role: "pm",
+      caller: "mcp",
+      signal: new AbortController().signal,
+    } as ServerToolContext<"project">;
+    const call = (labels: { labels?: string[]; removeLabels?: string[] }) =>
+      triageIssue.handler({ number: 7, decision: "ready", ...labels }, ctx);
+
+    for (const labels of [
+      { removeLabels: [FACTORY_HOLD_LABEL] },
+      { removeLabels: ["bug", " Factory:Hold "] },
+      { labels: [FACTORY_HOLD_LABEL] },
+    ]) {
+      await expect(call(labels), JSON.stringify(labels)).rejects.toThrow(/isn't a triage label/);
+    }
+    expect(triage).not.toHaveBeenCalled();
+    // Any other label goes through as before.
+    await call({ labels: ["feature"], removeLabels: ["needs-info", "factory:holding"] });
+    expect(triage).toHaveBeenCalledTimes(1);
   });
 });

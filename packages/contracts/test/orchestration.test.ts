@@ -337,7 +337,7 @@ describe("session archive and worktree cleanup (§9)", () => {
     expect(() => WorktreeCleanupOutcome.parse({ status: "gone", message: null })).toThrow();
   });
 
-  it("switches a role's provider at a usage limit by default, and round-trips its notice", () => {
+  it("leaves a role's provider at a usage limit unless switched on, and round-trips its notice", () => {
     expect(Settings.parse({}).providers.autoSwitchOnLimit).toBe(false);
     const off = Settings.parse({ providers: { autoSwitchOnLimit: false } });
     expect(Settings.parse(JSON.parse(JSON.stringify(off))).providers.autoSwitchOnLimit).toBe(false);

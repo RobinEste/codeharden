@@ -19,7 +19,7 @@
  * when it is written out (`./stdin-scripts`). And it can't tell which literal the writing call
  * uses, so a one-liner that reads one absolute path and writes somewhere else asks too.
  */
-import { quotedSpans } from "./harden-scan";
+import { followedBy, quotedSpans } from "./harden-scan";
 
 /** Interpreters and the options their code follows. */
 const CODE_FLAGS = new Map<string, RegExp>([
@@ -75,11 +75,23 @@ const WRITES = new RegExp(
     String.raw`\.(rm|cp)(Sync)?\s*\(`,
     String.raw`\b(os\.replace|shutil\.(move|copy\w*)|File\.(write|delete|open)|FileUtils\.\w+)\b`,
     String.raw`(?<!stdout|stderr|res|socket)\.(write|touch)\s*\(`,
-    String.raw`\bopen\s*\([^)]*,\s*(mode\s*=\s*)?["'][rwax+bt]*[wax+][rwax+bt]*["']`,
-    String.raw`\bopen\s*\(?[^;]*["']\s*\+?>`,
   ].join("|"),
   "i",
 );
+/**
+ * `open(…, 'w')` and Perl's `open(F, '>/x')`: an `open`, then a writing mode before the call
+ * closes, or a `>` after a quote before the statement ends. Each is read as two patterns
+ * (`followedBy`), which is what `open\s*\([^)]*,…mode` and `open\s*\(?[^;]*["']\s*\+?>` test.
+ */
+const opensToWrite = (code: string): boolean =>
+  followedBy(
+    code,
+    /\bopen\s*\(/gi,
+    // The mode's letters are read once, and looked at for one that writes afterwards.
+    /,\s*(?:mode\s*=\s*)?["']([rwax+bt]*)["']/gi,
+    ")",
+    (mode) => /[wax+]/i.test(mode[1] as string),
+  ) || followedBy(code, /\bopen/gi, /["']\s*\+?>/g, ";");
 
 /** The quote characters of a string literal: a quoted string of path characters, on one line. */
 const QUOTES = "\"'`";
@@ -103,7 +115,7 @@ const TEXT_CALLS =
  * `open(F, '>/x')` names the file after its mode.
  */
 export function inlineCodeWrites(code: string): string[] {
-  if (!WRITES.test(code)) return [];
+  if (!WRITES.test(code) && !opensToWrite(code)) return [];
   const out: string[] = [];
   const read = code.replace(TEXT_CALLS, "");
   for (const match of quotedSpans(read, QUOTES)) {

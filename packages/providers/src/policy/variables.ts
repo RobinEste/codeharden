@@ -1,4 +1,4 @@
-import { binName, unwrap } from "./command-words";
+import { binName, CD, unwrap } from "./command-words";
 import { isWin, type PathContext } from "./paths";
 import type { SimpleCommand } from "./shell";
 
@@ -23,7 +23,7 @@ const MAX_VALUES = 8;
 /** `$x`, `${x}`; not `$env:X` or a longer name. */
 const REFERENCE = /\$\{([A-Za-z_]\w*)\}|\$([A-Za-z_]\w*)(?![\w:])/g;
 /** `${TMPDIR:-/tmp}`: the temp folder either way. */
-const TEMP_DEFAULT = /\$\{(?:TMPDIR|TEMP|TMP):?-[^}]*\}/g;
+const TEMP_DEFAULT = /\$\{(?:TMPDIR|TEMP|TMP):?-[^{}]*\}/g;
 const ASSIGNMENT = /^([A-Za-z_]\w*)=(.*)$/s;
 /** Builtins that declare variables: `export x=1`, `local x=1`. */
 const DECLARES = new Set(["export", "local", "declare", "typeset", "readonly"]);
@@ -50,10 +50,68 @@ export function resolveVariables(list: SimpleCommand[], table: Table = new Map()
       if (table.size > 0) copy.scope = new Map(table);
       out.push(copy);
     }
-    assign(copies[0] ?? cmd, table);
+    if (copies.length > 1) how.seen.spread = true;
+    // Every value a command was repeated for may be the one assigned (`y=$x/hosts` after two
+    // `x=`), in the reading that follows them all.
+    for (const copy of how.every && copies.length > 1 ? copies : [copies[0] ?? cmd]) {
+      assign(copy, table);
+    }
   }
   return out;
 }
+
+/**
+ * How one reading treats the variables the path rules know themselves (`ambient`): `HOME`,
+ * `TMPDIR` and the like, whose value where the command runs the rules read as the real home, the
+ * temp folder, the shell's folder.
+ *
+ * - As written above (neither flag): an assignment on the command line replaces that value.
+ * - `keepAmbient`: an assignment to one of them is not followed, so every later use is read with
+ *   the value it has outside the command line. The assignment may never run (`false && HOME=.`,
+ *   a branch, a pipe) or not take (PowerShell's `$HOME` is read-only).
+ * - `every`: each value a repeated command assigns is kept, and one of these variables set in a
+ *   way that isn't a plain value (`read`, `unset`, `+=`, a substitution) leaves a write or delete
+ *   through it a path only known when the command runs.
+ *
+ * The extra readings are judged beside the first, and the most severe verdict counts
+ * (`./shell-readings`), so they only ever add a question. `seen` says whether the first reading
+ * met what they are for.
+ */
+interface Variant {
+  keepAmbient?: true;
+  every?: true;
+  seen: { ambient: boolean; spread: boolean };
+}
+/** The reading being made: `resolveVariables` and what it calls run to the end before another. */
+let how: Variant = { seen: { ambient: false, spread: false } };
+
+/**
+ * The readings of one parsed command line by how its variables are followed: as written, and,
+ * when it sets a variable the path rules know or repeats a command for several values, the
+ * readings that keep the other possibilities (`Variant`). `parse` gives a fresh list each time.
+ */
+export function variableReadings(
+  parse: () => SimpleCommand[],
+  scope?: ReadonlyMap<string, readonly string[] | null>,
+): SimpleCommand[][] {
+  const seen = { ambient: false, spread: false };
+  const read = (variant: Omit<Variant, "seen">): SimpleCommand[] => {
+    const before = how;
+    how = { ...variant, seen };
+    try {
+      return resolveVariables(parse(), new Map(scope));
+    } finally {
+      how = before;
+    }
+  };
+  const readings = [read({})];
+  if (seen.ambient) readings.push(read({ keepAmbient: true }));
+  if (seen.ambient || seen.spread) readings.push(read({ every: true }));
+  return readings;
+}
+
+/** A command with the words that hold a variable the path rules know but that was set unknowably. */
+type Marked = SimpleCommand & { unsure?: Set<string> };
 
 /** `cmd` with the known variables in its expanding words filled in: one copy for each value. */
 function filled(cmd: SimpleCommand, table: Table, piped: boolean): SimpleCommand[] {
@@ -90,15 +148,27 @@ function substitute(
 ): SimpleCommand {
   const vars = new Set<string>();
   const quoted = new Set(cmd.quoted);
+  const unsure = new Set<string>();
+  const moves = CD.has(binName(unwrap(cmd.words).tokens[0]));
   const fill = (word: string): string => {
     if (!cmd.vars?.has(word)) return word;
+    let maybe = false;
     const text = word.replace(TEMP_DEFAULT, "$TMPDIR").replace(REFERENCE, (ref, braced, bare) => {
       const written = (braced ?? bare) as string;
       const name = keyOf(written, table);
       // `$PWD` is where the shell is, unless the command line set it.
       if (name === undefined) return written === "PWD" ? "." : ref;
-      return value(name) ?? (ambient(name) ? EITHER : ref);
+      const known = value(name);
+      if (known !== undefined || !how.every || !ambient(name) || table.get(name) !== null) {
+        return known ?? ref;
+      }
+      // Set in a way that isn't a plain value: a folder to move to is not known, and a path
+      // through it is marked (`unresolvedTarget`), while a read keeps the usual reading.
+      if (moves) return EITHER;
+      maybe = true;
+      return ref;
     });
+    if (maybe) unsure.add(text);
     if (text.includes("$") || text.includes("`")) vars.add(text);
     if (cmd.quoted?.has(word)) quoted.add(text);
     return text;
@@ -110,7 +180,8 @@ function substitute(
     return whole && /\s/.test(text.trim()) ? text.trim().split(/\s+/) : [text];
   };
   const words = cmd.words.flatMap(split);
-  const out = { ...cmd, words, writes: cmd.writes.map(fill), vars, quoted };
+  const out: Marked = { ...cmd, words, writes: cmd.writes.map(fill), vars, quoted };
+  if (unsure.size > 0) out.unsure = unsure;
   return cmd.input ? { ...out, input: cmd.input.map(fill) } : out;
 }
 
@@ -150,6 +221,12 @@ function assign(cmd: SimpleCommand, table: Table): void {
     const mention = MENTION.exec(word);
     const name = mention?.[1];
     if (name !== undefined && table.has(name) && (k > 0 || mention?.[2])) table.set(name, null);
+    // One the path rules know, set by a builtin or added to: `read TMPDIR`, `unset TMPDIR`,
+    // `printf -v TMPDIR`, `TMPDIR+=/..`.
+    else if (name !== undefined && ambient(name) && (mention?.[2] || (k > 0 && SETS.has(head)))) {
+      how.seen.ambient = true;
+      if (how.every) table.set(name, null);
+    }
   }
 }
 
@@ -213,33 +290,38 @@ const isPlain = (cmd: SimpleCommand, word: string): boolean =>
   !(cmd.vars?.has(word) && holdsVariable(word));
 
 /**
- * The value a variable the path rules know has before the command line sets it, as the rules read
- * it (`$HOME`, the shell's folder for `PWD`), or undefined for any other variable. An assignment
- * adds to it and never replaces it (`set`): the assignment may not have run (`false && HOME=.`,
- * a branch, a pipe) or may not take (PowerShell's `$HOME` is read-only), so a later `$HOME` is
- * judged as the real home too.
+ * True for a variable whose value the path rules know themselves (`KNOWN` below, `./paths`), by
+ * its name in the table: the home, temp and current folders, and PowerShell's `$HOME` and `$PWD`.
  */
-function ambient(name: string): string[] | undefined {
-  const ps = name.startsWith("ps:");
-  const bare = ps ? name.slice(3) : name;
-  if (ps ? bare === "pwd" : bare === "PWD") return ["."];
-  if (ps ? bare === "home" : AMBIENT.has(bare)) return [`$${ps ? "HOME" : bare}`];
-  return undefined;
-}
-const AMBIENT = new Set(["HOME", "TMPDIR", "TEMP", "TMP", "CODEDEN_HOME"]);
+const ambient = (name: string): boolean => AMBIENT.has(name);
+const AMBIENT = new Set([
+  "HOME",
+  "PWD",
+  "TMPDIR",
+  "TEMP",
+  "TMP",
+  "CODEDEN_HOME",
+  "ps:home",
+  "ps:pwd",
+]);
+/** Builtins that set a variable they are handed by name. */
+const SETS = new Set(["read", "unset", "printf", "mapfile", "readarray", "getopts"]);
 /**
- * Stands for such a variable where the command can't be judged once for each value (in a pipe,
- * beside a second variable with several values, or set from something only known at run time): a
- * variable no rule knows, so a write or delete through it is a path only known when it runs.
+ * Stands for such a variable in a `cd` when it was set in a way that isn't a plain value: a
+ * variable no rule knows, so the folder the `cd` lands in is one only known when it runs.
  */
-const EITHER = "$__set_or_ambient";
+const EITHER = "$__set_at_run_time";
 
 /**
  * Give `name` its `values`. A second assignment adds to the first, since either may be the one
  * that ran; a value only known at run time (null) stays.
  */
 function set(table: Table, name: string, values: string[] | null): void {
-  const before = table.has(name) ? table.get(name) : ambient(name);
+  if (ambient(name)) {
+    how.seen.ambient = true;
+    if (how.keepAmbient) return;
+  }
+  const before = table.get(name);
   if (values === null || before === null) return void table.set(name, null);
   const all = [...new Set([...(before ?? []), ...values])];
   table.set(name, all.length > MAX_VALUES ? null : all);
@@ -290,6 +372,9 @@ export const holdsSubstitution = (text: string): boolean =>
  */
 export function unresolvedTarget(cmd: SimpleCommand, target: string, ctx: PathContext): boolean {
   if (isWin(ctx) && CMD_VARIABLE.test(withoutKnown(target))) return true;
+  for (const word of (cmd as Marked).unsure ?? []) {
+    if (word.includes(target) || target.includes(word)) return true;
+  }
   if ((!holdsVariable(target) && !holdsSubstitution(target)) || !cmd.vars) return false;
   for (const word of cmd.vars) if (word.includes(target) || target.includes(word)) return true;
   return false;

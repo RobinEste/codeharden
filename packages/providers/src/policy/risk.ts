@@ -11,7 +11,7 @@ import { dumpsEnvironment } from "./env-dumps";
 import { type ListOutput, namesOnly } from "./env-names";
 import { feedOf, firstInList, TOO_MANY_LOCATIONS, withKept } from "./first-in-list";
 import { classifyGit } from "./git";
-import { MAX_COMMAND_CHARS, TOO_LONG } from "./harden-scan";
+import { bounded, followedBy, MAX_COMMAND_CHARS, TOO_INVOLVED, TOO_LONG } from "./harden-scan";
 import { inlineCodePaths, inlineCodeWrites } from "./inline-code";
 import { inlineScripts } from "./inline-scripts";
 import { classifyInstall } from "./installs";
@@ -67,6 +67,11 @@ const UNKNOWN = "Runs a command that is only known when it runs";
  */
 export function classifyCommand(command: string, given: RiskContext): RiskAssessment {
   if (command.length > MAX_COMMAND_CHARS) return TOO_LONG;
+  return bounded(() => classifyWithin(command, given), TOO_INVOLVED);
+}
+
+/** `classifyCommand` for a command short enough to read, within the work limit (`./harden-scan`). */
+function classifyWithin(command: string, given: RiskContext): RiskAssessment {
   // `CDPATH` sends a `cd` to a relative folder anywhere it lists, and `GIT_DIR` or
   // `GIT_WORK_TREE` a `cd` to the repository's top folder elsewhere (#614).
   const ctx = {
@@ -78,8 +83,11 @@ export function classifyCommand(command: string, given: RiskContext): RiskAssess
   // downloaded script, a force push) must not hide a later write outside the worktree.
   const found: RiskAssessment[] = [];
   if (
-    /\b(iex|invoke-expression)\b[^|]*\b(irm|iwr|invoke-restmethod|invoke-webrequest|downloadstring)\b/i.test(
+    followedBy(
       command,
+      /\b(iex|invoke-expression)\b/gi,
+      /\b(irm|iwr|invoke-restmethod|invoke-webrequest|downloadstring)\b/gi,
+      "|",
     )
   ) {
     found.push(risky("network", "Executes a downloaded script"));
