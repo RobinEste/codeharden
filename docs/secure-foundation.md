@@ -64,7 +64,7 @@ It works in parts:
 3. **The deploy,** only when you ticked it (see [Deploy](#deploy)).
 4. **Starting the app:** the two dev processes (`npm run convex` and `npm run dev`, or their `:doppler` variants) as long-running processes of the session.
 
-Its last message starts with the app's URL, then the Clerk claim link and how to stop and restart.
+Its first message is the whole brief it was given: your answers, the list of what you agreed will be created, and the commands with your answers filled in. Its last message starts with the app's URL, then the Clerk claim link and how to stop and restart, and ends with **What was created**: each thing that now exists in your accounts, by name, with where to remove it.
 
 The project page shows a **Secure Foundation setup** line: checking this computer, installing, waiting on you, running at the URL, stopped or failed.
 
