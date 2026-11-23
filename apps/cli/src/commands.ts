@@ -4,7 +4,7 @@
  * `runner-link` never loads the server.
  */
 import { join } from "node:path";
-import { CODEDEN_VERSION } from "@codeden/contracts";
+import { CODEDEN_VERSION, formatHardenVersion } from "@codeden/contracts";
 import {
   ensureHome,
   ensureInstallToken,
@@ -112,7 +112,7 @@ export async function runCommand(args: string[], parsed: ParsedCli): Promise<num
     throw error;
   }
 
-  console.log(`CodeDen ${CODEDEN_VERSION} is running at ${server.url}`);
+  console.log(`${formatHardenVersion()} is running at ${server.url}`);
   console.log(`Open: ${server.launchUrl}`);
   if (server.network.enabled) {
     console.log("Network access is on. Open CodeDen on your phone or tablet at:");

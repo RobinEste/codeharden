@@ -51,8 +51,9 @@ export async function startUpdateEnv(): Promise<UpdateEnv> {
     CODEDEN_GITHUB_SYNC: "0",
     CODEDEN_DEBUG: "1",
   };
+  // The updater's probe: the bare package version (plain `--version` prints the version line).
   const current = spawnSync(process.execPath, [entry, "--version"], {
-    env,
+    env: { ...env, CODEDEN_NO_SWITCH: "1" },
     encoding: "utf8",
   }).stdout.trim();
   let output = "";

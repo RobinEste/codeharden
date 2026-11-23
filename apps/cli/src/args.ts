@@ -1,9 +1,9 @@
 import { parseArgs } from "node:util";
-import { CODEDEN_VERSION } from "@codeden/contracts";
+import { formatHardenVersion } from "@codeden/contracts";
 
 export const DEFAULT_PORT = 4317;
 
-export const HELP = `codeden ${CODEDEN_VERSION}: a local-first harness for coding agents
+export const HELP = `${formatHardenVersion()}: a local-first harness for coding agents
 
 Usage:
   codeden [options]      Start CodeDen and open it in the browser

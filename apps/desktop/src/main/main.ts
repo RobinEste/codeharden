@@ -13,11 +13,13 @@ import { app } from "electron";
 import { parseLaunchArgs } from "./args";
 import { DesktopApp } from "./desktop-app";
 import { forceExit } from "./exit";
+import { hardenAboutPanel } from "./harden-display";
 import { redactToken } from "./security";
 import { homeFiles } from "./server-plan";
 
 const args = parseLaunchArgs(process.argv.slice(1));
 app.setName("CodeDen");
+app.setAboutPanelOptions(hardenAboutPanel());
 app.setPath("userData", homeFiles(args.home).desktop);
 if (process.platform === "win32") app.setAppUserModelId("dev.codeden.app");
 
