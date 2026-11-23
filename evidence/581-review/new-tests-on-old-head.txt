@@ -1,31 +1,32 @@
 # The same three test files, copied unchanged onto the old head (fec91328)
 $ pnpm exec vitest run apps/server/test/role-sessions-provider.test.ts apps/server/test/role-sessions-move.test.ts apps/server/test/api-routes.test.ts --reporter=verbose
- ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > retires the PM when its role's provider changes, and starts a fresh one on next use 52ms
- ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > leaves a session with a turn under way, and moves it when it is next used 24ms
+ ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > retires the PM when its role's provider changes, and starts a fresh one on next use 62ms
+ ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > leaves a session with a turn under way, and moves it when it is next used 23ms
  ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > leaves a session whose turn is on its way to the runner 28ms
- × |@codeden/server| test/role-sessions-move.test.ts > role sessions: concurrent use just after the provider setting changed (§8.1) > gives two concurrent callers the same new session (the first one settled) 55ms
+ × |@codeden/server| test/role-sessions-move.test.ts > role sessions: concurrent use just after the provider setting changed (§8.1) > gives two concurrent callers the same new session (the first one settled) 70ms
  × |@codeden/server| test/role-sessions-move.test.ts > role sessions: concurrent use just after the provider setting changed (§8.1) > gives two concurrent callers the same new session (the first one still starting) 24ms
- ✓ |@codeden/server| test/role-sessions-move.test.ts > role sessions: concurrent use just after the provider setting changed (§8.1) > gives a caller that arrives while the settings change retires the session a new one 31ms
- × |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > moves the user's message, a message_pm task and an ask_pm question to the new session, each with its sender, and the ask is answered from there 28ms
- × |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > hands the queue over when the role is next used, ahead of the message that uses it 26ms
- × |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > keeps the messages in the old session when it can't be stopped or the new one can't start 25ms
- ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > dismisses the retired session's failed runs, whose Retry would bring it back 25ms
- ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > keeps the session for Auto, for the other role's setting and for a provider the runner lacks 25ms
+ ✓ |@codeden/server| test/role-sessions-move.test.ts > role sessions: concurrent use just after the provider setting changed (§8.1) > gives a caller that arrives while the settings change retires the session a new one 30ms
+ ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > dismisses the retired session's failed runs, whose Retry would bring it back 31ms
+ ✓ |@codeden/server| test/role-sessions-provider.test.ts > role sessions: moving the orchestrator or a PM to another provider (§8.1) > keeps the session for Auto, for the other role's setting and for a provider the runner lacks 24ms
  × |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > leaves the session while the runner is away, and moves it once the runner is back 29ms
- × |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > keeps the PM when the project's own default provider changes 25ms
- × |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > starts the PM's new session on the project's default when the role setting changes 25ms
- × |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > keeps a session from before the setting was recorded, until the setting next changes 23ms
- ✓ |@codeden/server| test/api-routes.test.ts > api routes > validates bodies and maps service errors 85ms
- ✓ |@codeden/server| test/api-routes.test.ts > api routes > fails a start cleanly when no runner is available and raises an inbox item 68ms
+ × |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > moves the user's message, a message_pm task and an ask_pm question to the new session, each with its sender, and the ask is answered from there 33ms
+ × |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > answers an ask_pm that was open for a session retired with an empty queue 30ms
+ × |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > hands the queue over when the role is next used, ahead of the message that uses it 24ms
+ × |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > keeps the messages in the old session when it can't be stopped or the new one can't start 27ms
+ × |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > keeps the PM when the project's own default provider changes 23ms
+ × |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > starts the PM's new session on the project's default when the role setting changes 33ms
+ × |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > keeps a session from before the setting was recorded, until the setting next changes 25ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > validates bodies and maps service errors 87ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > fails a start cleanly when no runner is available and raises an inbox item 66ms
  ✓ |@codeden/server| test/api-routes.test.ts > api routes > pins and reorders projects, and rejects an incomplete order 67ms
- ✓ |@codeden/server| test/api-routes.test.ts > api routes > reports Claude Code support as ready from the workspace SDK 28ms
- ✓ |@codeden/server| test/api-routes.test.ts > api routes > serves first-run setup status, login commands and completion 32ms
- × |@codeden/server| test/api-routes.test.ts > api routes > saves provider settings without waiting for role sessions to be retired 40033ms
- ✓ |@codeden/server| test/api-routes.test.ts > api routes > lists folders for the picker starting at home 41ms
- ✓ |@codeden/server| test/api-routes.test.ts > api routes > reads and writes provider config files through the guard 49ms
- ✓ |@codeden/server| test/api-routes.test.ts > api routes > serves artifacts with safe headers 35ms
- ✓ |@codeden/server| test/api-routes.test.ts > api routes > stores secrets without ever returning them 35ms
- ✓ |@codeden/server| test/api-routes.test.ts > api routes > searches transcripts behind the install token and validates the query 34ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > reports Claude Code support as ready from the workspace SDK 29ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > serves first-run setup status, login commands and completion 34ms
+ × |@codeden/server| test/api-routes.test.ts > api routes > saves provider settings without waiting for role sessions to be retired 40030ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > lists folders for the picker starting at home 42ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > reads and writes provider config files through the guard 31ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > serves artifacts with safe headers 39ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > stores secrets without ever returning them 33ms
+ ✓ |@codeden/server| test/api-routes.test.ts > api routes > searches transcripts behind the install token and validates the query 38ms
  FAIL  |@codeden/server| test/api-routes.test.ts > api routes > saves provider settings without waiting for role sessions to be retired
 Error: Test timed out in 40000ms.
  FAIL  |@codeden/server| test/role-sessions-move.test.ts > role sessions: concurrent use just after the provider setting changed (§8.1) > gives two concurrent callers the same new session (the first one settled)
@@ -34,17 +35,19 @@ AssertionError: expected { session: { …(36) } } to deeply equal { session: { �
 AssertionError: expected { Object (error) } to deeply equal { session: { …(36) } }
  FAIL  |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > moves the user's message, a message_pm task and an ask_pm question to the new session, each with its sender, and the ask is answered from there
 AssertionError: expected [] to have a length of 1 but got +0
+ FAIL  |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > answers an ask_pm that was open for a session retired with an empty queue
+AssertionError: expected 'unanswered' to deeply equal { Object (status, text) }
  FAIL  |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > hands the queue over when the role is next used, ahead of the message that uses it
 AssertionError: expected [ { from: 'user', text: 'third' } ] to deeply equal [ …(3) ]
  FAIL  |@codeden/server| test/role-sessions-move.test.ts > role sessions: the queue moves with the role (§8.1) > keeps the messages in the old session when it can't be stopped or the new one can't start
-AssertionError: expected undefined to be '025407ca-a0ef-4b99-9e31-3ca5341c2296' // Object.is equality
+AssertionError: expected undefined to be '0a4b1ad5-05db-41dc-bf44-d990c107edc2' // Object.is equality
  FAIL  |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > leaves the session while the runner is away, and moves it once the runner is back
-AssertionError: expected '96fcaff6-d5a4-4ea7-919f-c7d9d72eb65a' to be '9ded1b4a-9766-430c-b506-e327e813f349' // Object.is equality
+AssertionError: expected '88f6d5ca-a439-425d-bc0b-b5b293991ad2' to be '23b89566-2f2b-420e-8a23-664ee323f7ea' // Object.is equality
  FAIL  |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > keeps the PM when the project's own default provider changes
-AssertionError: expected '583b7ff7-6937-4ae6-ac66-34d8aa949703' to be '760572ec-bba3-4040-bda2-ef985dfeebb7' // Object.is equality
+AssertionError: expected '91d3b83c-6750-4d07-a5e4-a1ac8256c29d' to be '8ca12885-0fcb-42ad-97cb-b8e50d532328' // Object.is equality
  FAIL  |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > starts the PM's new session on the project's default when the role setting changes
-AssertionError: expected 'e2d5341b-93de-412e-8079-68b7ff1d9cd3' to be '1a462315-8099-45d6-8cf4-35668be78602' // Object.is equality
+AssertionError: expected '5aa28a80-3627-48a9-851a-9516545a7762' to be 'f60a310b-10c1-4940-a005-4d3e13be0310' // Object.is equality
  FAIL  |@codeden/server| test/role-sessions-provider.test.ts > role sessions: what does not move a role session (§8.1) > keeps a session from before the setting was recorded, until the setting next changes
-AssertionError: expected '7035bc5d-2c46-4a3a-9f74-7b11196230a7' to be '111f47d5-53ff-4aa8-b418-6661cfc35c7f' // Object.is equality
+AssertionError: expected '51175925-ca34-459a-b1d4-1263cdc3b9a8' to be '3ec29edd-e338-4581-93b2-eef4f19c07ca' // Object.is equality
  Test Files  3 failed (3)
-      Tests  10 failed | 16 passed (26)
+      Tests  11 failed | 16 passed (27)

@@ -1,4 +1,4 @@
-# pnpm typecheck && pnpm lint && pnpm test on 5bac05b7 (macOS, Node 24.22.1, pnpm 10.12.1)
+# pnpm typecheck && pnpm lint && pnpm test on 5792b7b1 (macOS, Node 24.22.1, pnpm 10.12.1)
 
 $ pnpm typecheck
 packages/contracts typecheck: Done
@@ -14,11 +14,11 @@ $ pnpm lint
 > codeden-monorepo@ lint <worktree>
 > biome check .
 
-Checked 2024 files in 604ms. No fixes applied.
+Checked 2024 files in 597ms. No fixes applied.
 exit 0
 
 $ pnpm test
  Test Files  572 passed | 12 skipped (584)
-      Tests  4503 passed | 45 skipped (4548)
-   Duration  149.65s (tests 56%, import 24%, transform 13%, environment 5%, setup 1%)
+      Tests  4504 passed | 45 skipped (4549)
+   Duration  147.49s (tests 57%, import 25%, transform 10%, environment 6%, setup 1%)
 exit 0
