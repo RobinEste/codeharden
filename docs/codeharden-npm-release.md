@@ -41,7 +41,15 @@ The package is `codeharden`. The repository's `apps/cli/package.json` keeps upst
 
    It refuses unless the tree is clean and HEAD is the tag `v<VERSION>`. Then it installs dependencies, builds, packs `dist/npm/codeharden-<npm version>.tgz` and checks the tarball: the name, version, command and repository in its `package.json`, the files it must and must not contain, that the bundle was built from this `VERSION` for this package, and that its CLI starts and reports both versions. It prints the name, version, `bin` and file count, then what npm would publish. Nothing is published.
 
-4. **Sign in to npm**, if `npm whoami` doesn't show your account: `npm login`. npm prints a URL (`https://www.npmjs.com/login?next=/login/cli/...`); open it in your browser and approve.
+4. **Sign in to npm**, if `npm whoami` doesn't show your account:
+
+   ```sh
+   node scripts/harden/npm-release.mjs login   # npm login --auth-type=web, on the public registry
+   ```
+
+   npm prints a URL (`https://www.npmjs.com/login?next=/login/cli/...`); open it in your browser and approve. Nothing secret is typed into the terminal. It ends by naming the account: check that it is the one that may publish the package. npm then stays signed in on this computer until you run `npm logout`.
+
+   An agent session may run this step for you, only as part of a publish you asked it for and only when npm is signed out: it passes you the URL and opens it, and you approve in your own browser. It never handles a password, a token or a one-time code; if npm asks for one in the terminal instead of printing a URL, it stops and you run `npm login` yourself.
 
 5. **Publish:**
 
@@ -63,6 +71,8 @@ The package is `codeharden`. The repository's `apps/cli/package.json` keeps upst
 ## Good to know
 
 - **If npm says it published but the version isn't there:** `npm view codeharden versions` showing only `0.0.0-stage` means npm staged the release instead of publishing it. Approve it on npmjs.com under account settings > **Staged Packages** (it asks for your second factor); the version appears once approved.
+
+- **If the publish fails with `E404`** ("404 Not Found - PUT https://registry.npmjs.org/codeharden", sometimes "is not in this registry" or "you do not have permission to access it"): that almost always means npm is not signed in or the sign-in expired. The registry answers 404, not 401, to a publish it can't authorise. It also happens when the signed-in account has no publish rights on the package. It doesn't mean the package or the version is broken, nothing was published, and the same version can be published again. (With no sign-in stored at all, npm says `ENEEDAUTH` instead: the same fix.) Run `npm whoami`: if it shows nobody, sign in (step 4) and publish again; if it shows an account and the publish still says 404, that account can't publish this package. The script checks this itself when a publish fails and says which it is.
 
 - **A version can't be published twice**, and npm restricts unpublishing after 72 hours. If a release is wrong, publish a newer one and mark the bad one: `npm deprecate codeharden@<version> "<reason>"`.
 - **The registry is always named** (`https://registry.npmjs.org`), so an npm config pointing elsewhere can't redirect a publish. `--registry` exists for tests.
