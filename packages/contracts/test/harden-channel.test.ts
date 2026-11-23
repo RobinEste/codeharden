@@ -21,12 +21,17 @@ import {
   isNewerVersion,
 } from "../src/index";
 
-type Globals = { __CODEHARDEN_PACKAGE__?: string; __CODEHARDEN_REPOSITORY__?: string };
+type Globals = {
+  __CODEHARDEN_PACKAGE__?: string;
+  __CODEHARDEN_REPOSITORY__?: string;
+  __CODEHARDEN_BRANCH__?: string;
+};
 const globals = globalThis as Globals;
 
 afterEach(() => {
   delete globals.__CODEHARDEN_PACKAGE__;
   delete globals.__CODEHARDEN_REPOSITORY__;
+  delete globals.__CODEHARDEN_BRANCH__;
   vi.resetModules();
 });
 
@@ -92,8 +97,16 @@ describe("CodeHarden's update channel", () => {
   it("takes the package and repository a build injects (a fork's own channel)", async () => {
     globals.__CODEHARDEN_PACKAGE__ = "@acme/harden";
     globals.__CODEHARDEN_REPOSITORY__ = "acme/harden-fork";
+    globals.__CODEHARDEN_BRANCH__ = "acme/work";
     vi.resetModules();
     const built = await import("../src/index");
+    expect(built.HARDEN_BRANCH).toBe("acme/work");
+    expect(built.hardenChangelogUrl()).toBe(
+      "https://raw.githubusercontent.com/acme/harden-fork/acme/work/CODEHARDEN-CHANGELOG.md",
+    );
+    expect(built.hardenDocsUrl("desktop.md")).toBe(
+      "https://github.com/acme/harden-fork/blob/acme/work/docs/desktop.md",
+    );
     expect(built.HARDEN_PACKAGE_NAME).toBe("@acme/harden");
     expect(built.HARDEN_COMMAND).toBe("harden");
     expect(built.HARDEN_PACKAGE_SEGMENTS).toEqual(["@acme", "harden"]);
@@ -106,8 +119,10 @@ describe("CodeHarden's update channel", () => {
   it("falls back to the defaults when an injected value is malformed", async () => {
     globals.__CODEHARDEN_PACKAGE__ = "../codeden";
     globals.__CODEHARDEN_REPOSITORY__ = "https://github.com/someone/else";
+    globals.__CODEHARDEN_BRANCH__ = "../../other/repo";
     vi.resetModules();
     const built = await import("../src/index");
+    expect(built.HARDEN_BRANCH).toBe("harden");
     expect(built.HARDEN_PACKAGE_NAME).toBe("codeharden");
     expect(built.HARDEN_REPOSITORY).toBe("harperaa/codeharden");
   });

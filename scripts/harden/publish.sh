@@ -28,6 +28,7 @@ die() {
   exit 1
 }
 
+script_dir=$(cd "$(dirname "$0")" && pwd)
 cd "$(git rev-parse --show-toplevel 2> /dev/null)" || die "run this inside the repository"
 [ -f VERSION ] || die "this checkout has no VERSION"
 version=$(tr -d '[:space:]' < VERSION)
@@ -41,6 +42,18 @@ tagged=$(git rev-parse --verify --quiet "refs/tags/${tag}^{commit}" || true)
 if [ "$tagged" != "$(git rev-parse HEAD)" ]; then
   die "HEAD is not the release ${tag}. Check it out first: git checkout ${tag}"
 fi
+
+# The package this fork publishes, its repository and its working branch, for the build and
+# the pack (scripts/harden/fork-config.sh). Outside CodeHarden's own repository PACKAGE_NAME
+# has no default: a fork must never publish, or update its users, as `codeharden`.
+FORK_CONFIG_WHO="publish"
+FORK_CONFIG_STRICT=1
+# shellcheck source=scripts/harden/fork-config.sh
+. "${script_dir}/fork-config.sh"
+fork_config_resolve PACKAGE_NAME HARDEN_BRANCH
+RELEASE_REPOSITORY="${RELEASE_REPOSITORY:-$FORK_REPO}"
+[ -n "$RELEASE_REPOSITORY" ] || die "RELEASE_REPOSITORY is not set and the origin remote is not a GitHub repository; export RELEASE_REPOSITORY=<owner/repo>"
+export PACKAGE_NAME HARDEN_BRANCH RELEASE_REPOSITORY
 
 script="scripts/harden/npm-release.mjs"
 node "$script" pack

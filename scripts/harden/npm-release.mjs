@@ -29,14 +29,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { readHardenChannel } from "./channel-define.mjs";
+import { DEFAULT_HARDEN_BRANCH, readHardenChannel } from "./channel-define.mjs";
 import { readHardenVersion } from "./version-define.mjs";
 
 export const NPM_REGISTRY = "https://registry.npmjs.org";
 const ROOT = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const CLI = join(ROOT, "apps", "cli");
 const OUT = join(ROOT, "dist", "npm");
-const BRANCH = "harden";
 /** What the tarball must contain to be a working install. */
 const REQUIRED_FILES = [
   "package.json",
@@ -85,7 +84,7 @@ export function releaseManifest(pkg, { hardenVersion, channel }) {
 }
 
 /** The README as npm shows it: relative links made absolute, into the channel's repository. */
-export function releaseReadme(source, repository, branch = BRANCH) {
+export function releaseReadme(source, repository, branch = DEFAULT_HARDEN_BRANCH) {
   const absolute = (target) => {
     if (/^(?:[a-z]+:|#|\/\/)/i.test(target)) return target;
     const path = target.replace(/^\.\//, "");
@@ -153,7 +152,13 @@ const pnpm = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const shell = process.platform === "win32";
 
 function release() {
-  const channel = readHardenChannel();
+  // Strict: outside CodeHarden's own repository there is no default package name.
+  let channel;
+  try {
+    channel = readHardenChannel(process.env, { strict: true });
+  } catch (error) {
+    fail(error.message);
+  }
   const hardenVersion = readHardenVersion();
   const version = npmVersion(hardenVersion);
   const tarball = join(OUT, tarballName(channel.packageName, version));
@@ -206,7 +211,10 @@ function pack(flags) {
     const manifest = releaseManifest(pkg, rel);
     writeFileSync(join(stage, "package.json"), `${JSON.stringify(manifest, null, 2)}\n`);
     const readme = readFileSync(join(ROOT, "README.md"), "utf8");
-    writeFileSync(join(stage, "README.md"), releaseReadme(readme, rel.channel.repository));
+    writeFileSync(
+      join(stage, "README.md"),
+      releaseReadme(readme, rel.channel.repository, rel.channel.branch),
+    );
 
     rmSync(OUT, { recursive: true, force: true });
     mkdirSync(OUT, { recursive: true });

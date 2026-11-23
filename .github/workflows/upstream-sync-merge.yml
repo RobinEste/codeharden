@@ -8,6 +8,22 @@ name: Upstream sync merge
 #   harden  CodeHarden: upstream plus this fork's own changes. Upstream arrives by merge
 #           commits, never by rebase or force-push.
 #
+# Those names are CodeHarden's. A fork of CodeHarden runs this same file against its own
+# upstream, from repository variables (scripts/harden/setup-fork.sh creates them; the README
+# section "Make your own hardened fork" has the steps):
+#   UPSTREAM_REPO    the owner/repo that is followed       CodeHarden: leonvanzyl/codeden
+#   UPSTREAM_BRANCH  the branch of it that is followed     CodeHarden: main
+#   PACKAGE_NAME     the npm package this fork publishes   CodeHarden: codeharden
+#   HARDEN_BRANCH    optional: the working branch, default harden
+#   MIRROR_BRANCH    optional: the mirror branch. Default: the upstream branch's name (main),
+#                    or `mirror` when the working branch has that name (a fork of CodeHarden
+#                    follows harden, so its mirror is `mirror` and its working branch harden).
+# Only CodeHarden itself (harperaa/codeharden) runs without the first three: anywhere else the
+# job "config" fails until they are set, so a fork never follows or releases by a default.
+# Below, "main" and "harden" stand for the mirror branch and the working branch.
+#
+# Job "config": reads and checks those variables, and hands the values to the other jobs.
+#
 # Job "mirror": fast-forwards this repository's main to upstream main. If main has commits
 # upstream doesn't have, the job fails and changes nothing.
 #
@@ -50,13 +66,17 @@ name: Upstream sync merge
 #   - It uses no actions at all, only `git`, `gh` and `jq` from the runner image, so there is
 #     nothing to pin. If an action is ever added here, pin it by full commit SHA.
 #   - It never checks out or runs code from a pull request. Commits are fetched into a bare
-#     repository as data, only to compare ancestry. The release job checks out four files
-#     of harden and nothing else: VERSION, the changelog, state/upstream-base and
-#     scripts/harden/release.sh. That script, from harden itself, is the only thing it runs
-#     from the repository; it is the same one a maintainer runs by hand.
+#     repository as data, only to compare ancestry. The release job checks out five files
+#     of harden and nothing else: VERSION, the changelog, state/upstream-base,
+#     scripts/harden/release.sh and scripts/harden/fork-config.sh (which release.sh sources).
+#     Those two scripts, from harden itself, are the only things it runs from the
+#     repository; they are the same ones a maintainer runs by hand.
 #   - It authenticates with the run's own GITHUB_TOKEN. No personal tokens, no secrets.
 #   - Values from pull requests (branch names, labels) reach the scripts as data through `jq`
-#     and environment variables, never through `${{ }}` in a script.
+#     and environment variables, never through `${{ }}` in a script. The same goes for the
+#     repository variables: they arrive through `env:`, and the job "config" refuses any that
+#     is not shaped like an owner/repo, a branch name or an npm package name before another
+#     job uses it.
 #
 # Known limit: GITHUB_TOKEN may not create or change files in .github/workflows. When
 # upstream changes a workflow file, the mirror push and the merge of that sync pull request
@@ -78,30 +98,126 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  UPSTREAM_URL: https://github.com/leonvanzyl/codeden
-  MIRROR_BRANCH: main
-  TARGET_BRANCH: harden
   HEAD_PREFIX: sync/
   APPROVED_LABEL: sync-approved
   BLOCKING_LABELS: sync-needs-review sync-hold
   DELAY_HOURS: "48"
-  UPSTREAM_NAME: leonvanzyl/codeden
   CHANGELOG_FILE: CODEHARDEN-CHANGELOG.md
   CHANGELOG_TITLE: "# CodeHarden releases"
   BASE_FILE: state/upstream-base
   RELEASE_SCRIPT: scripts/harden/release.sh
+  FORK_CONFIG_SCRIPT: scripts/harden/fork-config.sh
   # Paths a sync pull request may not change and still merge by itself (space separated).
   PROTECTED_PATHS: scripts/harden/
   REVIEW_LABEL: sync-needs-review
   RELEASE_TZ: America/New_York
 
 jobs:
+  config:
+    name: Read the fork's configuration
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      upstream_repo: ${{ steps.config.outputs.upstream_repo }}
+      upstream_branch: ${{ steps.config.outputs.upstream_branch }}
+      package_name: ${{ steps.config.outputs.package_name }}
+      mirror_branch: ${{ steps.config.outputs.mirror_branch }}
+      target_branch: ${{ steps.config.outputs.target_branch }}
+    steps:
+      - name: Check the repository variables
+        id: config
+        shell: bash
+        env:
+          VAR_UPSTREAM_REPO: ${{ vars.UPSTREAM_REPO }}
+          VAR_UPSTREAM_BRANCH: ${{ vars.UPSTREAM_BRANCH }}
+          VAR_PACKAGE_NAME: ${{ vars.PACKAGE_NAME }}
+          VAR_MIRROR_BRANCH: ${{ vars.MIRROR_BRANCH }}
+          VAR_HARDEN_BRANCH: ${{ vars.HARDEN_BRANCH }}
+        run: |
+          set -euo pipefail
+          # fork-config:begin
+          # The same rules as scripts/harden/fork-config.sh (a test compares the two).
+          bad=0
+          problem() { echo "::error::$1"; bad=1; }
+          own=0
+          if [ "$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')" = "harperaa/codeharden" ]; then own=1; fi
+          # A variable's value, or CodeHarden's (only in CodeHarden itself).
+          value() {
+            if [ -n "$2" ]; then printf '%s' "$2"; elif [ "$own" = 1 ]; then printf '%s' "$3"; fi
+          }
+          upstream_repo=$(value UPSTREAM_REPO "$VAR_UPSTREAM_REPO" leonvanzyl/codeden)
+          upstream_branch=$(value UPSTREAM_BRANCH "$VAR_UPSTREAM_BRANCH" main)
+          package_name=$(value PACKAGE_NAME "$VAR_PACKAGE_NAME" codeharden)
+          target_branch="${VAR_HARDEN_BRANCH:-harden}"
+          mirror_branch="$VAR_MIRROR_BRANCH"
+          if [ -z "$mirror_branch" ]; then
+            if [ "$upstream_branch" = "$target_branch" ]; then mirror_branch=mirror; else mirror_branch="$upstream_branch"; fi
+          fi
+          for name in UPSTREAM_REPO UPSTREAM_BRANCH PACKAGE_NAME; do
+            case "$name" in
+              UPSTREAM_REPO) v="$upstream_repo" ;;
+              UPSTREAM_BRANCH) v="$upstream_branch" ;;
+              PACKAGE_NAME) v="$package_name" ;;
+            esac
+            if [ -z "$v" ]; then
+              problem "The repository variable ${name} is not set. This repository is ${GITHUB_REPOSITORY}, not harperaa/codeharden, so CodeHarden's value is not used. Run scripts/harden/setup-fork.sh, or create the variable under Settings > Secrets and variables > Actions > Variables."
+            fi
+          done
+          valid_repo() {
+            [[ "$1" =~ ^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?/[A-Za-z0-9._-]+$ ]] || return 1
+            case "${1#*/}" in . | ..) return 1 ;; esac
+          }
+          valid_branch() {
+            [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]*$ ]] || return 1
+            case "$1" in *..* | *//* | */ | *. | *.lock | */.*) return 1 ;; esac
+          }
+          valid_package() {
+            [[ "$1" =~ ^(@[a-z0-9][a-z0-9._-]*/)?[a-z0-9][a-z0-9._-]*$ ]]
+          }
+          # Values are not echoed back when malformed: only their names.
+          if [ -n "$upstream_repo" ] && ! valid_repo "$upstream_repo"; then
+            problem "The repository variable UPSTREAM_REPO must be a GitHub owner/repo."
+          fi
+          if [ -n "$upstream_branch" ] && ! valid_branch "$upstream_branch"; then
+            problem "The repository variable UPSTREAM_BRANCH must be a branch name."
+          fi
+          if [ -n "$package_name" ] && ! valid_package "$package_name"; then
+            problem "The repository variable PACKAGE_NAME must be an npm package name."
+          fi
+          if ! valid_branch "$target_branch"; then
+            problem "The repository variable HARDEN_BRANCH must be a branch name."
+          fi
+          if [ -n "$mirror_branch" ] && ! valid_branch "$mirror_branch"; then
+            problem "The repository variable MIRROR_BRANCH must be a branch name."
+          fi
+          if [ "$bad" = 0 ] && [ "$mirror_branch" = "$target_branch" ]; then
+            problem "The mirror branch and the working branch are both ${target_branch}; they must differ (MIRROR_BRANCH, HARDEN_BRANCH)."
+          fi
+          if [ "$bad" = 0 ] && [ "$(printf '%s' "$upstream_repo" | tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')" ]; then
+            problem "UPSTREAM_REPO is this repository itself."
+          fi
+          [ "$bad" = 0 ] || exit 1
+          # fork-config:end
+          echo "Upstream: ${upstream_repo} @ ${upstream_branch}; mirror branch: ${mirror_branch}; working branch: ${target_branch}; package: ${package_name}"
+          {
+            echo "upstream_repo=${upstream_repo}"
+            echo "upstream_branch=${upstream_branch}"
+            echo "package_name=${package_name}"
+            echo "mirror_branch=${mirror_branch}"
+            echo "target_branch=${target_branch}"
+          } >> "$GITHUB_OUTPUT"
+
   mirror:
     name: Mirror upstream main
+    needs: config
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
+    env:
+      UPSTREAM_REPO: ${{ needs.config.outputs.upstream_repo }}
+      UPSTREAM_BRANCH: ${{ needs.config.outputs.upstream_branch }}
+      MIRROR_BRANCH: ${{ needs.config.outputs.mirror_branch }}
     steps:
       - name: Fast-forward main to upstream main
         shell: bash
@@ -110,20 +226,21 @@ jobs:
         run: |
           set -euo pipefail
           fork_url="https://github.com/${GITHUB_REPOSITORY}"
+          UPSTREAM_URL="https://github.com/${UPSTREAM_REPO}"
           git init --quiet --bare "$RUNNER_TEMP/mirror.git"
           cd "$RUNNER_TEMP/mirror.git"
-          git fetch --quiet --no-tags "$UPSTREAM_URL" "refs/heads/${MIRROR_BRANCH}:refs/sync/upstream"
+          git fetch --quiet --no-tags "$UPSTREAM_URL" "refs/heads/${UPSTREAM_BRANCH}:refs/sync/upstream"
           git fetch --quiet --no-tags "$fork_url" "refs/heads/${MIRROR_BRANCH}:refs/sync/mirror"
           upstream=$(git rev-parse refs/sync/upstream)
           mirror=$(git rev-parse refs/sync/mirror)
-          echo "upstream ${MIRROR_BRANCH}: $upstream"
+          echo "upstream ${UPSTREAM_BRANCH}: $upstream"
           echo "this repository's ${MIRROR_BRANCH}: $mirror"
           if [ "$upstream" = "$mirror" ]; then
             echo "::notice::${MIRROR_BRANCH} is already at upstream ($upstream)."
             exit 0
           fi
           if ! git merge-base --is-ancestor "$mirror" "$upstream"; then
-            echo "::error::${MIRROR_BRANCH} can't be fast-forwarded: it has commits that upstream ${MIRROR_BRANCH} doesn't have ($mirror is not an ancestor of $upstream). ${MIRROR_BRANCH} must stay a pure mirror; nothing was changed. Move those commits to another branch and reset ${MIRROR_BRANCH} by hand."
+            echo "::error::${MIRROR_BRANCH} can't be fast-forwarded: it has commits that upstream ${UPSTREAM_BRANCH} doesn't have ($mirror is not an ancestor of $upstream). ${MIRROR_BRANCH} must stay a pure mirror; nothing was changed. Move those commits to another branch and reset ${MIRROR_BRANCH} by hand."
             exit 1
           fi
           # A plain push, never forced: git itself refuses anything that isn't a fast-forward.
@@ -133,7 +250,7 @@ jobs:
             push "$fork_url" "refs/sync/upstream:refs/heads/${MIRROR_BRANCH}" 2> "$RUNNER_TEMP/push.log"; then
             cat "$RUNNER_TEMP/push.log"
             if grep -qi "workflow" "$RUNNER_TEMP/push.log"; then
-              echo "::error::The push was refused because upstream changed a file in .github/workflows, which GITHUB_TOKEN may not do. Fast-forward ${MIRROR_BRANCH} by hand: git fetch $UPSTREAM_URL ${MIRROR_BRANCH} && git push $fork_url FETCH_HEAD:refs/heads/${MIRROR_BRANCH}"
+              echo "::error::The push was refused because upstream changed a file in .github/workflows, which GITHUB_TOKEN may not do. Fast-forward ${MIRROR_BRANCH} by hand: git fetch $UPSTREAM_URL ${UPSTREAM_BRANCH} && git push $fork_url FETCH_HEAD:refs/heads/${MIRROR_BRANCH}"
             else
               echo "::error::Pushing ${MIRROR_BRANCH} failed. If the message above is a permission error, check Settings > Actions > General > Workflow permissions (the workflow asks for contents: write itself) and any branch protection or ruleset on ${MIRROR_BRANCH}."
             fi
@@ -144,12 +261,17 @@ jobs:
 
   merge:
     name: Merge approved sync pull requests
+    needs: config
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
       pull-requests: write
       checks: read
+    env:
+      UPSTREAM_REPO: ${{ needs.config.outputs.upstream_repo }}
+      UPSTREAM_BRANCH: ${{ needs.config.outputs.upstream_branch }}
+      TARGET_BRANCH: ${{ needs.config.outputs.target_branch }}
     outputs:
       merged: ${{ steps.merge.outputs.merged }}
     steps:
@@ -162,6 +284,7 @@ jobs:
           set -euo pipefail
           repo="$GITHUB_REPOSITORY"
           fork_url="https://github.com/${repo}"
+          UPSTREAM_URL="https://github.com/${UPSTREAM_REPO}"
           failed=0
           merged=0
 
@@ -192,7 +315,7 @@ jobs:
           # Commits as data, for ancestry only. Nothing is checked out and nothing is run.
           git init --quiet --bare "$RUNNER_TEMP/sync.git"
           cd "$RUNNER_TEMP/sync.git"
-          git fetch --quiet --no-tags "$UPSTREAM_URL" "refs/heads/${MIRROR_BRANCH}:refs/sync/upstream"
+          git fetch --quiet --no-tags "$UPSTREAM_URL" "refs/heads/${UPSTREAM_BRANCH}:refs/sync/upstream"
           git fetch --quiet --no-tags "$fork_url" "refs/heads/${TARGET_BRANCH}:refs/sync/target"
           now=$(date -u +%s)
 
@@ -258,14 +381,14 @@ jobs:
               skip "its head commit couldn't be fetched."; failed=1; continue
             fi
             if git merge-base --is-ancestor "$head_sha" refs/sync/upstream; then
-              echo "  head is a commit on upstream ${MIRROR_BRANCH}"
+              echo "  head is a commit on upstream ${UPSTREAM_BRANCH}"
             else
               read -r -a parents <<< "$(git rev-list --parents -n 1 "$head_sha" | cut -d' ' -f2-)"
               if [ "${#parents[@]}" -ne 2 ]; then
-                skip "its head is not on upstream ${MIRROR_BRANCH} and is not a two-parent merge."; continue
+                skip "its head is not on upstream ${UPSTREAM_BRANCH} and is not a two-parent merge."; continue
               fi
               if ! git merge-base --is-ancestor "${parents[0]}" refs/sync/upstream; then
-                skip "its head is a merge whose first parent (${parents[0]}) is not on upstream ${MIRROR_BRANCH}."; continue
+                skip "its head is a merge whose first parent (${parents[0]}) is not on upstream ${UPSTREAM_BRANCH}."; continue
               fi
               if ! git merge-base --is-ancestor "${parents[1]}" refs/sync/target; then
                 skip "its head is a merge whose second parent (${parents[1]}) is not on ${TARGET_BRANCH}."; continue
@@ -333,13 +456,18 @@ jobs:
 
   release:
     name: Release CodeHarden
-    needs: merge
+    needs: [config, merge]
     # Also after a merge job that failed on one pull request but merged another.
-    if: ${{ always() && (needs.merge.outputs.merged > 0 || (github.event_name == 'workflow_dispatch' && inputs.release)) }}
+    if: ${{ always() && needs.config.result == 'success' && (needs.merge.outputs.merged > 0 || (github.event_name == 'workflow_dispatch' && inputs.release)) }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: write
+    env:
+      UPSTREAM_REPO: ${{ needs.config.outputs.upstream_repo }}
+      UPSTREAM_BRANCH: ${{ needs.config.outputs.upstream_branch }}
+      TARGET_BRANCH: ${{ needs.config.outputs.target_branch }}
+      HARDEN_BRANCH: ${{ needs.config.outputs.target_branch }}
     steps:
       - name: Write VERSION and the changelog, commit, tag and push
         shell: bash
@@ -352,13 +480,14 @@ jobs:
           cd "$RUNNER_TEMP/release"
           git remote add origin "$fork_url"
           git fetch --quiet --no-tags origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
-          git fetch --quiet --no-tags "$UPSTREAM_URL" "refs/heads/${MIRROR_BRANCH}:refs/sync/upstream"
-          # Only the three release files and the release script reach the working tree. The
-          # script is the one a maintainer runs by hand after merging our own changes.
-          git sparse-checkout set --no-cone "/VERSION" "/${CHANGELOG_FILE}" "/${BASE_FILE}" "/${RELEASE_SCRIPT}"
+          git fetch --quiet --no-tags "https://github.com/${UPSTREAM_REPO}" "refs/heads/${UPSTREAM_BRANCH}:refs/sync/upstream"
+          # Only the three release files, the release script and the configuration it sources
+          # reach the working tree. The scripts are the ones a maintainer runs by hand after
+          # merging our own changes.
+          git sparse-checkout set --no-cone "/VERSION" "/${CHANGELOG_FILE}" "/${BASE_FILE}" "/${RELEASE_SCRIPT}" "/${FORK_CONFIG_SCRIPT}"
           git checkout --quiet -B "$TARGET_BRANCH" "refs/remotes/origin/${TARGET_BRANCH}"
-          if [ ! -f "$RELEASE_SCRIPT" ]; then
-            echo "::error::${TARGET_BRANCH} has no ${RELEASE_SCRIPT}; can't make a release."; exit 1
+          if [ ! -f "$RELEASE_SCRIPT" ] || [ ! -f "$FORK_CONFIG_SCRIPT" ]; then
+            echo "::error::${TARGET_BRANCH} has no ${RELEASE_SCRIPT} or no ${FORK_CONFIG_SCRIPT}; can't make a release."; exit 1
           fi
 
           git config user.name "github-actions[bot]"

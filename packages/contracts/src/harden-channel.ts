@@ -6,7 +6,8 @@
  * CodeHarden, never upstream CodeDen.
  *
  * The values are fixed when a bundle is built (`scripts/harden/channel-define.mjs`, from the
- * `PACKAGE_NAME` and `RELEASE_REPOSITORY` build variables) and default to CodeHarden's own.
+ * `PACKAGE_NAME`, `RELEASE_REPOSITORY` and `HARDEN_BRANCH` build variables) and default to
+ * CodeHarden's own.
  * There is no runtime override: a running install can't be pointed at another package or
  * repository by an environment variable or a setting.
  *
@@ -18,11 +19,17 @@ declare const __CODEHARDEN_PACKAGE__: string | undefined;
 /** Replaced at build time with the GitHub `owner/repo` (`scripts/harden/channel-define.mjs`). */
 declare const __CODEHARDEN_REPOSITORY__: string | undefined;
 
+/** Replaced at build time with the fork's working branch (`scripts/harden/channel-define.mjs`). */
+declare const __CODEHARDEN_BRANCH__: string | undefined;
+
 /** npm package names: `name` or `@scope/name`, lower case. */
 export const HARDEN_PACKAGE_PATTERN = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 /** GitHub `owner/repo`. */
 export const HARDEN_REPOSITORY_PATTERN =
   /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
+
+/** A branch name, as it appears in a URL path. */
+export const HARDEN_BRANCH_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._/-]*$/;
 
 /** The npm package self-update checks and installs. */
 export const HARDEN_PACKAGE_NAME: string =
@@ -38,7 +45,12 @@ export const HARDEN_REPOSITORY: string =
     : undefined) ?? "harperaa/codeharden";
 
 /** The branch CodeHarden is developed and released from (docs and changelog links). */
-export const HARDEN_BRANCH = "harden";
+export const HARDEN_BRANCH: string =
+  (typeof __CODEHARDEN_BRANCH__ === "string" &&
+  HARDEN_BRANCH_PATTERN.test(__CODEHARDEN_BRANCH__) &&
+  !__CODEHARDEN_BRANCH__.includes("..")
+    ? __CODEHARDEN_BRANCH__
+    : undefined) ?? "harden";
 
 /** The command the package installs: its name without the scope (`codeharden`). */
 export const HARDEN_COMMAND: string = HARDEN_PACKAGE_NAME.slice(
