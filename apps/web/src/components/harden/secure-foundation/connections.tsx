@@ -26,6 +26,7 @@ export function ConnectionRow({
   connection,
   icon,
   status,
+  message,
   fix,
   onChanged,
 }: {
@@ -33,6 +34,8 @@ export function ConnectionRow({
   /** The check's mark (passed, needs you, failed) and its state. */
   icon: ReactNode;
   status: string;
+  /** What the check found: the tool's answer, and anything the check adds to it. */
+  message: string;
   /** What to do about it, when it didn't pass. */
   fix: string | null;
   /** A login ended: the checks are worth running again. */
@@ -87,7 +90,7 @@ export function ConnectionRow({
       <div className="flex items-center gap-2">
         {icon}
         <span className="text-[13px] font-medium">{LABEL[service]}</span>
-        <span className="text-2xs text-muted-foreground">{connection.message}</span>
+        <span className="text-2xs text-muted-foreground">{message}</span>
         {connection.signedIn === true && connection.missingScopes.length > 0 && !running && (
           <Button size="sm" className="ml-auto" onClick={start}>
             Add the {connection.missingScopes.join(", ")} permission

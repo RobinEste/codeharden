@@ -124,6 +124,7 @@ export function VerifyStep({
               key={item.id}
               connection={item.connection}
               status={item.status}
+              message={item.message}
               icon={<StatusIcon status={item.status} />}
               fix={item.fix}
               onChanged={() => void go.check()}
@@ -177,7 +178,8 @@ export function VerifyStep({
         </ul>
         <p className="mt-1.5 text-2xs text-muted-foreground">{CREATED_STAYS}</p>
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      {/* Always in reach: the buttons stay at the bottom of the dialog while the rest scrolls. */}
+      <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 flex flex-wrap items-center justify-end gap-2 border-t border-border bg-popover px-4 py-3">
         <Button type="button" variant="ghost" onClick={onCancel} disabled={go.busy === "creating"}>
           Cancel
         </Button>

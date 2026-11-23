@@ -212,6 +212,9 @@ describe("Go with a check that doesn't hold", () => {
     fireEvent.click(goButton());
     const select = (await screen.findByLabelText(/Convex team/)) as HTMLSelectElement;
     expect(statusOf("connection-convex")).toBe("needs_you");
+    expect(screen.getByTestId("connection-convex").textContent).toContain(
+      "This account has several teams.",
+    );
     expect(select.value).toBe("acme-labs");
     expect(create).not.toHaveBeenCalled();
     fireEvent.change(select, { target: { value: "side-project" } });

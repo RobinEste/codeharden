@@ -82,10 +82,17 @@ export function folderFor(projectsDir: string, name: string): string | null {
 
 /** True when nothing is at `dest`, or only an empty folder. Reads, never writes. */
 export function isFree(dest: string): boolean {
+  let stat: ReturnType<typeof lstatSync>;
   try {
-    return lstatSync(dest).isDirectory() && readdirSync(dest).length === 0;
+    stat = lstatSync(dest);
   } catch {
     return true;
+  }
+  try {
+    return stat.isDirectory() && readdirSync(dest).length === 0;
+  } catch {
+    // A folder that can't be read is not one to write into.
+    return false;
   }
 }
 

@@ -244,7 +244,8 @@ export function FormStep({
           </button>
         </p>
       </div>
-      <div className="flex flex-wrap items-center justify-end gap-2">
+      {/* Always in reach: the buttons stay at the bottom of the dialog while the rest scrolls. */}
+      <div className="sticky -bottom-4 z-10 -mx-4 -mb-4 flex flex-wrap items-center justify-end gap-2 border-t border-border bg-popover px-4 py-3">
         {!provider && (
           <span className="mr-auto text-2xs text-muted-foreground">
             Sign an agent provider in under Settings › Providers first.
