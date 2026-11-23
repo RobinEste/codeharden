@@ -1,5 +1,11 @@
 # CodeHarden releases
 
+## 2026.1123.0930 — 2026-11-23 09:30
+
+### codeharden
+- fix(web): don't promise a closing list from a setup that stopped early
+- feat(harden): the Secure Foundation setup ends with what was created and where to remove it
+
 ## 2026.1123.0917 — 2026-11-23 09:17
 
 ### codeharden
