@@ -27,9 +27,19 @@ name: Desktop installers
 #            update files. If this job fails, the release stays as it was left (a draft);
 #            run the workflow again for the same tag.
 #
-# Signing is optional, through the secrets CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID,
-# APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID. Without them Windows installers are unsigned
-# and macOS apps are signed ad hoc (apps/desktop/electron-builder.config.mjs).
+# Signing is optional and per system; each build job is given its own system's secrets only:
+#   macOS    CSC_LINK + CSC_KEY_PASSWORD (a Developer ID Application .p12) and, for
+#            notarization, APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID. All five or
+#            none: with some of them missing the job stops and names them, instead of
+#            shipping a signed app that Apple has not notarized. With all five, the signature
+#            check requires a Developer ID signature, a stapled notarization ticket and
+#            Gatekeeper's acceptance of the downloaded app.
+#   Windows  WIN_CSC_LINK + WIN_CSC_KEY_PASSWORD (a code-signing .pfx). Never CSC_LINK:
+#            electron-builder falls back to it on Windows, and would try to sign the
+#            installer with the Apple certificate.
+#   Linux    none.
+# Without them Windows installers are unsigned and macOS apps are signed ad hoc
+# (apps/desktop/electron-builder.config.mjs).
 #
 # A fork builds its own app: the names come from its PACKAGE_NAME repository variable (and the
 # optional PRODUCT_NAME, APP_ID, DEFAULT_PORT), and the app updates from the fork's own
@@ -164,19 +174,58 @@ jobs:
       - name: Build the installers
         shell: bash
         env:
-          # Windows (.pfx) or macOS (Developer ID .p12) certificate, base64 or a URL.
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          # macOS notarization.
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # macOS only: the Developer ID Application certificate (.p12, base64 or a URL), its
+          # password, and the Apple account that notarizes.
+          CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
+          # Windows only: a code-signing certificate (.pfx, base64 or a URL) and its password.
+          WIN_CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WIN_CSC_LINK || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
         run: |
-          # Unset empty secrets so electron-builder skips signing on Windows and signs ad hoc
+          set -euo pipefail
+          mac=(CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID)
+          win=(WIN_CSC_LINK WIN_CSC_KEY_PASSWORD)
+          # Unset what is empty, so electron-builder skips signing on Windows and signs ad hoc
           # on macOS (see electron-builder.config.mjs).
-          for v in CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID; do
-            [ -z "${!v}" ] && unset "$v"
+          for v in "${mac[@]}" "${win[@]}"; do
+            if [ -z "${!v:-}" ]; then unset "$v"; fi
           done
+          # A system never sees another system's certificate, whatever the lines above say.
+          if [ "$RUNNER_OS" != "macOS" ]; then unset "${mac[@]}" CSC_NAME; fi
+          if [ "$RUNNER_OS" != "Windows" ]; then unset "${win[@]}"; fi
+          # Half-configured signing stops here, by name; the values are never printed.
+          missing_of() {
+            local v missing=()
+            for v in "$@"; do
+              if [ -z "${!v:-}" ]; then missing+=("$v"); fi
+            done
+            echo "${missing[*]:-}"
+          }
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            missing=$(missing_of "${mac[@]}")
+            if [ "$missing" = "${mac[*]}" ]; then
+              echo "macOS: no signing secrets; the apps are signed ad hoc."
+            elif [ -n "$missing" ]; then
+              echo "::error::macOS signing is half configured. Missing secrets: ${missing}. Set all five (CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID) or none: a signed app that is not notarized must not ship."
+              exit 1
+            else
+              echo "macOS: signing with the Developer ID certificate and notarizing."
+              echo "REQUIRE_DEVELOPER_ID=1" >> "$GITHUB_ENV"
+            fi
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            missing=$(missing_of "${win[@]}")
+            if [ "$missing" = "${win[*]}" ]; then
+              echo "Windows: no signing secrets; the installer is unsigned."
+            elif [ -n "$missing" ]; then
+              echo "::error::Windows signing is half configured. Missing secrets: ${missing}. Set both WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD or neither."
+              exit 1
+            else
+              echo "Windows: signing the installer with the code-signing certificate."
+            fi
+          fi
           # Never uploaded from here: the release job attaches the files.
           if [ "$RUNNER_OS" = "macOS" ]; then
             pnpm --filter @codeden/desktop package --publish never --arch arm64 --arch x64
@@ -187,7 +236,9 @@ jobs:
 
       # The .dmg and .zip as a user downloads them: a valid signature with the hardened
       # runtime and our entitlements, an app that launches, and a Gatekeeper verdict on the
-      # quarantined copy that is never "damaged".
+      # quarantined copy that is never "damaged". With signing configured (REQUIRE_DEVELOPER_ID,
+      # set by the build step) it also requires a Developer ID signature, a stapled
+      # notarization ticket and Gatekeeper's acceptance.
       - name: Check the macOS signatures
         if: runner.os == 'macOS'
         shell: bash
