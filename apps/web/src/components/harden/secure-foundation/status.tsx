@@ -115,8 +115,10 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
       )}
       {(finished || status.phase === "failed") && (
         <p className="mt-2 text-2xs text-muted-foreground" data-testid="secure-foundation-created">
-          What was created in your accounts is listed at the end of the setup session, with where to
-          remove each item. Archiving the project or deleting its folder removes none of it.{" "}
+          The setup session's first message lists everything it was allowed to create in your
+          accounts, with where to remove each item; when it ran to the end, its last message says
+          what was actually created. Archiving the project or deleting its folder removes none of
+          it.{" "}
           <a
             href={secureFoundationRemovalUrl()}
             target="_blank"
