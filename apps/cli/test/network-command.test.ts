@@ -46,7 +46,7 @@ describe("codeden network / password (server stopped)", () => {
 
     expect(await networkCommand(home, "on")).toBe(0);
     expect(RemoteAccessFile.parse(JSON.parse(readFileSync(file(), "utf8"))).enabled).toBe(true);
-    expect(out.join("\n")).toMatch(/localhost:4317/);
+    expect(out.join("\n")).toMatch(/localhost:4417/);
     expect(await networkCommand(home, undefined)).toBe(0);
     expect(out.join("\n")).toMatch(/is on/);
     expect(await networkCommand(home, "off")).toBe(0);

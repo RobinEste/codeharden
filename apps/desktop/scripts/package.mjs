@@ -10,12 +10,19 @@
 // dependencies), install those with npm (production only, plus the keychain module's binary
 // for every target architecture), then run electron-builder on the stage. pnpm's symlinked
 // node_modules never reach the app.
+//
+// The staged package.json carries the product's identity and the CodeHarden version in its npm
+// form (`VERSION`, zeros stripped: valid semver, and what the update feed compares). The
+// repository's package.json keeps upstream's name and version.
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { Arch, build, Platform } from "electron-builder";
+import { readHardenChannel } from "../../../scripts/harden/channel-define.mjs";
+import { npmVersion } from "../../../scripts/harden/npm-release.mjs";
+import { readHardenVersion } from "../../../scripts/harden/version-define.mjs";
 import config, { keyringBinary } from "../electron-builder.config.mjs";
 
 const root = resolve(import.meta.dirname, "..");
@@ -28,6 +35,7 @@ const { values } = parseArgs({
 });
 const archs = values.arch?.length ? values.arch : [process.arch];
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+const channel = readHardenChannel();
 const require = createRequire(join(root, "package.json"));
 const electronVersion = JSON.parse(
   readFileSync(require.resolve("electron/package.json"), "utf8"),
@@ -55,13 +63,13 @@ writeFileSync(
   join(stage, "package.json"),
   `${JSON.stringify(
     {
-      name: "codeden",
-      productName: "CodeDen",
-      version: pkg.version,
+      name: channel.slug,
+      productName: channel.productName,
+      version: npmVersion(readHardenVersion()),
       description: "A local-first harness for coding agents.",
       author: "Leon van Zyl",
       license: "MIT",
-      homepage: "https://www.codeden.app",
+      homepage: `https://github.com/${channel.repository}`,
       type: "module",
       main: "dist/main.js",
       dependencies: pkg.dependencies,

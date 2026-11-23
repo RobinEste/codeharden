@@ -1,4 +1,4 @@
-import { CODEDEN_VERSION } from "@codeden/contracts";
+import { formatHardenVersion } from "@codeden/contracts";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AppWindow,
@@ -34,6 +34,7 @@ import { SettingsSection } from "@/components/settings/settings-ui";
 import { UpdateCheck } from "@/components/settings/update-check";
 import { Logo } from "@/components/shell/logo";
 import { ShortcutList } from "@/components/shell/shortcuts";
+import { WordmarkLine } from "@/components/shell/wordmark";
 import { isMockMode } from "@/lib/api";
 import { platform } from "@/lib/platform";
 import { useSnapshot } from "@/lib/queries";
@@ -41,8 +42,8 @@ import { cn } from "@/lib/utils";
 import { PageHeader } from "./page-header";
 
 function About() {
-  // The server's version (the web bundle's constant may be older after a relabelled build).
-  const version = useSnapshot().data?.serverVersion ?? CODEDEN_VERSION;
+  // The server's versions (the web bundle's own may be older after a relabelled build).
+  const versionLine = formatHardenVersion(useSnapshot().data);
   return (
     <SettingsSection title="About">
       {/* A narrow card (a phone, a squeezed column): the logo above the text, which keeps the width. */}
@@ -50,11 +51,8 @@ function About() {
         <div className="flex flex-col items-start gap-3 p-5 @[30rem]:flex-row @[30rem]:items-center @[30rem]:gap-4">
           <Logo className="size-10 @[30rem]:size-12" />
           <div className="min-w-0">
-            <div className="text-[15px] font-semibold">
-              CodeDen{" "}
-              <span className="font-mono text-xs font-normal text-muted-foreground">
-                v{version}
-              </span>
+            <div className="text-[15px] font-semibold" data-testid="version-line">
+              <WordmarkLine text={versionLine} />
             </div>
             <p className="mt-0.5 text-[13px] text-muted-foreground">
               A local-first harness for coding agents. Open source under the MIT license. No

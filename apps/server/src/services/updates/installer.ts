@@ -45,7 +45,7 @@ const inheritedNpmConfig = new Set([
 ]);
 
 /**
- * Install `codeden@<version>` side by side into `<home>/app/<version>` (§16): npm installs into
+ * Install `<channel package>@<version>` side by side into `<home>/app/<version>` (§16): npm installs into
  * a staging folder, the result is checked (package version, entry files, and the installed CLI
  * answering `--version`), then the folder is renamed into place. A lock file keeps the server
  * and `codeden update` from installing at the same time. Resolves immediately when the version

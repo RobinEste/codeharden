@@ -1,4 +1,10 @@
-import { CODEDEN_VERSION, DesktopHostMessage, type DesktopServerMessage } from "@codeden/contracts";
+import {
+  CODEDEN_VERSION,
+  DesktopHostMessage,
+  type DesktopServerMessage,
+  formatHardenVersion,
+  HARDEN_PRODUCT_NAME,
+} from "@codeden/contracts";
 import { ensureHome, ensureInstallToken, resolveHome, startServer } from "@codeden/server";
 import { serverLog } from "./log";
 import { IpcDesktopUpdater } from "./update-bridge";
@@ -27,7 +33,7 @@ export async function serve(opts: { home?: string; port: number; fake: boolean }
     onShutdownRequest: () => process.exit(0),
     selfUpdate: {
       source: "desktop",
-      restartCommand: "Quit CodeDen from the tray and open it again",
+      restartCommand: `Quit ${HARDEN_PRODUCT_NAME} from the tray and open it again`,
       launcherVersion: CODEDEN_VERSION,
       desktop,
     },
@@ -60,7 +66,7 @@ export async function serve(opts: { home?: string; port: number; fake: boolean }
     process.on(signal, () => (closing ? process.exit(0) : close(false)));
   }
 
-  console.log(`CodeDen ${CODEDEN_VERSION} is running at ${server.url}`);
+  console.log(`${formatHardenVersion()} is running at ${server.url}`);
   // Network access (§15.1) works the same as with \`codeden\`: the server moves only its HTTP
   // listener when it is switched, so the app and the runner carry on.
   if (server.network.enabled) {

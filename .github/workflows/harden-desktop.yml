@@ -1,0 +1,376 @@
+name: Desktop installers
+
+# Builds the desktop installers of one CodeHarden release on Windows, macOS and Linux and,
+# when asked, attaches them to that release on GitHub (docs/codeharden-desktop-release.md).
+#
+# This fork's own workflow. Upstream's Release workflow (release.yml) stays disabled: it would
+# publish to npm and react to every `v*.*.*` tag, which CodeHarden's tags match. This one never
+# starts by itself: a person runs it (Actions > Desktop installers > Run workflow) for a tag
+# that already exists.
+#
+#   tag      the release to build, `v<VERSION>` (`v2026.0105.0518`); it must exist
+#   dry-run  on (the default): build and check everything and keep the installers as workflow
+#            artifacts; no release is created or changed.
+#            off: also attach the installers and the update files to the tag's GitHub release
+#            and publish it as the latest.
+#
+# Jobs:
+#   check    the tag has the right shape, exists, and its VERSION file names it.
+#   build    one per system. Checks the tag out, builds and packages (the same script and
+#            configuration as a local `pnpm desktop:dist`), checks the macOS signatures, and
+#            uploads the files as an artifact. Read-only token: these jobs run the
+#            repository's and its dependencies' code.
+#   release  only when dry-run is off, and only after all three builds passed. Creates the
+#            release as a draft when the tag has none, attaches every file (the `latest*.yml`
+#            update files last) and only then publishes it and marks it latest. An installed
+#            app reads the latest *published* release, so it never sees one without its
+#            update files. If this job fails, the release stays as it was left (a draft);
+#            run the workflow again for the same tag.
+#
+# Signing is optional and per system; each build job is given its own system's secrets only:
+#   macOS    CSC_LINK + CSC_KEY_PASSWORD (a Developer ID Application .p12) and, for
+#            notarization, APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID. All five or
+#            none: with some of them missing the job stops and names them, instead of
+#            shipping a signed app that Apple has not notarized. With all five, the signature
+#            check requires a Developer ID signature, a stapled notarization ticket and
+#            Gatekeeper's acceptance of the downloaded app.
+#   Windows  WIN_CSC_LINK + WIN_CSC_KEY_PASSWORD (a code-signing .pfx). Never CSC_LINK:
+#            electron-builder falls back to it on Windows, and would try to sign the
+#            installer with the Apple certificate.
+#   Linux    none.
+# Without them Windows installers are unsigned and macOS apps are signed ad hoc
+# (apps/desktop/electron-builder.config.mjs).
+#
+# A fork builds its own app: the names come from its PACKAGE_NAME repository variable (and the
+# optional PRODUCT_NAME, APP_ID, DEFAULT_PORT), and the app updates from the fork's own
+# releases. Outside CodeHarden's repository PACKAGE_NAME must be set.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to build (v<VERSION>, for example v2026.0105.0518)
+        required: true
+        type: string
+      dry-run:
+        description: Build and check only; attach nothing to the release
+        type: boolean
+        default: true
+
+# Nothing by default; each job asks for what it needs.
+permissions: {}
+
+concurrency:
+  group: harden-desktop-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  CODEHARDEN_REPO: harperaa/codeharden
+
+jobs:
+  check:
+    name: Check the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      version: ${{ steps.tag.outputs.version }}
+      npm_version: ${{ steps.tag.outputs.npm_version }}
+    steps:
+      - name: Check the tag's shape and that it exists
+        id: tag
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+          PACKAGE_NAME: ${{ vars.PACKAGE_NAME }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^v([0-9]{4})\.([0-9]{4})\.([0-9]{4})$ ]]; then
+            echo "::error::The tag must be v<VERSION>, like v2026.0105.0518"; exit 1
+          fi
+          version="${TAG#v}"
+          # The npm form: leading zeros stripped per field (valid semver; what the app carries).
+          npm_version="${BASH_REMATCH[1]}.$((10#${BASH_REMATCH[2]})).$((10#${BASH_REMATCH[3]}))"
+          if ! gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" --silent 2> /dev/null; then
+            echo "::error::The tag ${TAG} does not exist in ${GITHUB_REPOSITORY}"; exit 1
+          fi
+          found=$(gh api "repos/${GITHUB_REPOSITORY}/contents/VERSION?ref=${TAG}" \
+            -H "Accept: application/vnd.github.raw" | tr -d '[:space:]')
+          if [ "$found" != "$version" ]; then
+            echo "::error::VERSION at ${TAG} is \"${found}\", not ${version}: this is not a CodeHarden release tag"
+            exit 1
+          fi
+          repo=$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
+          if [ "$repo" != "$CODEHARDEN_REPO" ] && [ -z "$PACKAGE_NAME" ]; then
+            echo "::error::Set the repository variable PACKAGE_NAME first (scripts/harden/setup-fork.sh): this fork must not build its app as CodeHarden"
+            exit 1
+          fi
+          {
+            echo "tag=${TAG}"
+            echo "version=${version}"
+            echo "npm_version=${npm_version}"
+          } >> "$GITHUB_OUTPUT"
+          echo "Building ${TAG} (app version ${npm_version})"
+
+  build:
+    name: build (${{ matrix.os }})
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    # A hung step (a launch check that never ends) fails the job instead of running for hours.
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      NPM_VERSION: ${{ needs.check.outputs.npm_version }}
+      # The fork's names, for the build (scripts/harden/channel-define.mjs). Empty means the
+      # default; the release repository is always this one.
+      PACKAGE_NAME: ${{ vars.PACKAGE_NAME }}
+      PRODUCT_NAME: ${{ vars.PRODUCT_NAME }}
+      APP_ID: ${{ vars.APP_ID }}
+      DEFAULT_PORT: ${{ vars.DEFAULT_PORT }}
+      HARDEN_BRANCH: ${{ vars.HARDEN_BRANCH }}
+      # The Secure Foundation template (unset: CodeHarden's own; `none`: no such option).
+      TEMPLATE_REPOSITORY: ${{ vars.TEMPLATE_REPOSITORY }}
+      TEMPLATE_BRANCH: ${{ vars.TEMPLATE_BRANCH }}
+      RELEASE_REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ needs.check.outputs.tag }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      # Electron fetches its ~100 MB binary from GitHub releases on first use. Cache it per
+      # version and OS, and retry transient network errors.
+      - name: Cache the Electron binary
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/Library/Caches/electron
+            ~/AppData/Local/electron/Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-${{ runner.os }}-
+      - name: Download the Electron binary (with retries)
+        shell: bash
+        working-directory: apps/desktop
+        run: |
+          for attempt in 1 2 3 4 5; do
+            if node -e "require('electron')" > /dev/null; then exit 0; fi
+            echo "::warning::Electron download failed (attempt $attempt of 5); retrying"
+            sleep $((attempt * 30))
+          done
+          exit 1
+
+      - name: Build the installers
+        shell: bash
+        env:
+          # macOS only: the Developer ID Application certificate (.p12, base64 or a URL), its
+          # password, and the Apple account that notarizes.
+          CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
+          # Windows only: a code-signing certificate (.pfx, base64 or a URL) and its password.
+          WIN_CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WIN_CSC_LINK || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+        run: |
+          set -euo pipefail
+          mac=(CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID)
+          win=(WIN_CSC_LINK WIN_CSC_KEY_PASSWORD)
+          # Unset what is empty, so electron-builder skips signing on Windows and signs ad hoc
+          # on macOS (see electron-builder.config.mjs).
+          for v in "${mac[@]}" "${win[@]}"; do
+            if [ -z "${!v:-}" ]; then unset "$v"; fi
+          done
+          # A system never sees another system's certificate, whatever the lines above say.
+          if [ "$RUNNER_OS" != "macOS" ]; then unset "${mac[@]}" CSC_NAME; fi
+          if [ "$RUNNER_OS" != "Windows" ]; then unset "${win[@]}"; fi
+          # Half-configured signing stops here, by name; the values are never printed.
+          missing_of() {
+            local v missing=()
+            for v in "$@"; do
+              if [ -z "${!v:-}" ]; then missing+=("$v"); fi
+            done
+            echo "${missing[*]:-}"
+          }
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            missing=$(missing_of "${mac[@]}")
+            if [ "$missing" = "${mac[*]}" ]; then
+              echo "macOS: no signing secrets; the apps are signed ad hoc."
+            elif [ -n "$missing" ]; then
+              echo "::error::macOS signing is half configured. Missing secrets: ${missing}. Set all five (CSC_LINK, CSC_KEY_PASSWORD, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID) or none: a signed app that is not notarized must not ship."
+              exit 1
+            else
+              echo "macOS: signing with the Developer ID certificate and notarizing."
+              echo "REQUIRE_DEVELOPER_ID=1" >> "$GITHUB_ENV"
+            fi
+          elif [ "$RUNNER_OS" = "Windows" ]; then
+            missing=$(missing_of "${win[@]}")
+            if [ "$missing" = "${win[*]}" ]; then
+              echo "Windows: no signing secrets; the installer is unsigned."
+            elif [ -n "$missing" ]; then
+              echo "::error::Windows signing is half configured. Missing secrets: ${missing}. Set both WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD or neither."
+              exit 1
+            else
+              echo "Windows: signing the installer with the code-signing certificate."
+            fi
+          fi
+          # Never uploaded from here: the release job attaches the files.
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            pnpm --filter @codeden/desktop package --publish never --arch arm64 --arch x64
+          else
+            pnpm --filter @codeden/desktop package --publish never
+          fi
+          ls -la apps/desktop/release
+
+      # The .dmg and .zip as a user downloads them: a valid signature with the hardened
+      # runtime and our entitlements, an app that launches, and a Gatekeeper verdict on the
+      # quarantined copy that is never "damaged". With signing configured (REQUIRE_DEVELOPER_ID,
+      # set by the build step) it also requires a Developer ID signature, a stapled
+      # notarization ticket and Gatekeeper's acceptance.
+      - name: Check the macOS signatures
+        if: runner.os == 'macOS'
+        shell: bash
+        run: bash apps/desktop/scripts/check-mac-signature.sh apps/desktop/release
+
+      - name: Collect the release files
+        id: files
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          cd apps/desktop/release
+          files=(*.exe *.dmg *.zip *.AppImage *.deb *.blockmap latest*.yml)
+          if [ ${#files[@]} -eq 0 ]; then echo "::error::no installers were built"; exit 1; fi
+          # The app must carry the release's version, or it would never see its own updates.
+          feeds=(latest*.yml)
+          if [ ${#feeds[@]} -eq 0 ]; then echo "::error::no update file (latest*.yml) was built"; exit 1; fi
+          for feed in "${feeds[@]}"; do
+            if ! grep -qx "version: ${NPM_VERSION}" "$feed"; then
+              echo "::error::${feed} does not say version ${NPM_VERSION}: this tag's packaging does not carry the CodeHarden version"
+              exit 1
+            fi
+          done
+          printf '%s\n' "${files[@]}"
+          mkdir -p "$RUNNER_TEMP/desktop" && cp "${files[@]}" "$RUNNER_TEMP/desktop/"
+          echo "dir=$RUNNER_TEMP/desktop" >> "$GITHUB_OUTPUT"
+
+      - name: Upload the installers
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-${{ matrix.os }}
+          path: ${{ steps.files.outputs.dir }}
+          if-no-files-found: error
+          retention-days: 14
+
+  # The only job that can write to the repository, and it runs no code from it: it moves the
+  # files the build jobs made onto the release.
+  release:
+    name: Attach to the release and publish it
+    needs: [check, build]
+    if: ${{ !inputs.dry-run }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.check.outputs.tag }}
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - name: Download the installers of this run
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts files
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" --dir artifacts
+          for dir in artifacts/desktop-*; do
+            for file in "$dir"/*; do
+              name=$(basename "$file")
+              if [ -e "files/$name" ]; then echo "::error::two systems built ${name}"; exit 1; fi
+              cp "$file" "files/$name"
+            done
+          done
+          ls -la files
+
+      - name: Check that every system's files are there
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          cd files
+          missing=0
+          need() {
+            local matches=($1)
+            if [ ${#matches[@]} -eq 0 ]; then echo "::error::missing: $2 ($1)"; missing=1; fi
+          }
+          need "*.exe" "the Windows installer"
+          need "latest.yml" "the Windows update file"
+          need "*-arm64.dmg" "the macOS (Apple silicon) disk image"
+          need "*-x64.dmg" "the macOS (Intel) disk image"
+          need "*-arm64.zip" "the macOS (Apple silicon) update archive"
+          need "*-x64.zip" "the macOS (Intel) update archive"
+          need "latest-mac.yml" "the macOS update file"
+          need "*.AppImage" "the Linux AppImage"
+          need "*.deb" "the Debian package"
+          need "latest-linux.yml" "the Linux update file"
+          [ "$missing" = 0 ]
+
+      # A draft until everything is attached. A release that already exists is used as it is.
+      - name: Create the release as a draft, if the tag has none
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "The release ${TAG} exists already."
+            exit 0
+          fi
+          # The release's notes: this version's entry in the changelog at the tag.
+          gh api "repos/${GITHUB_REPOSITORY}/contents/CODEHARDEN-CHANGELOG.md?ref=${TAG}" \
+            -H "Accept: application/vnd.github.raw" > changelog.md || : > changelog.md
+          awk -v v="$VERSION" '
+            /^## / { on = (index($0, "## " v " ") == 1 || $0 == "## " v); next }
+            on { print }
+          ' changelog.md > notes.md
+          [ -s notes.md ] || echo "CodeHarden ${VERSION}" > notes.md
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --draft \
+            --title "CodeHarden ${VERSION}" --notes-file notes.md
+
+      # The update files go last: an app acts on `latest*.yml`, so it never finds one that
+      # points at an installer that is not there yet.
+      - name: Attach the installers, then the update files
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          cd files
+          feeds=(latest*.yml)
+          others=()
+          for file in *; do
+            case "$file" in latest*.yml) ;; *) others+=("$file") ;; esac
+          done
+          gh release upload "$TAG" "${others[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$TAG" "${feeds[@]}" --repo "$GITHUB_REPOSITORY" --clobber
+
+      - name: Publish the release and mark it latest
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft,assets \
+            --jq '"draft=\(.isDraft) assets=\(.assets | length)", (.assets[].name)'

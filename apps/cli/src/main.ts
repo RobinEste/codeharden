@@ -11,7 +11,7 @@
  * Loaded by `cli.ts` once the launcher has picked the version to run. Kept light: the server
  * code (`commands.ts`) loads only for the commands that need it, never for `runner-link`.
  */
-import { CODEDEN_VERSION, RunnerLinkExit } from "@codeden/contracts";
+import { formatHardenVersion, RunnerLinkExit } from "@codeden/contracts";
 import { HELP, type ParsedCli, parseCli } from "./args";
 import { homeFromArgs } from "./launcher";
 
@@ -53,7 +53,7 @@ async function main(): Promise<number> {
     return 0;
   }
   if (values.version) {
-    console.log(CODEDEN_VERSION);
+    console.log(formatHardenVersion());
     return 0;
   }
   const nodeMajor = Number(process.versions.node.split(".")[0]);

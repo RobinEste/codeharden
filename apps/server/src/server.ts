@@ -104,7 +104,7 @@ export interface StartServerOptions {
   refreshPath?: () => Promise<unknown>;
   /** User home for provider config files and the default clone folder. */
   userHome?: string;
-  /** Where clones go by default (`~/codeden-projects`). */
+  /** Where clones go by default (`~/codeharden-projects`). */
   projectsDir?: string;
   /** How long `ask_user` waits for an answer before returning "pending" (default 4 min). */
   askUserWaitMs?: number;

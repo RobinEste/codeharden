@@ -1,3 +1,11 @@
+> **CodeHarden** is a hardened fork of [CodeDen](https://github.com/leonvanzyl/codeden) by Leon van Zyl.
+> It stays close to upstream: new upstream changes are reviewed every day for security and function,
+> and merged 48 hours after they are approved. CodeHarden versions are timestamps; the app's own
+> version number stays upstream's. It is its own app: its data is in `~/.codeharden`, it listens on
+> port 4417, and it installs and runs next to CodeDen ([how they stay apart](docs/desktop.md#next-to-codeden)).
+> Everything below is CodeDen's own README.
+> Want the same for your own changes? See [Make your own hardened fork](#make-your-own-hardened-fork).
+
 <div align="center">
 
 # CodeDen
@@ -5,7 +13,7 @@
 **One home for all your coding agents.** Start with a single agent helping you code. Run several at once, across every provider and project. When you're ready, turn your backlog over to a software factory, or let a dark factory find the work and do it on its own.
 
 [![Website](https://img.shields.io/badge/website-codeden.app-e8a33d)](https://www.codeden.app)
-[![npm](https://img.shields.io/npm/v/codeden?color=e8a33d&label=npm)](https://www.npmjs.com/package/codeden)
+[![npm](https://img.shields.io/npm/v/codeharden?color=e8a33d&label=npm)](https://www.npmjs.com/package/codeharden)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node 24+](https://img.shields.io/badge/node-%3E%3D24-339933)
 ![Windows, macOS, Linux](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux-555)
@@ -15,12 +23,12 @@
 ![A CodeDen agent session: the conversation on the left, the changes the agent made on the right](docs/images/session.png)
 
 ```sh
-npx codeden
+npx codeharden
 ```
 
 That's it. CodeDen opens in your browser and uses the coding agents you already have installed and signed in. There's no account to create, no license key, no cloud service and no tracking. Everything stays on your computer.
 
-Prefer an app? **[Download the desktop app](https://github.com/leonvanzyl/codeden/releases/latest)** for Windows, macOS or Linux. It's the same CodeDen in its own window, with notifications and automatic updates, and you don't need Node.js.
+Prefer an app? **[Download the desktop app](https://github.com/harperaa/codeharden/releases/latest)** for Windows, macOS or Linux. It's the same CodeDen in its own window, with notifications and automatic updates, and you don't need Node.js.
 
 ---
 
@@ -141,10 +149,10 @@ Full details: [Security](docs/security.md). To report a vulnerability, see [SECU
 **Run it**
 
 ```sh
-npx codeden
+npx codeharden
 ```
 
-Or install the **desktop app** from the [latest release](https://github.com/leonvanzyl/codeden/releases/latest): `CodeDen-Setup-<version>.exe` on Windows, a `.dmg` on macOS, an AppImage or `.deb` on Linux. If Windows or macOS warns about an unsigned app the first time, see [The desktop app](docs/desktop.md#unsigned-builds).
+Or install the **desktop app** from the [latest release](https://github.com/harperaa/codeharden/releases/latest): `CodeHarden-Setup-<version>.exe` on Windows, a `.dmg` on macOS, an AppImage or `.deb` on Linux. If Windows or macOS warns about an unsigned app the first time, see [The desktop app](docs/desktop.md#unsigned-builds).
 
 1. **The setup checklist** finds your agents, GitHub and git, and only asks about what's missing. Each problem has a one-click fix: an install command, or a **Sign in** button.
 2. **Add a project.** Pick a folder on your computer, or paste a GitHub link to clone one.
@@ -152,7 +160,7 @@ Or install the **desktop app** from the [latest release](https://github.com/leon
 
 ![The first-run setup checklist](docs/images/setup.png)
 
-Something not working? Run `npx codeden doctor` to check your setup from the terminal. For a full walkthrough, see [Getting started](docs/getting-started.md).
+Something not working? Run `npx codeharden doctor` to check your setup from the terminal. For a full walkthrough, see [Getting started](docs/getting-started.md).
 
 CodeDen updates itself: when a new version is out, a banner offers **Update now**. Command-line options, settings files and update details are in the [Reference](docs/reference.md).
 
@@ -162,7 +170,7 @@ CodeDen updates itself: when a new version is out, a banner offers **Update now*
 No. CodeDen uses your agents' own logins, including Claude, ChatGPT, Cursor and Google subscriptions. API keys are only an optional extra for some image and voice features. Check your provider's terms for how your plan may be used.
 
 **Where does my data go?**
-Nowhere. It stays on your computer, in `~/.codeden/`. The only network traffic is your agents talking to their providers, GitHub (if you use it), and any optional image or voice services you turn on.
+Nowhere. It stays on your computer, in `~/.codeharden/`. The only network traffic is your agents talking to their providers, GitHub (if you use it), and any optional image or voice services you turn on.
 
 **Is there telemetry?**
 No. CodeDen sends no usage data anywhere.
@@ -174,7 +182,7 @@ Yes. Sessions, the workbench and automations all work on local folders. Issues, 
 No. Agents work in their own copies of your project on their own branches. Your own checkout and branch are never touched.
 
 **What if I close the terminal?**
-Agents in the middle of a task keep going. Run `codeden` again and it picks up where it left off. `codeden stop` stops everything.
+Agents in the middle of a task keep going. Run `codeharden` again and it picks up where it left off. `codeharden stop` stops everything.
 
 **Which platforms does it run on?**
 Windows, macOS and Linux.
@@ -188,6 +196,7 @@ It's experimental. Start with the software factory on a test repository with aut
 |---|---|
 | [Getting started](docs/getting-started.md) | Install, setup, your first project and session |
 | [The desktop app](docs/desktop.md) | Install, notifications, updates and where data lives |
+| [Secure Foundation](docs/secure-foundation.md) | A new project from the Secure Vibe Coding OS template, installed and started for you |
 | [Orchestration](docs/orchestration.md) | The orchestrator, project managers and agent sessions |
 | [Workbench](docs/workbench.md) | Changes, comments, undo, forks, hand-offs, files, terminal, browser and search |
 | [GitHub](docs/github.md) | Issues, pull requests, checks, reviews and evidence |
@@ -202,6 +211,52 @@ It's experimental. Start with the software factory on a test repository with aut
 | [Troubleshooting](docs/troubleshooting.md) | `doctor`, logs and common problems |
 | [Reference](docs/reference.md) | Settings, data folder, command-line options and updates |
 | [Architecture](docs/architecture.md) | How CodeDen is built |
+
+## Make your own hardened fork
+
+CodeHarden follows CodeDen: upstream changes are mirrored daily, reviewed, and merged 48 hours after approval; releases are timestamps; npm is published by hand. You can follow CodeHarden the same way, with your own changes on top and your own npm package. Three repository variables and one script point the same machinery at your names.
+
+| Variable | What it is | CodeHarden | Your fork |
+|---|---|---|---|
+| `UPSTREAM_REPO` | The repository you follow | `leonvanzyl/codeden` | `harperaa/codeharden` |
+| `UPSTREAM_BRANCH` | The branch of it you follow | `main` | `harden` |
+| `PACKAGE_NAME` | The npm package you publish; its last part is the command | `codeharden` | your own, for example `example-harden` |
+
+Your fork has two branches that matter. `harden` is your working and default branch: upstream plus your changes, where upstream only ever arrives by merge. `mirror` is a pure copy of CodeHarden's `harden`, only ever fast-forwarded and never committed to. (CodeHarden's own mirror is `main`, named after the branch it follows; yours can't be called `harden` twice, so it is `mirror`. A `main` branch copied by the fork button is not used and can stay.) Other names: `--branch` and `--mirror-branch`, stored as the variables `HARDEN_BRANCH` and `MIRROR_BRANCH`.
+
+1. **Fork** [harperaa/codeharden](https://github.com/harperaa/codeharden) on GitHub. Copying only the `harden` branch is enough.
+2. **Enable workflows** in the fork: open its Actions tab and press "I understand my workflows, go ahead and enable them". GitHub asks this of every new fork.
+3. **Clone it** and install the [GitHub CLI](https://cli.github.com), signed in as you (`gh auth login`).
+4. **Run the script**, first as a dry run:
+
+   ```sh
+   scripts/harden/setup-fork.sh --package example-harden --dry-run
+   scripts/harden/setup-fork.sh --package example-harden
+   ```
+
+   It creates the three variables, the `mirror` branch and the labels `sync-approved`, `sync-needs-review` and `sync-hold`, makes `harden` the default branch, enables Actions and the "Upstream sync merge" workflow, and disables the Release workflow (which stays disabled: nothing publishes from CI). Each step prints "already set" or "changed", so you can run it again at any time. It never force-pushes, never deletes anything and stores no token; what it may not do with your sign-in, it lists for you at the end.
+
+**The Secure Foundation template.** The add-project dialog's [Secure Foundation](docs/secure-foundation.md) option installs one template repository, which is part of the build like the names above: your fork keeps CodeHarden's (`harperaa/secure-vibe-coding-OS`, branch `main`) unless you set the variables `TEMPLATE_REPOSITORY` and `TEMPLATE_BRANCH` to your own, and `TEMPLATE_REPOSITORY=none` builds without the option.
+
+**How syncs get reviewed and merged.** Every day the workflow fast-forwards `mirror`. To take upstream changes, push them to a branch named `sync/...` and open a pull request into `harden`:
+
+```sh
+git fetch origin mirror
+git push origin FETCH_HEAD:refs/heads/sync/2026-01-05
+gh pr create --repo <you>/<your fork> --base harden --head sync/2026-01-05 --title "sync: upstream to 2026-01-05"
+```
+
+Review it, then label it: `sync-approved` (the workflow merges it 48 hours later, if its checks pass and nothing was pushed since), `sync-needs-review` or `sync-hold` (it waits for you). The daily review can be a CodeDen automation that opens the pull request, reads the changes and sets the label, or you do it yourself; the workflow only looks at the labels. Three things to expect:
+
+- If the pull request conflicts, merge `harden` into the sync branch and resolve there. `VERSION`, `CODEHARDEN-CHANGELOG.md` and `state/upstream-base` conflict once both sides have made a release: keep yours.
+- A sync that changes `scripts/harden/` (the release and sync scripts themselves) is never merged for you: it gets `sync-needs-review`, and you merge it by hand with a merge commit.
+- A sync that changes a workflow file can't be merged, or mirrored, by the workflow's own token; its log says so and you do that one by hand.
+
+**Releases and npm, under your name.** After the workflow merges a sync it makes a release on `harden` (a commit, a tag `v<version>` and a changelog entry). After merging your own changes, make one yourself: `scripts/harden/release.sh --dry-run`, then `scripts/harden/release.sh --push`. To publish a release to npm, check its tag out and run `scripts/harden/publish.sh --dry-run`, then `scripts/harden/publish.sh`, signed in to npm as the package's owner: [Publishing to npm](docs/codeharden-npm-release.md) has every step. Desktop installers for a release are built and attached by the "Desktop installers" workflow, run by hand: [Publishing the desktop installers](docs/codeharden-desktop-release.md). The scripts read your variables from GitHub with `gh` (or from the environment), and refuse to release or publish in a repository that is not CodeHarden's until they are set, so your users are never updated onto `codeharden` by a default. Your fork is also its own app next to CodeHarden and CodeDen: the home folder (`~/.example-harden` written as one word, `~/.exampleharden`), the link scheme, the keychain service, the app id (`com.exampleharden.app`) and the app's name all come from `PACKAGE_NAME`. Three optional build variables name them exactly: `PRODUCT_NAME` (for example `Example Harden`), `APP_ID` and `DEFAULT_PORT` (CodeHarden's is 4417; pick another so both run at once). `scripts/harden/channel-define.mjs` has the details. The "CodeDen" wording inside the UI is not changed by any of this.
+
+**Your changes survive the merges.** Your fork gets the same guard CodeHarden has: `scripts/harden/upstream-drift.test.mjs`, part of `pnpm test`, fails when a merge brings upstream CodeDen's own names back into the product (its npm package, repository, home folder, port, app id and the like), or drops a place where the product reads its identity from the build. It compares against upstream's values only; your own names come from your variables at build time, so the test needs no changes in your fork. Run `pnpm test` on a sync branch before you approve it. See "Keeping the fork's changes through upstream merges" in [AGENTS.md](AGENTS.md).
+
+Optional: `git config core.hooksPath scripts/harden/hooks` runs the tests on your machine before each push, and the repository variable `CI_TESTS=off` skips them in CI (see "Local test gate" in [AGENTS.md](AGENTS.md)). The script sets neither.
 
 ## Contributing
 

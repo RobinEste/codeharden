@@ -7,6 +7,7 @@ import {
 import { providerAvailability } from "@/components/composer/model-picker/logic";
 import type { CodeDenClient } from "../client";
 import { ApiRequestError } from "../http";
+import { mockSecureFoundationApi } from "../secure-foundation-api";
 import { startAmbient } from "./ambient";
 import { mockArchivedPage } from "./archived";
 import { mockAutomationsApi } from "./automations";
@@ -96,6 +97,7 @@ export function createMockClient(opts: MockClientOptions = {}): CodeDenClient {
 
   const client: CodeDenClient = {
     kind: "mock",
+    secureFoundation: mockSecureFoundationApi(),
     getSnapshot: () => delay(world.snapshot, 150),
     // The mock's sessions are short: it always answers with the whole session.
     getSessionSnapshot: (id) => delay(world.sessionSnapshot(id), 120),

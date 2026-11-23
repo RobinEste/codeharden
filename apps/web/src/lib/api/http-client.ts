@@ -60,6 +60,7 @@ import { httpGithubApi, httpOrchestrationApi, httpSessionConflictApi } from "./h
 import { httpAuthApi, httpNetworkApi } from "./network-api";
 import { httpQueueApi } from "./queue-api";
 import { RealtimeSocket } from "./realtime-socket";
+import { httpSecureFoundationApi } from "./secure-foundation-api";
 import { openTerminalSocket } from "./terminal-channel";
 import type { MentionCandidate } from "./types";
 import { httpUpdatesApi } from "./updates-api";
@@ -223,6 +224,7 @@ export function createHttpClient(origin: string, opts: HttpClientOptions = {}): 
     getUpdates: (o) =>
       get(`/updates${o?.refresh ? "?refresh=1" : ""}`, (v) => UpdateStatus.parse(v)),
     updates: httpUpdatesApi(http, origin),
+    secureFoundation: httpSecureFoundationApi(http),
     async completeSetup() {
       await post("/setup/complete");
     },
