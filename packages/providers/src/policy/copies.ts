@@ -69,7 +69,8 @@ function targetDirectory(bin: string, args: string[]): string | undefined {
     if (arg === "--") return undefined;
     const long = /^--target-directory(?:=(.*))?$/s.exec(arg);
     if (long) return long[1] ?? args[i + 1];
-    const short = /^-[a-su-zA-Z]*t(.*)$/s.exec(arg);
+    // Not past `S`, which takes a value itself: `-Stilde` is a backup suffix, not `-t ilde`.
+    const short = /^-[a-su-zA-RT-Z]*t(.*)$/s.exec(arg);
     if (short) return short[1] || args[i + 1];
   }
   return undefined;

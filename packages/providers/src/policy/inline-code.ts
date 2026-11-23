@@ -19,6 +19,7 @@
  * when it is written out (`./stdin-scripts`). And it can't tell which literal the writing call
  * uses, so a one-liner that reads one absolute path and writes somewhere else asks too.
  */
+import { quotedSpans } from "./harden-scan";
 
 /** Interpreters and the options their code follows. */
 const CODE_FLAGS = new Map<string, RegExp>([
@@ -80,8 +81,8 @@ const WRITES = new RegExp(
   "i",
 );
 
-/** A quoted string of path characters, without a line break. */
-const LITERAL = /(["'`])((?:\\.|(?!\1)[^\\\n\r])*)\1/g;
+/** The quote characters of a string literal: a quoted string of path characters, on one line. */
+const QUOTES = "\"'`";
 /**
  * A path that may lie outside the worktree: absolute or home-relative (`/a`, `/a/b`, `~/x`,
  * `C:\x`, `C:/x`, `\\server\x`), or climbing out of a folder (`../x`). Not `'/'` alone, which is
@@ -105,8 +106,8 @@ export function inlineCodeWrites(code: string): string[] {
   if (!WRITES.test(code)) return [];
   const out: string[] = [];
   const read = code.replace(TEXT_CALLS, "");
-  for (const match of read.matchAll(LITERAL)) {
-    const text = unquoted(match[2] as string).replace(/^\+?>>?\s*/, "");
+  for (const match of quotedSpans(read, QUOTES)) {
+    const text = unquoted(match.body).replace(/^\+?>>?\s*/, "");
     if (!ROOTED.test(text) || NOT_A_PATH.test(text)) continue;
     // A single name at the root (`'/about'`) is more often a route than a file, unless a call is
     // handed it (`rmtree('/home')`, `unlink "/home"`).
@@ -156,8 +157,7 @@ export function inlineCodePaths(code: string, depth = 0): string[] {
 }
 
 /** The text of each string literal in `code`, in order. */
-const literals = (code: string): string[] =>
-  [...code.matchAll(LITERAL)].map((m) => unquoted(m[2] as string));
+const literals = (code: string): string[] => quotedSpans(code, QUOTES).map((m) => unquoted(m.body));
 
 /**
  * Calls that run a command: `os.system`, `subprocess.run`, `execSync`, `spawn`, `system`, PHP's
@@ -179,7 +179,7 @@ const CLOSERS: Record<string, string> = { "(": ")", "{": "}", "[": "]", "<": ">"
 function quotedCommands(code: string, bin: string): string[] {
   const name = interpreter(bin) ?? "";
   if (name !== "perl" && name !== "ruby" && name !== "php") return [];
-  const out = [...code.matchAll(/`((?:\\.|[^`\\])*)`/g)].map((m) => m[1] as string);
+  const out = quotedSpans(code, "`", false).map((m) => m.body);
   for (const m of code.matchAll(/(?:\bqx|%x)\s*([^\w\s])/g)) {
     const from = m.index + m[0].length;
     const end = code.indexOf(CLOSERS[m[1] as string] ?? (m[1] as string), from);

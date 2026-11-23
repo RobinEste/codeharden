@@ -97,7 +97,7 @@ function substitute(
       const name = keyOf(written, table);
       // `$PWD` is where the shell is, unless the command line set it.
       if (name === undefined) return written === "PWD" ? "." : ref;
-      return value(name) ?? ref;
+      return value(name) ?? (ambient(name) ? EITHER : ref);
     });
     if (text.includes("$") || text.includes("`")) vars.add(text);
     if (cmd.quoted?.has(word)) quoted.add(text);
@@ -213,11 +213,33 @@ const isPlain = (cmd: SimpleCommand, word: string): boolean =>
   !(cmd.vars?.has(word) && holdsVariable(word));
 
 /**
+ * The value a variable the path rules know has before the command line sets it, as the rules read
+ * it (`$HOME`, the shell's folder for `PWD`), or undefined for any other variable. An assignment
+ * adds to it and never replaces it (`set`): the assignment may not have run (`false && HOME=.`,
+ * a branch, a pipe) or may not take (PowerShell's `$HOME` is read-only), so a later `$HOME` is
+ * judged as the real home too.
+ */
+function ambient(name: string): string[] | undefined {
+  const ps = name.startsWith("ps:");
+  const bare = ps ? name.slice(3) : name;
+  if (ps ? bare === "pwd" : bare === "PWD") return ["."];
+  if (ps ? bare === "home" : AMBIENT.has(bare)) return [`$${ps ? "HOME" : bare}`];
+  return undefined;
+}
+const AMBIENT = new Set(["HOME", "TMPDIR", "TEMP", "TMP", "CODEDEN_HOME"]);
+/**
+ * Stands for such a variable where the command can't be judged once for each value (in a pipe,
+ * beside a second variable with several values, or set from something only known at run time): a
+ * variable no rule knows, so a write or delete through it is a path only known when it runs.
+ */
+const EITHER = "$__set_or_ambient";
+
+/**
  * Give `name` its `values`. A second assignment adds to the first, since either may be the one
  * that ran; a value only known at run time (null) stays.
  */
 function set(table: Table, name: string, values: string[] | null): void {
-  const before = table.get(name);
+  const before = table.has(name) ? table.get(name) : ambient(name);
   if (values === null || before === null) return void table.set(name, null);
   const all = [...new Set([...(before ?? []), ...values])];
   table.set(name, all.length > MAX_VALUES ? null : all);
@@ -235,7 +257,7 @@ const KNOWN = [
   /%(?:USERPROFILE|TEMP|TMP|CODEDEN_HOME|CD)%/gi,
 ];
 /** A variable or a parameter: `$x`, `${x…}`, `$1`, `$@`, `$*`. */
-const VARIABLE = /\$(?:[A-Za-z_]\w*|\{[^}]+\}|[0-9@*])/;
+const VARIABLE = /\$(?:[A-Za-z_]\w*|\{[^}]|[0-9@*])/;
 /** cmd's `%NAME%`. */
 const CMD_VARIABLE = /%[A-Za-z_]\w*%/;
 
@@ -250,11 +272,17 @@ export const holdsVariable = (text: string): boolean => VARIABLE.test(withoutKno
  * repository's top folder, a new temp file, or a part of a name (`log-$(date +%F).txt`).
  */
 const KNOWN_OUTPUT =
-  /\$\((?:pwd|Get-Location|git rev-parse --show-toplevel|mktemp(?: -d)?(?: [\w.-]*X{3,}[\w.-]*)?|date(?: [^()`$]*)?|basename [^()`$]*|\$(?:PWD(?:\.Path)?|env:TE?MP|(?:_|PSItem)(?:\.\w+)*))\)|`pwd`/gi;
+  /\$\((?:pwd|Get-Location|git rev-parse --show-toplevel|mktemp(?: -d)?(?: ([\w.-]+))?|date(?: [^()`$]*)?|basename [^()`$]*|\$(?:PWD(?:\.Path)?|env:TE?MP|(?:_|PSItem)(?:\.\w+)*))\)|`pwd`/gi;
 
 /** True when `text` holds a substitution whose output isn't known: `$(cat list)`, backticks. */
 export const holdsSubstitution = (text: string): boolean =>
-  /\$\(|`/.test(text.replace(KNOWN_OUTPUT, ""));
+  /\$\(|`/.test(
+    // `mktemp`'s one argument is matched as a plain word and looked at here: a template holds
+    // `XXX`. Any other word leaves the substitution in, as one whose output isn't known.
+    text.replace(KNOWN_OUTPUT, (all, template?: string) =>
+      template === undefined || /X{3}/i.test(template) ? "" : all,
+    ),
+  );
 
 /**
  * True when `target`, a path `cmd` writes or deletes, still holds a variable, a parameter or a

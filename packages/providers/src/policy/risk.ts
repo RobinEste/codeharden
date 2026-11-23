@@ -11,6 +11,7 @@ import { dumpsEnvironment } from "./env-dumps";
 import { type ListOutput, namesOnly } from "./env-names";
 import { feedOf, firstInList, TOO_MANY_LOCATIONS, withKept } from "./first-in-list";
 import { classifyGit } from "./git";
+import { MAX_COMMAND_CHARS, TOO_LONG } from "./harden-scan";
 import { inlineCodePaths, inlineCodeWrites } from "./inline-code";
 import { inlineScripts } from "./inline-scripts";
 import { classifyInstall } from "./installs";
@@ -65,6 +66,7 @@ const UNKNOWN = "Runs a command that is only known when it runs";
  * earlier ordinary risk (`cat .env; …`) can't hide them.
  */
 export function classifyCommand(command: string, given: RiskContext): RiskAssessment {
+  if (command.length > MAX_COMMAND_CHARS) return TOO_LONG;
   // `CDPATH` sends a `cd` to a relative folder anywhere it lists, and `GIT_DIR` or
   // `GIT_WORK_TREE` a `cd` to the repository's top folder elsewhere (#614).
   const ctx = {

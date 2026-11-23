@@ -35,7 +35,9 @@ function escapeModes(src: string, dialect: ShellDialect, win: boolean): EscapeMo
   if (dialect === "powershell") return ["keep"];
   // `$'…'` is read with the backslashes.
   const escapes = src.includes("\\") || src.includes("$'");
-  if (dialect === "posix") return win && escapes ? ["posix", "keep"] : ["posix"];
+  // A `sh` without `$'…'` (dash) reads it as `$` and a plain quoted string: both readings count.
+  const ansiC = src.includes("$'");
+  if (dialect === "posix") return (win && escapes) || ansiC ? ["posix", "keep"] : ["posix"];
   const modes: EscapeMode[] = ["keep"];
   if (escapes) modes.push(win ? "careful" : "posix");
   if (win && src.includes("^")) modes.push("caret");
