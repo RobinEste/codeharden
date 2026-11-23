@@ -3,9 +3,8 @@ import { join } from "node:path";
 import { devPreviewBaseKey } from "@codeden/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { syncBaseCheckout } from "../src/services/dev-preview/base-checkout";
-import { runTool } from "../src/services/exec";
 import { createPreviewEnv, type PreviewEnv, SETTINGS } from "./support/dev-preview-env";
-import { commit, createRepos, git, type Repos } from "./support/dev-preview-git";
+import { commit, createRepos, git, isolatedGit, type Repos } from "./support/dev-preview-git";
 
 /**
  * The PM thread's preview against real git repositories: an "origin", the project's clone of
@@ -21,7 +20,7 @@ const pushToOrigin = (file: string, content: string) => repos.pushToOrigin(file,
 beforeEach(() => {
   repos = createRepos();
   ({ root, origin, repo } = repos);
-  env = createPreviewEnv({ exec: runTool });
+  env = createPreviewEnv({ exec: isolatedGit });
   env.projects.set("app", { ...env.addProject("app", { defaultBranch: "trunk" }), path: repo });
 });
 afterEach(async () => {
@@ -45,7 +44,7 @@ const tickAfter = async (ms: number) => {
 
 describe("the checkout itself", () => {
   const path = () => join(root, "checkout");
-  const sync = () => syncBaseCheckout(runTool, { repo, path: path(), branch: "trunk" });
+  const sync = () => syncBaseCheckout(isolatedGit, { repo, path: path(), branch: "trunk" });
 
   it("is created at the remote's tip and fast-forwarded when the branch moves", async () => {
     const first = await sync();
@@ -103,7 +102,7 @@ describe("the checkout itself", () => {
   });
 
   it("refuses a branch name that could be read as an option", async () => {
-    const result = await syncBaseCheckout(runTool, {
+    const result = await syncBaseCheckout(isolatedGit, {
       repo,
       path: path(),
       branch: "--upload-pack=x",

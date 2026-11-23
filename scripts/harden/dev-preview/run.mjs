@@ -12,7 +12,7 @@
 //   Prepare command  pnpm install --frozen-lockfile
 //   Port variables   WEB_PORT, API_PORT
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,9 +31,27 @@ if (webPort === apiPort) {
   console.error("dev-preview: WEB_PORT and API_PORT must differ.");
   process.exit(2);
 }
-// The same folder `pnpm dev` uses in this checkout: ignored by git, and never another
-// checkout's or an installed app's.
-const home = join(root, ".codeden-dev");
+// A home of its own: inside `.codeden-dev/`, which git ignores, but not the one `pnpm dev`
+// uses in this checkout, and never another checkout's or an installed app's.
+const home = join(root, ".codeden-dev", "preview");
+/** Written when the preview ends, so that the server takes its runner down with it. */
+const stopRunnerFlag = join(home, "stop-runner");
+
+// One server per home. A second one over the same database would break both.
+try {
+  const lock = JSON.parse(readFileSync(join(home, "server.json"), "utf8"));
+  const health = await fetch(`http://127.0.0.1:${Number(lock.port)}/api/health`, {
+    signal: AbortSignal.timeout(1_500),
+  });
+  if (health.ok) {
+    console.error(`dev-preview: a server already runs over ${home} (port ${lock.port}).`);
+    process.exit(2);
+  }
+} catch {
+  // No lock file, or nothing answers on its port: the home is free.
+}
+mkdirSync(home, { recursive: true });
+rmSync(stopRunnerFlag, { force: true });
 const env = {
   ...process.env,
   CODEDEN_HOME: home,
@@ -68,22 +86,19 @@ const children = [
   ),
 ];
 
-/** The dev server starts a runner that outlives it on purpose; a preview takes it down too. */
-function stopRunner() {
-  try {
-    const lock = JSON.parse(readFileSync(join(home, "runner", "runner.json"), "utf8"));
-    if (Number.isInteger(lock.pid) && lock.pid > 1) process.kill(lock.pid, "SIGTERM");
-  } catch {
-    // No runner was started, or it is gone already.
-  }
-}
-
 let ending = false;
 function end(code) {
   if (ending) return;
   ending = true;
+  // The dev server starts a runner that outlives it on purpose. A preview takes it down too:
+  // the server reads this file when it is told to stop, and asks its own runner to end. No
+  // process is signalled by an id read from a file.
+  try {
+    writeFileSync(stopRunnerFlag, "");
+  } catch {
+    // The runner then stays, as after `pnpm dev`.
+  }
   for (const child of children) child.kill("SIGTERM");
-  stopRunner();
   const left = () => children.filter((c) => c.exitCode === null && c.signalCode === null);
   const done = () => left().length === 0 && process.exit(code);
   for (const child of children) child.once("exit", done);
@@ -91,7 +106,7 @@ function end(code) {
   setTimeout(() => {
     for (const child of left()) child.kill("SIGKILL");
     process.exit(code);
-  }, 4_000).unref();
+  }, 8_000).unref();
 }
 
 for (const child of children) {

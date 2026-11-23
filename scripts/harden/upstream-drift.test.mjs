@@ -180,7 +180,7 @@ const ALLOWED = [
   [MOCK, /~\/\.codeden\/(?:wt|backups|orchestrator|models|deps)\b/, WHY.mock],
   [MOCK, /\\\\\.codeden\\\\wt\\\\/, WHY.mock],
   ["apps/web/src/lib/api/network-api.ts", /(?:url: "http:\/\/[\w.]+:|^\s*port: )4317\b/, WHY.mock],
-  ["packages/contracts/src/dev-preview.ts", /DEV_PREVIEW_RESERVED_PORTS: readonly number\[\] = \[4317, 4417\];/, "upstream's default port in the list of ports a dev preview is never given: a port to keep away from, so that a preview can't take the port of an upstream install on the same machine. This install's own port is added to the list from HARDEN_DEFAULT_PORT (`dev-preview-service.ts`)"],
+  ["packages/contracts/src/dev-preview.ts", /DEV_PREVIEW_RESERVED_PORTS: readonly number\[\] = \[4317, 4417, 4318, 4319, 5173, 5174\];/, "upstream's default port in the list of ports a dev preview is never given: a port to keep away from, so that a preview can't take the port of an upstream install on the same machine. This install's own port is added to the list from HARDEN_DEFAULT_PORT (`dev-preview-service.ts`)"],
   // --- client names and commit authors
   [/^packages\/providers\/src\/(?:acp|codex)\/process\.ts$/, /clientInfo: \{ name: "codeden", title: "CodeDen",/, WHY.hello],
   ["apps/server/src/services/automations/import-link.ts", /"user-agent": "codeden"/, WHY.hello],

@@ -65,12 +65,13 @@ describe("dev preview contracts", () => {
     expect(roundTrip(SetDevPreviewPmRequest, { enabled: false })).toEqual({ enabled: false });
   });
 
-  it("takes only plain names that say they hold a port", () => {
+  it("takes only upper-case names that say they hold a port", () => {
     const ok = (portVars: unknown) =>
       DevPreviewSettings.safeParse({ command: "x", portVars }).success;
-    expect(ok(["PORT", "VITE_PORT", "_port2", "ApiPort"])).toBe(true);
+    expect(ok(["PORT", "VITE_PORT", "PORT_API", "WEB_PORT2"])).toBe(true);
+    expect(ok(["API_PORT_INTERNAL", "P0RT_PORT"])).toBe(true);
     for (const bad of [
-      // What a shell or a runtime reads to decide what to run.
+      // What a shell, a loader or a runtime reads to decide what to run.
       ["PATH"],
       ["HOME"],
       ["HOST"],
@@ -83,10 +84,14 @@ describe("dev preview contracts", () => {
       ["PYTHONSTARTUP"],
       ["RUBYOPT"],
       ["GIT_DIR"],
-      ["npm_config_script_shell"],
+      // Lower case reaches tools that read their settings from the environment.
+      ["npm_config_port"],
+      ["port"],
+      ["Web_Port"],
       // Not names.
       ["PORT=1"],
       ["1PORT"],
+      ["_PORT"],
       ["MY PORT"],
       [""],
       [],
@@ -108,7 +113,7 @@ describe("dev preview contracts", () => {
     expect(DevPreviewLimits.safeParse({ portFrom: 5000, portTo: 5007 }).success).toBe(true);
     expect(DevPreviewLimits.safeParse({ portFrom: 80, portTo: 200 }).success).toBe(false);
     expect(DevPreviewLimits.safeParse({ perProject: 0 }).success).toBe(false);
-    expect(DEV_PREVIEW_RESERVED_PORTS).toEqual([4317, 4417]);
+    expect(DEV_PREVIEW_RESERVED_PORTS).toEqual([4317, 4417, 4318, 4319, 5173, 5174]);
   });
 
   it("round-trips the state, the project view, the log and the stop-all answer", () => {
@@ -148,6 +153,7 @@ describe("dev preview contracts", () => {
       config: null,
       suggestion: { command: "pnpm dev", reason: "package.json has a dev script" },
       baseBranch: "harden",
+      notice: "The checkout was kept.",
       remote: false,
     };
     expect(roundTrip(DevPreviewProject, project)).toEqual(project);

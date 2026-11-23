@@ -107,6 +107,7 @@ export function mockDevPreviewApi(): DevPreviewApi {
       ? null
       : { command: "pnpm dev", reason: "package.json has a dev script" },
     baseBranch: "main",
+    notice: null,
     remote: false,
   });
   const turn = (key: string, on: boolean) => {

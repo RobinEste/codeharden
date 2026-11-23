@@ -2,9 +2,9 @@ import { chmodSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { syncBaseCheckout } from "../src/services/dev-preview/base-checkout";
-import { type Exec, runTool } from "../src/services/exec";
+import type { Exec } from "../src/services/exec";
 import { createPreviewEnv, type PreviewEnv, SETTINGS } from "./support/dev-preview-env";
-import { commit, createRepos, git, type Repos } from "./support/dev-preview-git";
+import { commit, createRepos, git, isolatedGit, type Repos } from "./support/dev-preview-git";
 
 /**
  * What the PM thread's preview must never do, against real git repositories: follow a branch
@@ -15,7 +15,7 @@ let repos: Repos;
 let env: PreviewEnv;
 const on = { ...SETTINGS, pmEnabled: true };
 
-function setUp(exec: Exec = runTool) {
+function setUp(exec: Exec = isolatedGit) {
   env = createPreviewEnv({ exec });
   env.projects.set("app", {
     ...env.addProject("app", { defaultBranch: "trunk" }),
@@ -109,7 +109,7 @@ describe("git in the person's repository", () => {
     git(repos.repo, "push", "-q", "origin", "trunk");
     git(repos.repo, "config", "core.hooksPath", "hooks");
     const path = join(repos.root, "checkout");
-    const sync = () => syncBaseCheckout(runTool, { repo: repos.repo, path, branch: "trunk" });
+    const sync = () => syncBaseCheckout(isolatedGit, { repo: repos.repo, path, branch: "trunk" });
     expect(await sync()).toMatchObject({ ok: true, moved: true });
     repos.pushToOrigin("index.html", "two\n");
     expect(await sync()).toMatchObject({ ok: true, moved: true });
@@ -124,7 +124,7 @@ describe("git in the person's repository", () => {
     git(repos.repo, "worktree", "add", "-q", "-b", "mine", away);
     rmSync(away, { recursive: true, force: true });
     const path = join(repos.root, "checkout");
-    const sync = () => syncBaseCheckout(runTool, { repo: repos.repo, path, branch: "trunk" });
+    const sync = () => syncBaseCheckout(isolatedGit, { repo: repos.repo, path, branch: "trunk" });
     expect(await sync()).toMatchObject({ ok: true });
     expect(git(repos.repo, "worktree", "list", "--porcelain")).toContain(away);
     // Its own checkout, deleted by hand, is made again in place.
@@ -138,7 +138,11 @@ describe("git in the person's repository", () => {
     repos.pushToOrigin("index.html", "release\n", "release");
     git(repos.repo, "config", "remote.origin.fetch", "+refs/heads/trunk:refs/remotes/origin/trunk");
     const path = join(repos.root, "checkout");
-    const result = await syncBaseCheckout(runTool, { repo: repos.repo, path, branch: "release" });
+    const result = await syncBaseCheckout(isolatedGit, {
+      repo: repos.repo,
+      path,
+      branch: "release",
+    });
     expect(result).toMatchObject({ ok: true });
     expect(readFileSync(join(path, "index.html"), "utf8")).toBe("release\n");
   });
@@ -173,7 +177,7 @@ describe("stopped means stopped", () => {
         held = true;
         await fetching;
       }
-      return runTool(command, args, opts);
+      return isolatedGit(command, args, opts);
     });
     env.store.confirm("app", on, new Date(env.clock.now), "trunk");
     env.service.start();

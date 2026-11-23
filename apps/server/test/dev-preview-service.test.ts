@@ -159,7 +159,7 @@ describe("what the command gets", () => {
     // A second preview gets none of the first one's ports.
     const second = await start("s2");
     expect(second.ports.some((p) => first.ports.includes(p))).toBe(false);
-    for (const port of [4317, 4417, 4312, 4311]) {
+    for (const port of [4317, 4318, 4319, 4417, 4312, 4311]) {
       expect([...first.ports, ...second.ports]).not.toContain(port);
     }
     // Walk the whole range: the reserved ports are skipped every time round.

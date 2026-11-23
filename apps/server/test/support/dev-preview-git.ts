@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { type Exec, runTool } from "../../src/services/exec";
 
 /**
  * Real git repositories in a temp folder for the PM thread's preview: an "origin", and the
@@ -74,3 +75,13 @@ export function createRepos(): Repos {
     close: () => rmSync(root, { recursive: true, force: true }),
   };
 }
+
+/**
+ * The app's own git, as the code under test runs it, but blind to the developer's global and
+ * system git configuration (signing, hooks, default branch), which no test should depend on.
+ */
+export const isolatedGit: Exec = (command, args, opts) =>
+  runTool(command, args, {
+    ...opts,
+    env: { ...opts?.env, GIT_CONFIG_GLOBAL: "/dev/null", GIT_CONFIG_SYSTEM: "/dev/null" },
+  });

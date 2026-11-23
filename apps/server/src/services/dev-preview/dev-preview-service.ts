@@ -92,7 +92,7 @@ export class DevPreviewService {
       prepared: this.prepared,
       stopGraceMs: deps.stopGraceMs ?? 5_000,
       startTimeoutMs: deps.startTimeoutMs ?? 5 * 60_000,
-      prepareTimeoutMs: deps.prepareTimeoutMs ?? 30 * 60_000,
+      prepareTimeoutMs: deps.prepareTimeoutMs ?? 15 * 60_000,
       linkable: (port) => !this.starter.reserved().has(port),
     };
     this.bases = new BasePreviews({
@@ -129,7 +129,11 @@ export class DevPreviewService {
     this.timer = null;
     process.off("exit", this.onExit);
     // No start after this, including one a base-branch check still under way would make.
+    this.bases.close();
     await this.starter.close();
+    // A look at a base branch that is under way gets a moment to finish; whatever it does
+    // after that, it can't start anything.
+    await Promise.race([this.bases.idle(), new Promise((r) => setTimeout(r, 5_000).unref?.())]);
     const running = [...this.previews.values()].filter((p) => p.active);
     await Promise.all(running.map((p) => p.stop("off")));
   }
@@ -178,6 +182,7 @@ export class DevPreviewService {
       config,
       suggestion: config || remote ? null : suggestDevCommand(project.path),
       baseBranch: previewBaseBranch(project),
+      notice: null,
       remote,
     };
   }
@@ -200,11 +205,11 @@ export class DevPreviewService {
     const project = this.deps.project(projectId);
     this.deps.store.remove(projectId);
     await this.stopProject(projectId, null);
-    await this.bases.forget(project);
+    const kept = await this.bases.forget(project);
     for (const [key, preview] of this.previews) {
       if (preview.target.projectId === projectId) this.previews.delete(key);
     }
-    return this.project(projectId, false);
+    return { ...this.project(projectId, false), notice: kept };
   }
 
   /** The PM thread's preview on (starts it) or off (stops it); the choice is kept. */
@@ -363,7 +368,8 @@ export class DevPreviewService {
           : status !== "off",
       url: preview?.url ?? null,
       ports: preview?.active ? preview.ports : [],
-      message: preview?.message ?? null,
+      message:
+        preview?.message ?? (target.kind === "base" ? this.bases.note(target.projectId) : null),
       logTail: status === "failed" || status === "stopped" ? (preview?.tail() ?? []) : [],
       startedAt: preview?.startedAt ? new Date(preview.startedAt).toISOString() : null,
       configured: this.deps.store.config(target.projectId) !== null,

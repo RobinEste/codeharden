@@ -17,6 +17,56 @@ import type { Exec } from "../exec";
  */
 const NO_HOOKS = ["-c", "core.hooksPath=/dev/null"];
 
+/**
+ * The environment of the app's git commands here: the person's own, without the app's
+ * variables and without a hook's repository variables, as a preview's processes get it. Git
+ * starts programs of its own (credential helpers, ssh, filters); they get no more than that.
+ */
+export function gitEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of Object.keys(base)) {
+    if (/^CODEDEN_/i.test(key) || /^GIT_(DIR|WORK_TREE|INDEX_FILE|PREFIX|COMMON_DIR)$/.test(key)) {
+      // `undefined` takes the variable out of what the exec helper passes on.
+      env[key] = undefined;
+    }
+  }
+  env.ELECTRON_RUN_AS_NODE = undefined;
+  return env;
+}
+
+/** Folders and files that are made again by installing or building: safe to take away. */
+const REBUILDABLE = new Set([
+  "node_modules",
+  ".pnpm-store",
+  ".yarn",
+  "dist",
+  "build",
+  "out",
+  ".next",
+  ".nuxt",
+  ".svelte-kit",
+  ".turbo",
+  ".vite",
+  ".cache",
+  ".parcel-cache",
+  "coverage",
+  "target",
+  ".venv",
+  "venv",
+  "__pycache__",
+  ".pytest_cache",
+  ".gradle",
+  ".DS_Store",
+]);
+
+function rebuildable(path: string): boolean {
+  const parts = path.replace(/\/$/, "").split("/");
+  return (
+    parts.some((part) => REBUILDABLE.has(part)) ||
+    /\.(?:tsbuildinfo|log|pyc)$/.test(parts[parts.length - 1] ?? "")
+  );
+}
+
 export type BaseSync =
   | {
       ok: true;
@@ -63,8 +113,9 @@ export async function syncBaseCheckout(exec: Exec, base: BaseCheckout): Promise<
   if (!BRANCH.test(branch) || branch.includes("..")) {
     return { ok: false, message: `"${branch}" isn't a branch name the preview can follow.` };
   }
+  const env = gitEnv();
   const git = (cwd: string, args: string[], timeoutMs = 30_000) =>
-    exec("git", ["-C", cwd, ...args], { timeoutMs });
+    exec("git", ["-C", cwd, ...args], { timeoutMs, env });
 
   // The tip "as known from the remote": fetched when there is one, the local branch otherwise.
   const hasOrigin = (await git(repo, ["remote", "get-url", "origin"])).code === 0;
@@ -146,15 +197,43 @@ export async function syncBaseCheckout(exec: Exec, base: BaseCheckout): Promise<
 }
 
 /**
- * Take the checkout away when a project's preview is removed. Plain `git worktree remove`,
- * never forced: git refuses when the checkout holds changes or untracked files, and then it
- * stays. What git ignores there (installed dependencies, build output) goes with it.
- * Returns whether it is gone.
+ * Take the checkout away when a project's preview is removed. Returns null when it is gone,
+ * or why it was kept.
+ *
+ * Plain `git worktree remove`, never forced: git refuses when the checkout holds changes or
+ * untracked files. What git ignores would go with it, so that is looked at first: installed
+ * dependencies and build output are fine to lose, but any other ignored file (an `.env.local`
+ * someone put there) keeps the checkout, and the answer names it.
  */
-export async function removeBaseCheckout(exec: Exec, base: Omit<BaseCheckout, "branch">) {
-  if (!existsSync(base.path)) return true;
+export async function removeBaseCheckout(
+  exec: Exec,
+  base: Omit<BaseCheckout, "branch">,
+): Promise<string | null> {
+  if (!existsSync(base.path)) return null;
+  const env = gitEnv();
+  const status = await exec(
+    "git",
+    ["-C", base.path, "status", "--porcelain", "--ignored", "--untracked-files=all"],
+    { timeoutMs: 60_000, env },
+  );
+  if (status.code !== 0) {
+    return `The preview's checkout at ${base.path} was kept: git couldn't read its state.`;
+  }
+  const lines = status.stdout.split("\n").filter(Boolean);
+  const changed = lines.filter((line) => !line.startsWith("!! "));
+  if (changed.length > 0) {
+    return `The preview's checkout at ${base.path} was kept: it has changes or files git doesn't know.`;
+  }
+  const own = lines.map((line) => line.slice(3)).filter((path) => !rebuildable(path));
+  if (own.length > 0) {
+    const names = own.slice(0, 3).join(", ");
+    return `The preview's checkout at ${base.path} was kept: it holds ignored files that can't be made again (${names}${own.length > 3 ? ", …" : ""}).`;
+  }
   const removed = await exec("git", ["-C", base.repo, "worktree", "remove", base.path], {
     timeoutMs: 120_000,
+    env,
   });
-  return removed.code === 0;
+  return removed.code === 0
+    ? null
+    : `The preview's checkout at ${base.path} was kept: git wouldn't remove it.`;
 }

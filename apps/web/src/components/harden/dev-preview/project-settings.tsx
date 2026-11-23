@@ -55,7 +55,10 @@ export function DevPreviewProjectSettings({ project }: { project: Project }) {
   });
   const remove = useMutation({
     mutationFn: () => client.devPreview.removeProject(project.id),
-    onSuccess: stored,
+    onSuccess: (view) => {
+      stored();
+      if (view.notice) toast.warning("Dev preview removed", { description: view.notice });
+    },
     onError: (e) => toast.error("Dev preview not removed", { description: e.message }),
   });
 
@@ -236,9 +239,11 @@ export function DevPreviewProjectSettings({ project }: { project: Project }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Run these commands on this computer?</AlertDialogTitle>
             <AlertDialogDescription>
-              The app will run them as you, in this project's worktrees, whenever a preview starts.
-              Previews that are running stop now: the PM thread's starts again with the new
-              commands, a session's when you turn it on again.
+              The app runs them as you, in this project's worktrees, whenever a preview starts. They
+              run the repository's own code (its dev script, and install scripts in the prepare
+              step), including what an agent wrote in a session, with no approval step and with
+              access to everything you can read. Previews that are running stop now: the PM thread's
+              starts again with the new commands, a session's when you turn it on again.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="space-y-2 text-xs">

@@ -22,23 +22,24 @@ export const DEV_PREVIEW_LOG_LINES = 2000;
 export const DEV_PREVIEW_TAIL_LINES = 12;
 
 /**
- * Ports no preview is ever given, whatever the range says: upstream CodeDen's default and
- * CodeHarden's own. The running server's port and the install's default port are added by the
- * server (`harden-channel.ts`).
+ * Ports no preview is ever given or linked to, whatever the range says: upstream CodeDen's
+ * default and CodeHarden's own, and the ports the two products' `pnpm dev` uses (server and
+ * web app, first and second copy). The running server's port and the install's default port
+ * are added by the server (`harden-channel.ts`).
  */
-export const DEV_PREVIEW_RESERVED_PORTS: readonly number[] = [4317, 4417];
+export const DEV_PREVIEW_RESERVED_PORTS: readonly number[] = [4317, 4417, 4318, 4319, 5173, 5174];
 
 /**
- * An environment variable name a port is passed in: a plain name that says it holds a port
- * (`PORT`, `WEB_PORT`, `VITE_PORT`). That rule keeps every variable a shell or a runtime reads
- * to decide what to run (`BASH_ENV`, `ZDOTDIR`, `NODE_OPTIONS`, `LD_PRELOAD` and the like) out
- * of reach of a preview's settings.
+ * An environment variable name a port is passed in. Only names of this one shape are taken:
+ * upper case, starting with a letter, with `PORT` in them (`PORT`, `WEB_PORT`, `VITE_PORT`,
+ * `PORT_API`). Being a list of what is allowed, not of what is refused, it keeps out every
+ * variable a shell, a loader or a runtime reads to decide what to run, known or not.
  */
 export const DevPreviewPortVar = z
   .string()
-  .regex(/^[A-Za-z_][A-Za-z0-9_]{0,63}$/, "Use letters, digits and underscores")
-  .refine((name) => /port/i.test(name), {
-    message: 'A port variable has "PORT" in its name, like PORT or WEB_PORT',
+  .max(64)
+  .regex(/^(?=[A-Z])[A-Z0-9_]*PORT[A-Z0-9_]*$/, {
+    message: "A port variable is upper case and has PORT in its name, like PORT or WEB_PORT",
   });
 
 const Command = z.string().trim().min(1).max(DEV_PREVIEW_COMMAND_MAX);
@@ -166,6 +167,8 @@ export const DevPreviewProject = z.object({
   suggestion: z.object({ command: z.string(), reason: z.string() }).nullable(),
   /** The project's base branch, which the PM thread's preview follows. Null when unknown. */
   baseBranch: z.string().nullable(),
+  /** Something to tell the person after a change (a checkout that was kept, and why). */
+  notice: z.string().nullable().default(null),
   /** The caller is another device: commands can't be set or previews started from it. */
   remote: z.boolean(),
 });
