@@ -1,6 +1,11 @@
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
-import { formatHardenVersion, HARDEN_UPDATE_COMMAND, type SetupCheck } from "@codeden/contracts";
+import {
+  formatHardenVersion,
+  HARDEN_COMMAND,
+  HARDEN_UPDATE_COMMAND,
+  type SetupCheck,
+} from "@codeden/contracts";
 import {
   CLAUDE_SDK_VERSION,
   claudeSdkSource,
@@ -49,7 +54,10 @@ function loadError(mod: string): string | null {
 async function claudeSupport(depsDir: string): Promise<[string, string]> {
   if (claudeSdkSource() === "workspace") return ["ok", `SDK ${CLAUDE_SDK_VERSION} (workspace)`];
   if (!isClaudeSdkInstalled(depsDir)) {
-    return ["--", "not installed yet; installs on first use, or run `codeden doctor --install`"];
+    return [
+      "--",
+      `not installed yet; installs on first use, or run \`${HARDEN_COMMAND} doctor --install\``,
+    ];
   }
   try {
     await importClaudeSdkFrom(depsDir);
@@ -71,7 +79,7 @@ async function installClaudeSupport(depsDir: string): Promise<boolean> {
       `Claude Code support could not be installed: ${error instanceof Error ? error.message : error}`,
     );
     console.error(
-      "Check your network and npm configuration, then run `codeden doctor --install` again.",
+      `Check your network and npm configuration, then run \`${HARDEN_COMMAND} doctor --install\` again.`,
     );
     return false;
   }

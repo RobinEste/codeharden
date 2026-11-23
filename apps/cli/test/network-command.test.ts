@@ -32,7 +32,7 @@ const file = () => join(home, "remote-access.json");
 describe("codeden network / password (server stopped)", () => {
   it("refuses to turn network access on before a password is set", async () => {
     expect(await networkCommand(home, "on")).toBe(1);
-    expect(out.join("\n")).toMatch(/codeden password/);
+    expect(out.join("\n")).toMatch(/codeharden password/);
     expect(await networkCommand(home, "sideways")).toBe(2);
   });
 
