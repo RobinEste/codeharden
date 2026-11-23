@@ -1,5 +1,13 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { agentEnv, defaultShell, defaultShellArgs, shellSyntax } from "@codeden/providers";
+import {
+  familyOf,
+  type Leader,
+  type ProcessRow,
+  processTable,
+  startedAt,
+  stillThere,
+} from "./process-table";
 
 /**
  * Running a project's confirmed command for a preview.
@@ -51,6 +59,8 @@ export interface PreviewExit {
 export interface PreviewProcess {
   /** Also the id of its process group (not on Windows). */
   readonly pid: number;
+  /** Its start time as the system reports it, read at once; with the pid it names it. */
+  readonly started: string | null;
   /** Resolves once, when the command's own process has ended. */
   readonly exited: Promise<PreviewExit>;
   /** End it and everything it started: ask first, then force after `graceMs`. */
@@ -68,81 +78,68 @@ export interface SpawnSpec {
 
 export type SpawnPreview = (spec: SpawnSpec) => PreviewProcess;
 
-/** Is a process (or, with a negative id, any process of a group) still there? */
-export function isAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === "EPERM";
-  }
+/** What ending a process needs from the system; replaced in tests. */
+export interface ProcessOps {
+  table: () => ProcessRow[];
+  signal: (pid: number, signal: NodeJS.Signals) => void;
+  sleep: (ms: number) => Promise<void>;
+  now: () => number;
 }
 
-function signal(pid: number, sig: NodeJS.Signals): void {
-  try {
-    process.kill(pid, sig);
-  } catch {
-    // Already gone.
-  }
-}
-
-/** Every process started, directly or not, by `root` (not on Windows). */
-export function descendantsOf(root: number): number[] {
-  if (isWindows) return [];
-  const ps = spawnSync("ps", ["-A", "-o", "pid=,ppid="], { encoding: "utf8" });
-  if (ps.status !== 0) return [];
-  const children = new Map<number, number[]>();
-  for (const line of ps.stdout.split("\n")) {
-    const [pid, ppid] = line.trim().split(/\s+/).map(Number);
-    if (!pid || !ppid) continue;
-    children.set(ppid, [...(children.get(ppid) ?? []), pid]);
-  }
-  const found: number[] = [];
-  const queue = [root];
-  while (queue.length > 0) {
-    for (const child of children.get(queue.shift() as number) ?? []) {
-      if (child === process.pid || found.includes(child)) continue;
-      found.push(child);
-      queue.push(child);
+export const systemOps: ProcessOps = {
+  table: processTable,
+  signal(pid, sig) {
+    try {
+      process.kill(pid, sig);
+    } catch {
+      // Already gone, or not ours to signal.
     }
-  }
-  return found;
-}
-
-/** Force a process group and the given stragglers to end. */
-export function killGroupNow(pid: number, others: readonly number[] = []): void {
-  if (isWindows) {
-    spawn("taskkill", ["/pid", String(pid), "/t", "/f"], { windowsHide: true, stdio: "ignore" });
-    return;
-  }
-  signal(-pid, "SIGKILL");
-  signal(pid, "SIGKILL");
-  for (const other of others) signal(other, "SIGKILL");
-}
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+  },
+  sleep: (ms) => new Promise<void>((resolve) => setTimeout(resolve, ms)),
+  now: Date.now,
+};
 
 /**
- * End a process group and what it started, including processes that left the group (a dev
- * server's own detached helpers): SIGTERM first, SIGKILL for what is left after `graceMs`.
+ * End a preview's processes: its leader, its group and what those started, as far as they
+ * are proven to be the preview's (`familyOf`). Each is signalled by its own id, and only
+ * while the id still names the process that was seen: SIGTERM first, and after `graceMs`
+ * SIGKILL for what is left, looked up afresh. No process group is ever signalled as a whole.
  */
-export async function stopGroup(pid: number, graceMs: number): Promise<void> {
-  if (isWindows) {
-    killGroupNow(pid);
-    return;
+export async function stopFamily(
+  leader: Leader,
+  graceMs: number,
+  ops: ProcessOps = systemOps,
+): Promise<void> {
+  const asked = familyOf(ops.table(), leader);
+  for (const row of asked) ops.signal(row.pid, "SIGTERM");
+  const deadline = ops.now() + graceMs;
+  let left = asked;
+  while (left.length > 0 && ops.now() < deadline) {
+    await ops.sleep(Math.min(50, Math.max(5, graceMs / 10)));
+    left = stillThere(asked, ops.table());
   }
-  const others = descendantsOf(pid);
-  const left = () => isAlive(-pid) || isAlive(pid) || others.some(isAlive);
-  signal(-pid, "SIGTERM");
-  for (const other of others) signal(other, "SIGTERM");
-  const deadline = Date.now() + graceMs;
-  while (left() && Date.now() < deadline) await sleep(Math.min(50, Math.max(5, graceMs / 10)));
-  if (left()) killGroupNow(pid, others);
+  killFamilyNow(leader, asked, ops);
+}
+
+/** Force what is proven to be the preview's to end, at once. */
+export function killFamilyNow(
+  leader: Leader,
+  seen: readonly ProcessRow[] = [],
+  ops: ProcessOps = systemOps,
+): void {
+  const table = ops.table();
+  const targets = new Map<number, ProcessRow>();
+  // What was seen and is still the same process, and whatever the family has now.
+  for (const row of [...stillThere(seen, table), ...familyOf(table, leader)]) {
+    targets.set(row.pid, row);
+  }
+  for (const row of targets.values()) ops.signal(row.pid, "SIGKILL");
 }
 
 /** Start `spec.command` in the person's shell, in its own process group, with no stdin. */
 export const spawnPreview: SpawnPreview = (spec) => {
-  const { file, args } = shellInvocation(spec.command);
+  // The shell is chosen from the environment the command gets, as a terminal's would be.
+  const { file, args } = shellInvocation(spec.command, { ...process.env, ...spec.env });
   const child = spawn(file, args, {
     cwd: spec.cwd,
     env: spec.env,
@@ -153,28 +150,40 @@ export const spawnPreview: SpawnPreview = (spec) => {
   child.stdout?.setEncoding("utf8").on("data", spec.onOutput);
   child.stderr?.setEncoding("utf8").on("data", spec.onOutput);
   const pid = child.pid ?? 0;
-  let ended = false;
+  // Read while the child can't have been replaced: it hasn't been reaped yet.
+  const started = pid ? startedAt(pid) : null;
+  let endedAtMs: number | undefined;
   const exited = new Promise<PreviewExit>((resolve) => {
     child.once("error", (error) => {
-      ended = true;
+      endedAtMs ??= Date.now();
       resolve({ code: null, signal: null, error: error.message });
     });
     child.once("exit", (code, sig) => {
-      ended = true;
+      endedAtMs ??= Date.now();
       resolve({ code, signal: sig });
     });
   });
+  const leader = (): Leader => ({ pid, started, endedAtMs });
+  /** Windows has no process groups to read: the tree of the live child, by its handle's id. */
+  const killTreeOnWindows = () => {
+    if (endedAtMs !== undefined) return;
+    spawn("taskkill", ["/pid", String(pid), "/t", "/f"], { windowsHide: true, stdio: "ignore" });
+  };
   return {
     pid,
+    started,
     exited,
     async stop(graceMs = 5_000) {
       if (!pid) return;
-      await stopGroup(pid, graceMs);
-      // The group can be gone a moment before node reports the exit.
-      if (!ended) await Promise.race([exited, sleep(1_000)]);
+      if (isWindows) killTreeOnWindows();
+      else await stopFamily(leader(), graceMs);
+      // The processes can be gone a moment before node reports the exit.
+      if (endedAtMs === undefined) await Promise.race([exited, systemOps.sleep(1_000)]);
     },
     killNow() {
-      if (pid) killGroupNow(pid, descendantsOf(pid));
+      if (!pid) return;
+      if (isWindows) killTreeOnWindows();
+      else killFamilyNow(leader());
     },
   };
 };

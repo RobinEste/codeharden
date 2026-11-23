@@ -1,76 +1,57 @@
-import { spawnSync } from "node:child_process";
 import { z } from "zod";
 import { readJsonFile, writeJsonFile } from "../../json-file";
-import { descendantsOf, isAlive, killGroupNow } from "./process";
+import { systemOps } from "./process";
+import { bootTimeMs, familyOf, type ProcessRow, processTable } from "./process-table";
 
 /**
  * What the app started and hasn't seen end, written to `<home>/dev-preview/running.json`, so
  * that a start after a crash can end what the crash left running. A normal quit stops every
  * preview and leaves the file empty.
  *
- * A process id can belong to something else by the next start, so a record is acted on only
- * when the process (or its group) is provably the one recorded: the same start time, or a
- * group whose id no live process could have been given since.
+ * A record is acted on only when the process it names is proven to be the one recorded
+ * (`familyOf`): it was started since this computer last started, and the process with that id
+ * has the recorded start time. Then it, its group and what they started are ended. Anything
+ * less (an id that went to another process, a record from before a reboot, a start time that
+ * couldn't be read, a leader that is gone) proves nothing, and nothing is signalled.
  */
 const RunningRecord = z.object({
   key: z.string(),
   pid: z.int().positive(),
-  /** The process's start time as the system reports it; null when it couldn't be read. */
-  identity: z.string().nullable(),
+  /** The process's start time as the system reported it at the start; null when unreadable. */
+  started: z.string().nullable(),
+  /** When the app started it. */
+  spawnedAt: z.number(),
   cwd: z.string(),
 });
 export type RunningRecord = z.infer<typeof RunningRecord>;
 
 /** What the cleanup asks the system; replaced in tests. */
-export interface ProcessProbe {
-  /** A value that differs for two processes that were given the same id; null when gone. */
-  identity(pid: number): string | null;
-  /** The id of the process's group; null when gone (and on Windows). */
-  groupOf(pid: number): number | null;
-  /** Does the group with this id have any process left? */
-  groupAlive(pid: number): boolean;
-  kill(pid: number): void;
+export interface LeftoverOps {
+  table: () => ProcessRow[];
+  /** When this computer started. */
+  bootedAtMs: () => number;
+  kill: (pid: number) => void;
 }
 
-const isWindows = process.platform === "win32";
-
-function ps(pid: number, column: string): string | null {
-  const result = spawnSync("ps", ["-o", `${column}=`, "-p", String(pid)], { encoding: "utf8" });
-  const text = result.status === 0 ? result.stdout.trim() : "";
-  return text || null;
-}
-
-export const systemProbe: ProcessProbe = {
-  identity(pid) {
-    if (!isWindows) return ps(pid, "lstart");
-    const result = spawnSync(
-      "powershell.exe",
-      ["-NoProfile", "-Command", `(Get-Process -Id ${pid}).StartTime.ToFileTimeUtc()`],
-      { encoding: "utf8", windowsHide: true },
-    );
-    const text = result.status === 0 ? result.stdout.trim() : "";
-    return text || null;
-  },
-  groupOf(pid) {
-    if (isWindows) return null;
-    const group = Number(ps(pid, "pgid"));
-    return Number.isInteger(group) && group > 0 ? group : null;
-  },
-  groupAlive: (pid) => !isWindows && isAlive(-pid),
-  kill: (pid) => killGroupNow(pid, descendantsOf(pid)),
+export const systemLeftoverOps: LeftoverOps = {
+  table: processTable,
+  bootedAtMs: () => bootTimeMs(),
+  kill: (pid) => systemOps.signal(pid, "SIGKILL"),
 };
 
-/** Is what this record names still the process the app started? */
-export function isLeftover(record: RunningRecord, probe: ProcessProbe): boolean {
-  const now = probe.identity(record.pid);
-  // The leader is still the recorded process.
-  if (now !== null && record.identity !== null && now === record.identity) return true;
-  // The leader is gone, or its id went to another process. Its group can still hold what it
-  // started. A group keeps its id for as long as it has a member, and a process can only lead
-  // a group with its own id, so a live group with this id is the recorded one unless the
-  // process that now has the id leads it.
-  if (!probe.groupAlive(record.pid)) return false;
-  return now === null || probe.groupOf(record.pid) !== record.pid;
+/** The clocks of two readings can differ by a little. */
+const BOOT_SLACK_MS = 10_000;
+
+/** The processes this record proves to be the app's own leftovers; empty when it proves none. */
+export function leftoversOf(
+  record: RunningRecord,
+  table: readonly ProcessRow[],
+  bootedAtMs: number,
+): ProcessRow[] {
+  // From before this computer last started: every id has been handed out again since.
+  if (record.spawnedAt < bootedAtMs - BOOT_SLACK_MS) return [];
+  // No `endedAtMs`: the app didn't see the leader end, so a leaderless group proves nothing.
+  return familyOf(table, { pid: record.pid, started: record.started });
 }
 
 export class RunningRegistry {
@@ -78,14 +59,15 @@ export class RunningRegistry {
 
   constructor(
     private readonly file: string,
-    private readonly probe: ProcessProbe = systemProbe,
+    private readonly ops: LeftoverOps = systemLeftoverOps,
+    private readonly now: () => number = Date.now,
   ) {}
 
-  /** Note a process the app just started. */
-  add(key: string, pid: number, cwd: string): void {
-    if (!pid) return;
-    this.records = this.records.filter((r) => r.pid !== pid);
-    this.records.push({ key, pid, identity: this.probe.identity(pid), cwd });
+  /** Note a process the app just started, with the start time read at that moment. */
+  add(key: string, proc: { pid: number; started: string | null }, cwd: string): void {
+    if (!proc.pid) return;
+    this.records = this.records.filter((r) => r.pid !== proc.pid);
+    this.records.push({ key, pid: proc.pid, started: proc.started, spawnedAt: this.now(), cwd });
     this.write();
   }
 
@@ -102,11 +84,17 @@ export class RunningRegistry {
    */
   cleanUp(): string[] {
     const parsed = z.array(RunningRecord).safeParse(readJsonFile(this.file));
+    const records = parsed.success ? parsed.data : [];
     const ended: string[] = [];
-    for (const record of parsed.success ? parsed.data : []) {
-      if (!isLeftover(record, this.probe)) continue;
-      this.probe.kill(record.pid);
-      ended.push(record.key);
+    if (records.length > 0) {
+      const table = this.ops.table();
+      const booted = this.ops.bootedAtMs();
+      for (const record of records) {
+        const family = leftoversOf(record, table, booted);
+        if (family.length === 0) continue;
+        for (const row of family) this.ops.kill(row.pid);
+        ended.push(record.key);
+      }
     }
     this.records = [];
     this.write();

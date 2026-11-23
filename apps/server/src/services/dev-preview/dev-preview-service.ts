@@ -15,7 +15,7 @@ import { conflict, notFound } from "../errors";
 import type { Exec } from "../exec";
 import { BasePreviews } from "./base-previews";
 import { previewBaseBranch, sessionUnavailable, suggestDevCommand } from "./eligibility";
-import { type ProcessProbe, RunningRegistry } from "./leftovers";
+import { type LeftoverOps, RunningRegistry } from "./leftovers";
 import { PreparedStore } from "./lockfile";
 import { isListening, PortAllocator, portIsFree } from "./ports";
 import { Preview, type PreviewDeps, type PreviewTarget } from "./preview";
@@ -38,7 +38,7 @@ export interface DevPreviewDeps {
   spawn?: SpawnPreview;
   isListening?: (port: number) => Promise<boolean>;
   portIsFree?: (port: number) => Promise<boolean>;
-  probe?: ProcessProbe;
+  leftoverOps?: LeftoverOps;
   now?: () => number;
   exists?: (path: string) => boolean;
   tickMs?: number;
@@ -82,7 +82,7 @@ export class DevPreviewService {
       session: deps.session,
       serverPort: () => this.serverPort,
     });
-    this.registry = new RunningRegistry(join(dir, "running.json"), deps.probe);
+    this.registry = new RunningRegistry(join(dir, "running.json"), deps.leftoverOps, this.now);
     this.prepared = new PreparedStore(join(dir, "prepared.json"));
     this.previewDeps = {
       spawn: deps.spawn ?? spawnPreview,

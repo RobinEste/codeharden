@@ -209,7 +209,7 @@ export class Preview {
       onOutput: (text) => this.output(text),
     });
     this.proc = proc;
-    this.deps.registry.add(this.target.key, proc.pid, this.target.cwd);
+    this.deps.registry.add(this.target.key, proc, this.target.cwd);
     return proc;
   }
 

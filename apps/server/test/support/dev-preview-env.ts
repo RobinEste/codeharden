@@ -6,7 +6,7 @@ import {
   type DevPreviewDeps,
   DevPreviewService,
 } from "../../src/services/dev-preview/dev-preview-service";
-import type { ProcessProbe } from "../../src/services/dev-preview/leftovers";
+import type { LeftoverOps } from "../../src/services/dev-preview/leftovers";
 import type { PreviewExit, SpawnSpec } from "../../src/services/dev-preview/process";
 import { DevPreviewStore } from "../../src/services/dev-preview/store";
 import { notFound } from "../../src/services/errors";
@@ -17,6 +17,7 @@ import { sampleSession } from "../helpers";
 export class FakeProcess {
   stopped = false;
   killed = false;
+  readonly started = "Sat Nov  7 10:00:00 2026";
   ended = false;
   private end!: (exit: PreviewExit) => void;
   readonly exited = new Promise<PreviewExit>((resolve) => {
@@ -104,12 +105,13 @@ export interface PreviewEnv {
   close(): Promise<void>;
 }
 
-/** A probe that knows nothing is left over. */
-export const quietProbe: ProcessProbe = {
-  identity: () => null,
-  groupOf: () => null,
-  groupAlive: () => false,
-  kill: () => {},
+/** A system with no processes: nothing is ever left over, nothing is ever signalled. */
+export const quietOps: LeftoverOps = {
+  table: () => [],
+  bootedAtMs: () => 0,
+  kill: () => {
+    throw new Error("no process should be signalled in this test");
+  },
 };
 
 /**
@@ -150,7 +152,7 @@ export function createPreviewEnv(
     },
     isListening: async (port) => listening.has(port),
     portIsFree: async (port) => !taken.has(port),
-    probe: quietProbe,
+    leftoverOps: quietOps,
     now: () => clock.now,
     stopGraceMs: 0,
     startTimeoutMs: 60_000,
