@@ -5,6 +5,8 @@ export const DEFAULT_PRODUCT_NAME: string;
 export const DEFAULT_APP_ID: string;
 export const DEFAULT_APP_SLUG: string;
 export const DEFAULT_PORT: number;
+export const DEFAULT_TEMPLATE_REPOSITORY: string;
+export const DEFAULT_TEMPLATE_BRANCH: string;
 
 /** The identity's word for a package: its command in lower-case letters and digits. */
 export function slugOfPackage(packageName: string): string;
@@ -45,6 +47,10 @@ export function readHardenChannel(
   slug: string;
   /** The default port. */
   port: number;
+  /** The Secure Foundation template's `owner/repo`; "" when the option is off. */
+  templateRepository: string;
+  /** The template's branch. */
+  templateBranch: string;
 };
 
 /** The bundler `define` entries that inject it. */
@@ -59,4 +65,6 @@ export function hardenChannelDefine(
   __CODEHARDEN_APP_ID__: string;
   __CODEHARDEN_SLUG__: string;
   __CODEHARDEN_PORT__: string;
+  __CODEHARDEN_TEMPLATE_REPOSITORY__: string;
+  __CODEHARDEN_TEMPLATE_BRANCH__: string;
 };

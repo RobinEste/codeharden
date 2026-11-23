@@ -15,6 +15,7 @@ import { AutonomyModeButton } from "@/components/factory/autonomy-dialog";
 import { OpenFactoryViewButton } from "@/components/factory/factory-actions";
 import { FactoryPanel } from "@/components/factory/factory-panel";
 import { ProjectGithub } from "@/components/github/project-github";
+import { SecureFoundationStatus } from "@/components/harden/secure-foundation/status";
 import { ArchivedSessionsList, SessionsList } from "@/components/project/lists";
 import { NowNext } from "@/components/project/now-next";
 import { ProjectExecution } from "@/components/project/project-execution";
@@ -152,6 +153,7 @@ export function ProjectPage({
             </div>
           ) : (
             <>
+              <SecureFoundationStatus projectId={projectId} />
               <NowNext work={work} projectId={projectId} titleOf={titleOf} />
               {factory && <FactoryPanel project={project} />}
               <ProjectSpendCard projectId={projectId} />

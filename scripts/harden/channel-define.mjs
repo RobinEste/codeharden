@@ -21,6 +21,11 @@
 //                       `codeharden`)
 //   APP_ID              the desktop app's id, default `com.<word>.app`
 //   DEFAULT_PORT        the port the CLI and the app listen on, default 4417
+// The "Secure Foundation" option of the add-project dialog installs one template repository:
+//   TEMPLATE_REPOSITORY the template's GitHub `owner/repo`, default
+//                       `harperaa/secure-vibe-coding-OS`; `none` switches the option off (an
+//                       empty value is an unset one, as for every variable here)
+//   TEMPLATE_BRANCH     the branch whose latest commit is installed, default `main`
 // `<word>` (`slug`) is the command in lower-case letters and digits. It names the home folder
 // (`~/.<word>`), the link scheme (`<word>://`), the keychain service, the Linux executable
 // and the desktop package.
@@ -38,6 +43,8 @@ export const DEFAULT_PRODUCT_NAME = "CodeHarden";
 export const DEFAULT_APP_ID = "com.codeharden.app";
 export const DEFAULT_APP_SLUG = "codeharden";
 export const DEFAULT_PORT = 4417;
+export const DEFAULT_TEMPLATE_REPOSITORY = "harperaa/secure-vibe-coding-OS";
+export const DEFAULT_TEMPLATE_BRANCH = "main";
 
 const PACKAGE = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 const REPOSITORY = /^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\/[A-Za-z0-9._-]+$/;
@@ -108,6 +115,22 @@ function readIdentity(env, packageName) {
   return { productName, appId, slug, port };
 }
 
+/** The Secure Foundation template of a build; `repository` is "" when the option is off. */
+function readTemplate(env) {
+  const raw = env.TEMPLATE_REPOSITORY?.trim() ?? "";
+  const repository = raw.toLowerCase() === "none" ? "" : raw || DEFAULT_TEMPLATE_REPOSITORY;
+  const branch = env.TEMPLATE_BRANCH?.trim() || DEFAULT_TEMPLATE_BRANCH;
+  if (repository && (!REPOSITORY.test(repository) || /\/\.{1,2}$/.test(repository))) {
+    throw new Error(
+      `TEMPLATE_REPOSITORY must be a GitHub owner/repo (or "none"), found "${repository}"`,
+    );
+  }
+  if (!BRANCH.test(branch) || BAD_BRANCH.test(branch)) {
+    throw new Error(`TEMPLATE_BRANCH must be a branch name, found "${branch}"`);
+  }
+  return { templateRepository: repository, templateBranch: branch };
+}
+
 const same = (a, b) => a.toLowerCase() === b.toLowerCase();
 let warned = false;
 
@@ -161,7 +184,15 @@ export function readHardenChannel(env = process.env, options = {}) {
     throw new Error(`HARDEN_BRANCH must be a branch name, found "${branch}"`);
   }
   const [owner, repo] = repository.split("/");
-  return { packageName, repository, owner, repo, branch, ...readIdentity(env, packageName) };
+  return {
+    packageName,
+    repository,
+    owner,
+    repo,
+    branch,
+    ...readIdentity(env, packageName),
+    ...readTemplate(env),
+  };
 }
 
 /** The `define` entries for a bundler. */
@@ -176,5 +207,7 @@ export function hardenChannelDefine(env = process.env, options = {}) {
     __CODEHARDEN_APP_ID__: JSON.stringify(channel.appId),
     __CODEHARDEN_SLUG__: JSON.stringify(channel.slug),
     __CODEHARDEN_PORT__: JSON.stringify(channel.port),
+    __CODEHARDEN_TEMPLATE_REPOSITORY__: JSON.stringify(channel.templateRepository),
+    __CODEHARDEN_TEMPLATE_BRANCH__: JSON.stringify(channel.templateBranch),
   };
 }

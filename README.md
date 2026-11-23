@@ -196,6 +196,7 @@ It's experimental. Start with the software factory on a test repository with aut
 |---|---|
 | [Getting started](docs/getting-started.md) | Install, setup, your first project and session |
 | [The desktop app](docs/desktop.md) | Install, notifications, updates and where data lives |
+| [Secure Foundation](docs/secure-foundation.md) | A new project from the Secure Vibe Coding OS template, installed and started for you |
 | [Orchestration](docs/orchestration.md) | The orchestrator, project managers and agent sessions |
 | [Workbench](docs/workbench.md) | Changes, comments, undo, forks, hand-offs, files, terminal, browser and search |
 | [GitHub](docs/github.md) | Issues, pull requests, checks, reviews and evidence |
@@ -234,6 +235,8 @@ Your fork has two branches that matter. `harden` is your working and default bra
    ```
 
    It creates the three variables, the `mirror` branch and the labels `sync-approved`, `sync-needs-review` and `sync-hold`, makes `harden` the default branch, enables Actions and the "Upstream sync merge" workflow, and disables the Release workflow (which stays disabled: nothing publishes from CI). Each step prints "already set" or "changed", so you can run it again at any time. It never force-pushes, never deletes anything and stores no token; what it may not do with your sign-in, it lists for you at the end.
+
+**The Secure Foundation template.** The add-project dialog's [Secure Foundation](docs/secure-foundation.md) option installs one template repository, which is part of the build like the names above: your fork keeps CodeHarden's (`harperaa/secure-vibe-coding-OS`, branch `main`) unless you set the variables `TEMPLATE_REPOSITORY` and `TEMPLATE_BRANCH` to your own, and `TEMPLATE_REPOSITORY=none` builds without the option.
 
 **How syncs get reviewed and merged.** Every day the workflow fast-forwards `mirror`. To take upstream changes, push them to a branch named `sync/...` and open a pull request into `harden`:
 

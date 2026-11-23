@@ -12,7 +12,8 @@
  *
  * The values are fixed when a bundle is built (`scripts/harden/channel-define.mjs`, from the
  * `PACKAGE_NAME`, `RELEASE_REPOSITORY` and `HARDEN_BRANCH` build variables, and the optional
- * `PRODUCT_NAME`, `APP_ID` and `DEFAULT_PORT`) and default to CodeHarden's own.
+ * `PRODUCT_NAME`, `APP_ID` and `DEFAULT_PORT`, and `TEMPLATE_REPOSITORY` and `TEMPLATE_BRANCH`
+ * for the Secure Foundation template) and default to CodeHarden's own.
  * There is no runtime override: a running install can't be pointed at another package or
  * repository by an environment variable or a setting.
  *
@@ -35,6 +36,11 @@ declare const __CODEHARDEN_APP_ID__: string | undefined;
 declare const __CODEHARDEN_SLUG__: string | undefined;
 /** Replaced at build time with the default port (`scripts/harden/channel-define.mjs`). */
 declare const __CODEHARDEN_PORT__: number | undefined;
+
+/** Replaced at build time with the Secure Foundation template's `owner/repo`, or `""` for off. */
+declare const __CODEHARDEN_TEMPLATE_REPOSITORY__: string | undefined;
+/** Replaced at build time with the template's branch (`scripts/harden/channel-define.mjs`). */
+declare const __CODEHARDEN_TEMPLATE_BRANCH__: string | undefined;
 
 /** npm package names: `name` or `@scope/name`, lower case. */
 export const HARDEN_PACKAGE_PATTERN = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
@@ -65,6 +71,31 @@ export const HARDEN_BRANCH: string =
   !__CODEHARDEN_BRANCH__.includes("..")
     ? __CODEHARDEN_BRANCH__
     : undefined) ?? "harden";
+
+/**
+ * The GitHub repository (`owner/repo`) the "Secure Foundation" option of the add-project dialog
+ * installs: a starter that a new project is created from (`secure-foundation.ts`). An empty
+ * string switches the option off. Only this repository is ever fetched: no request names one.
+ */
+export const HARDEN_TEMPLATE_REPOSITORY: string =
+  (typeof __CODEHARDEN_TEMPLATE_REPOSITORY__ === "string" &&
+  (__CODEHARDEN_TEMPLATE_REPOSITORY__ === "" ||
+    HARDEN_REPOSITORY_PATTERN.test(__CODEHARDEN_TEMPLATE_REPOSITORY__))
+    ? __CODEHARDEN_TEMPLATE_REPOSITORY__
+    : undefined) ?? "harperaa/secure-vibe-coding-OS";
+
+/** The template's branch whose latest commit is installed (shown before anything is fetched). */
+export const HARDEN_TEMPLATE_BRANCH: string =
+  (typeof __CODEHARDEN_TEMPLATE_BRANCH__ === "string" &&
+  HARDEN_BRANCH_PATTERN.test(__CODEHARDEN_TEMPLATE_BRANCH__) &&
+  !__CODEHARDEN_TEMPLATE_BRANCH__.includes("..")
+    ? __CODEHARDEN_TEMPLATE_BRANCH__
+    : undefined) ?? "main";
+
+/** The template's HTTPS clone URL, or null when the option is off. */
+export function hardenTemplateUrl(): string | null {
+  return HARDEN_TEMPLATE_REPOSITORY ? `https://github.com/${HARDEN_TEMPLATE_REPOSITORY}.git` : null;
+}
 
 /** A product name: letters, digits, spaces, dots, dashes; safe in a file name. */
 export const HARDEN_PRODUCT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/;

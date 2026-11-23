@@ -32,6 +32,7 @@ import { conflictRoutes, orchestrationRoutes } from "./orchestration";
 import { projectRoutes } from "./projects";
 import { remoteImageRoutes } from "./remote-image";
 import { searchRoutes } from "./search";
+import { secureFoundationRoutes } from "./secure-foundation";
 import { sessionFileRoutes } from "./session-files";
 import { sessionRoutes } from "./sessions";
 import { artifactRoutes, fileRoutes, providerRoutes, secretRoutes, setupRoutes } from "./system";
@@ -81,6 +82,7 @@ export function createApi(ctx: ApiContext) {
         c.json(sessionSnapshot(s, c.req.param("id"), c.req.valid("query"))),
       )
       .route("/projects", projectRoutes(s))
+      .route("/secure-foundation", secureFoundationRoutes(s))
       .route("/execution", executionRoutes(s))
       .route("/projects", projectGithubRoutes(s))
       .route("/projects", projectFactoryRoutes(s))

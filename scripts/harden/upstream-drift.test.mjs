@@ -354,6 +354,16 @@ const CALL_SITES = [
   ["apps/web/src/lib/api/updates-api.ts", "release links", "hardenReleaseUrl"],
   ["apps/web/src/lib/factory-guide.ts", "docs links", "hardenDocsUrl"],
   ["apps/web/src/routes/settings.tsx", "the version line in Settings, its name as the wordmark", "formatHardenVersion", /<WordmarkLine text=\{versionLine\} \/>/],
+  // --- Secure Foundation: the add-project option, slotted into upstream's files
+  ["apps/web/src/components/setup/add-project-dialog.tsx", "the Secure Foundation option in the add-project dialog", /<SecureFoundationSlot \/>/],
+  ["apps/web/src/routes/project.tsx", "the Secure Foundation setup status on the project page", /<SecureFoundationStatus projectId=\{projectId\} \/>/],
+  ["apps/web/src/lib/api/http-client.ts", "the web client's Secure Foundation calls", /secureFoundation: httpSecureFoundationApi\(http\)/],
+  ["apps/server/src/routes/api.ts", "the Secure Foundation routes", /\.route\("\/secure-foundation", secureFoundationRoutes\(s\)\)/],
+  ["apps/server/src/services/container.ts", "the Secure Foundation service", /secureFoundation: createSecureFoundation\(/],
+  ["apps/server/src/services/secure-foundation/index.ts", "the template comes from the fork's configuration, never from a request", "HARDEN_TEMPLATE_REPOSITORY", "HARDEN_TEMPLATE_BRANCH", "hardenTemplateUrl"],
+  ["packages/contracts/src/harden-channel.ts", "the Secure Foundation template in the fork's configuration", "HARDEN_TEMPLATE_REPOSITORY", "HARDEN_TEMPLATE_BRANCH", "__CODEHARDEN_TEMPLATE_REPOSITORY__", "__CODEHARDEN_TEMPLATE_BRANCH__"],
+  ["packages/contracts/src/provider.ts", "the capability the setup brief reads instead of a provider id", "projectCommands"],
+  ["packages/providers/src/claude/adapter.ts", "the provider that runs project command files says so", /projectCommands: true/],
 ];
 
 /** True when every `define` block of a bundler config spreads the version and the channel. */
@@ -608,5 +618,28 @@ describe("the fork's call sites are still there", () => {
     const identity = site("scripts/harden/web-identity.mjs");
     const noSwap = text(identity[0]).replaceAll("brandedHtml", "sameHtml");
     expect(callSiteProblem(identity, noSwap)).toMatch(/no longer has .*brandedHtml/);
+  });
+
+  it("fails when the Secure Foundation option's slot disappears from the dialog", () => {
+    const slot = CALL_SITES.find(([, what]) => what.startsWith("the Secure Foundation option"));
+    const dialog = read(slot[0]) ?? "";
+    expect(callSiteProblem(slot, dialog)).toBeNull();
+    // Upstream's dialog as a merge would bring it back: the two choices and no slot.
+    const upstream = dialog.replace("      <SecureFoundationSlot />\n", "");
+    expect(upstream).not.toBe(dialog);
+    expect(callSiteProblem(slot, upstream)).toMatch(
+      /add-project-dialog\.tsx no longer has `<SecureFoundationSlot \/>`/,
+    );
+    // The import alone is not the option.
+    expect(callSiteProblem(slot, upstream)).not.toBeNull();
+    expect(callSiteProblem(slot, null)).toMatch(/add-project-dialog\.tsx is gone/);
+    const status = CALL_SITES.find(([, what]) =>
+      what.startsWith("the Secure Foundation setup status"),
+    );
+    const page = read(status[0]) ?? "";
+    expect(callSiteProblem(status, page)).toBeNull();
+    expect(
+      callSiteProblem(status, page.replace(/ *<SecureFoundationStatus [^>]*\/>\n/, "")),
+    ).toMatch(/project\.tsx no longer has/);
   });
 });
