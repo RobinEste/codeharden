@@ -41,13 +41,13 @@ run-name: Desktop installers ${{ inputs.tag }} ${{ inputs.dry-run && '(dry run)'
 # Jobs:
 #   check    the tag has the right shape, exists, names a commit of the default branch and its
 #            VERSION file names it; a real run was started on the default branch and the
-#            approval gate is there. Holds no secret. The later jobs use the commit found
-#            here, not whatever the tag names by then.
+#            approval gate is there. Holds no secret. The later jobs stop when the tag no
+#            longer names the commit found here.
 #   build    the builds that hold no secret: all three systems of a dry run, Linux (nothing
 #            to sign) of a real run. Checks the commit out, builds and packages (the same
 #            script and configuration as a local `pnpm desktop:dist`), checks the macOS
 #            signatures, and uploads the files as an artifact. Read-only token: these jobs
-#            run the repository's and its dependencies' code.
+#            run the repository's and its dependencies' code. They restore and save no cache.
 #   sign     real runs only: macOS and Windows, the same steps as `build` (a copy; a test
 #            keeps the two the same), in the environment `release`. Waits for the approval; then, before anything is checked out, stops if
 #            the environment has no signing secrets for a system that must be signed.
@@ -137,8 +137,8 @@ jobs:
           if ! gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" --silent 2> /dev/null; then
             echo "::error::The tag ${TAG} does not exist in ${GITHUB_REPOSITORY}"; exit 1
           fi
-          # The commit the tag names now. The later jobs build and publish this commit, so a
-          # tag that is moved while the run waits for its approval changes nothing.
+          # The commit the tag names now. The later jobs build and publish this commit only: a
+          # tag that is moved while the run waits for its approval stops them.
           sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/refs/tags/${TAG}" --jq '.sha')
           if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::Could not find the commit ${TAG} names"; exit 1
@@ -344,27 +344,35 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.check.outputs.sha }}
+          ref: refs/tags/${{ needs.check.outputs.tag }}
           persist-credentials: false
+      # Only the commit `check` examined is built: it is the one known to be part of the
+      # default branch. Nothing from the repository has run yet, so a tag that was moved since
+      # (a real run can wait a long time for its approval) stops here, before its code runs.
+      - name: Check that the tag still names the commit that was checked
+        shell: bash
+        env:
+          CHECKED: ${{ needs.check.outputs.sha }}
+        run: |
+          set -euo pipefail
+          found=$(git rev-parse HEAD)
+          if [ "$found" != "$CHECKED" ]; then
+            echo "::error::The tag was moved after it was checked: it named ${CHECKED} and names ${found} now. Nothing was built."
+            exit 1
+          fi
+      # No cache in this workflow, for dependencies or for Electron: what is signed is built
+      # from what this job downloaded itself, never from files an earlier run (a dry run needs
+      # no approval) left in a cache. The price is a slower install.
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: pnpm
+          package-manager-cache: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
-      # Electron fetches its ~100 MB binary from GitHub releases on first use. Cache it per
-      # version and OS, and retry transient network errors.
-      - name: Cache the Electron binary
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/electron
-            ~/Library/Caches/electron
-            ~/AppData/Local/electron/Cache
-          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: electron-${{ runner.os }}-
+      # Electron fetches its ~100 MB binary from GitHub releases on first use. Retry transient
+      # network errors.
       - name: Download the Electron binary (with retries)
         shell: bash
         working-directory: apps/desktop
@@ -551,27 +559,35 @@ jobs:
 
       - uses: actions/checkout@v7
         with:
-          ref: ${{ needs.check.outputs.sha }}
+          ref: refs/tags/${{ needs.check.outputs.tag }}
           persist-credentials: false
+      # Only the commit `check` examined is built: it is the one known to be part of the
+      # default branch. Nothing from the repository has run yet, so a tag that was moved since
+      # (a real run can wait a long time for its approval) stops here, before its code runs.
+      - name: Check that the tag still names the commit that was checked
+        shell: bash
+        env:
+          CHECKED: ${{ needs.check.outputs.sha }}
+        run: |
+          set -euo pipefail
+          found=$(git rev-parse HEAD)
+          if [ "$found" != "$CHECKED" ]; then
+            echo "::error::The tag was moved after it was checked: it named ${CHECKED} and names ${found} now. Nothing was built."
+            exit 1
+          fi
+      # No cache in this workflow, for dependencies or for Electron: what is signed is built
+      # from what this job downloaded itself, never from files an earlier run (a dry run needs
+      # no approval) left in a cache. The price is a slower install.
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          cache: pnpm
+          package-manager-cache: false
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
 
-      # Electron fetches its ~100 MB binary from GitHub releases on first use. Cache it per
-      # version and OS, and retry transient network errors.
-      - name: Cache the Electron binary
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/electron
-            ~/Library/Caches/electron
-            ~/AppData/Local/electron/Cache
-          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: electron-${{ runner.os }}-
+      # Electron fetches its ~100 MB binary from GitHub releases on first use. Retry transient
+      # network errors.
       - name: Download the Electron binary (with retries)
         shell: bash
         working-directory: apps/desktop

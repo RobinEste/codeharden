@@ -118,6 +118,8 @@ function jobKey(job, key) {
   return new RegExp(`^ {4}${key}: (.+)$`, "m").exec(job)?.[1];
 }
 
+const TAG_SHA = "a".repeat(40);
+const HEAD_SHA = "b".repeat(40);
 const ALL_SET = Object.fromEntries([...MAC, ...WIN].map((n) => [n, `value-of-${n}`]));
 const SYSTEMS = ["windows-latest", "macos-latest", "ubuntu-latest"];
 
@@ -234,14 +236,51 @@ describe("the desktop installers workflow", () => {
     expect(check).toContain("Gatekeeper does not accept the downloaded app");
   });
 
-  it("checks out the commit the check job found, without keeping the job's credentials", () => {
+  it("builds only the commit the check job examined, without keeping the job's credentials", () => {
     const { build } = jobs(workflow);
     expect(build).toContain("persist-credentials: false");
-    // The commit, not the tag: a tag moved while the run waits for approval changes nothing.
     expect(build).toMatch(
-      /uses: actions\/checkout@\S+\n\s+with:\n\s+ref: \$\{\{ needs\.check\.outputs\.sha \}\}\n/,
+      /uses: actions\/checkout@\S+\n\s+with:\n\s+ref: refs\/tags\/\$\{\{ needs\.check\.outputs\.tag \}\}\n/,
     );
     expect(build.match(/actions\/checkout/g)).toHaveLength(1);
+    // The tag is compared with the commit that was checked before anything from it runs: the
+    // comparison is the step right after the checkout, and the first `uses:` or `pnpm` after.
+    const steps = [...build.matchAll(/^ {6}- (?:name: (.+)|uses: (\S+)|run: (.+))$/gm)].map(
+      (m) => m[1] ?? m[2] ?? m[3],
+    );
+    const checkout = steps.findIndex((step) => step.startsWith("actions/checkout@"));
+    expect(steps[checkout + 1]).toBe("Check that the tag still names the commit that was checked");
+    expect(steps.slice(0, checkout)).toEqual([
+      "Check that the environment has the signing secrets",
+    ]);
+    expect(build).toMatch(/CHECKED: \$\{\{ needs\.check\.outputs\.sha \}\}\n/);
+    const same = runStep(
+      "Check that the tag still names the commit that was checked",
+      { CHECKED: TAG_SHA },
+      { FIXTURE_CHECKED_OUT: TAG_SHA },
+    );
+    expect(same.status).toBe(0);
+    const moved = runStep(
+      "Check that the tag still names the commit that was checked",
+      { CHECKED: TAG_SHA },
+      { FIXTURE_CHECKED_OUT: HEAD_SHA },
+    );
+    expect(moved.status).toBe(1);
+    expect(moved.log).toContain("::error::The tag was moved after it was checked");
+  });
+
+  it("restores and saves no cache: a signed app is not built from an earlier run's files", () => {
+    expect(workflow).not.toMatch(/uses: actions\/cache/);
+    expect(workflow).not.toMatch(/^\s+cache: /m);
+    expect(workflow).not.toContain("restore-keys");
+    // setup-node caches by itself for some package managers unless told not to.
+    const { build, sign } = jobs(workflow);
+    for (const job of [build, sign]) {
+      expect(job).toMatch(
+        /uses: actions\/setup-node@\S+\n\s+with:\n\s+node-version: 24\n\s+package-manager-cache: false\n/,
+      );
+      expect(job).toMatch(/uses: pnpm\/action-setup@\S+\n {6}- uses: actions\/setup-node/);
+    }
   });
 
   it("is a protected path of the sync workflow, with what it runs to package the app", () => {
@@ -528,8 +567,6 @@ const hasJq = spawnSync("jq", ["--version"]).status === 0;
 const STUB_GH_INSTALLERS = fileURLToPath(
   new URL("./test-support/stub-gh-installers.sh", import.meta.url),
 );
-const TAG_SHA = "a".repeat(40);
-const HEAD_SHA = "b".repeat(40);
 
 /** An environment as GitHub's "Get an environment" returns it. */
 const environment = ({ reviewers = 1, branches = "selected", bypass = false } = {}) =>

@@ -1,7 +1,16 @@
 # A stand-in for `gh` in the desktop installers workflow's step tests: sourced before a step's
 # script, it defines `gh` as a function that answers `gh api <path>` from the FIXTURE_*
 # variables and applies the step's own `--jq` filter with the real `jq`. An empty fixture is
-# GitHub's "Not Found". It knows only the calls the workflow's check job makes.
+# GitHub's "Not Found". It knows only the calls the workflow's check job makes. `git` answers
+# the one question the build jobs ask: which commit is checked out.
+git() {
+  if [ "$*" != "rev-parse HEAD" ]; then
+    echo "stub git: unexpected call: $*" >&2
+    return 2
+  fi
+  printf '%s\n' "${FIXTURE_CHECKED_OUT:?}"
+}
+
 gh() {
   local path="$2" filter="" body=""
   shift 2
