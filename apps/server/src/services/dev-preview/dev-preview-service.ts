@@ -127,15 +127,18 @@ export class DevPreviewService {
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
-    process.off("exit", this.onExit);
     // No start after this, including one a base-branch check still under way would make.
     this.bases.close();
     await this.starter.close();
     // A look at a base branch that is under way gets a moment to finish; whatever it does
     // after that, it can't start anything.
     await Promise.race([this.bases.idle(), new Promise((r) => setTimeout(r, 5_000).unref?.())]);
-    const running = [...this.previews.values()].filter((p) => p.active);
-    await Promise.all(running.map((p) => p.stop("off")));
+    const all = [...this.previews.values()];
+    await Promise.all(all.filter((p) => p.active).map((p) => p.stop("off")));
+    // Also the ones a person stopped a moment ago, whose processes are still ending.
+    await Promise.all(all.map((p) => p.ended()));
+    // Last: until here an exit of the process still forces what is left to end.
+    process.off("exit", this.onExit);
   }
 
   /**
@@ -326,7 +329,7 @@ export class DevPreviewService {
   /** A preview nobody is looking at any more: its log and state can go. */
   private forgettable(preview: Preview): boolean {
     // A start is on its way to it.
-    if (preview.claimed > 0) return false;
+    if (preview.claimed > 0 || preview.stopsPending) return false;
     const { kind, projectId, sessionId } = preview.target;
     if (kind === "base") {
       return !this.findProject(projectId) || !this.deps.store.config(projectId);

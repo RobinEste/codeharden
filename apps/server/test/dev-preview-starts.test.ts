@@ -195,3 +195,50 @@ describe("the prepare command and the folder it ran in", () => {
     expect(env.procs[1]?.spec.command).toBe("run-dev");
   });
 });
+
+describe("quitting while a preview is still stopping", () => {
+  it("waits for it, and can still force it to end", async () => {
+    env = createPreviewEnv();
+    env.addProject("app");
+    env.addSession("s1", "app");
+    // What the service itself does when the process exits, without ending this one.
+    const before = new Set(process.listeners("exit"));
+    env.service.start();
+    const onExit = process.listeners("exit").find((listener) => !before.has(listener));
+    await env.service.setProject("app", SETTINGS);
+    await env.service.startSession("s1");
+    const proc = env.procs[0];
+    if (!proc || !onExit) throw new Error("no process or no exit handler");
+    // A dev server that takes its time: the stop is asked for and doesn't return yet.
+    let finish: () => void = () => {};
+    const slow = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const stop = proc.stop.bind(proc);
+    proc.stop = async () => {
+      await slow;
+      await stop();
+    };
+    const stopping = env.service.stopSession("s1");
+    await new Promise((r) => setImmediate(r));
+    expect(env.service.sessionState("s1", false).status).toBe("off");
+
+    // The app closes now. It must not be done before the process is.
+    let closed = false;
+    const closing = env.service.stop().then(() => {
+      closed = true;
+    });
+    await new Promise((r) => setImmediate(r));
+    expect(closed).toBe(false);
+    // And if the app were to exit this instant, the process is still within reach.
+    try {
+      onExit(0);
+      expect(proc.killed).toBe(true);
+    } finally {
+      finish();
+    }
+    await Promise.all([stopping, closing]);
+    expect(proc.stopped).toBe(true);
+    expect(process.listeners("exit")).not.toContain(onExit);
+  });
+});

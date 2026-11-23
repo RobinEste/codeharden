@@ -70,6 +70,8 @@ export class Preview {
   private spawnedAt = 0;
   private printed: { url: string; port: number } | null = null;
   private launching: Promise<void> = Promise.resolve();
+  /** Processes that were asked to stop and haven't ended yet. */
+  private readonly stopping = new Map<PreviewProcess, Promise<void>>();
 
   constructor(
     readonly target: PreviewTarget,
@@ -139,6 +141,7 @@ export class Preview {
   killNow(): void {
     this.run++;
     this.proc?.killNow();
+    for (const proc of this.stopping.keys()) proc.killNow();
   }
 
   /** Look once: is something listening yet, or has it taken too long? */
@@ -182,8 +185,24 @@ export class Preview {
     const proc = this.proc;
     this.proc = null;
     if (!proc) return;
-    await proc.stop(this.deps.stopGraceMs);
-    this.deps.registry.remove(proc.pid);
+    // Kept until it is really gone: a process that takes its time to stop can still be
+    // forced to end if the app quits meanwhile, and closing the app waits for it.
+    const stopped = proc.stop(this.deps.stopGraceMs).finally(() => {
+      this.stopping.delete(proc);
+      this.deps.registry.remove(proc.pid);
+    });
+    this.stopping.set(proc, stopped);
+    await stopped;
+  }
+
+  /** Resolves when every process this preview was asked to stop has ended. */
+  async ended(): Promise<void> {
+    await Promise.all([...this.stopping.values()].map((p) => p.catch(() => {})));
+  }
+
+  /** Processes of this preview are still on their way out. */
+  get stopsPending(): boolean {
+    return this.stopping.size > 0;
   }
 
   private env(): NodeJS.ProcessEnv {
