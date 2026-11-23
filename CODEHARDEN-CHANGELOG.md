@@ -1,5 +1,65 @@
 # CodeHarden releases
 
+## 2026.1123.1237 — 2026-11-23 12:37
+
+### upstream (leonvanzyl/codeden)
+- chore(release): 0.7.9
+- fix(providers): classify credential reads through interpreters, package-manager tools and more wrappers (#642)
+- chore(release): 0.7.8
+- fix(providers): classify scripts on input, tool-run commands and run-time paths (#640)
+- fix(server): keep the caller's npm settings out of the update install (#641)
+- fix(providers): classify blocks, escapes, wrappers and more write tools (#639)
+- feat: switch the orchestrator's and PMs' provider when theirs hits its usage limit (#638)
+- feat: Start fresh for the orchestrator and project managers (#636)
+- fix(providers): weigh every part of a command and ask for the most severe (#627) (#637)
+- fix(server): refuse input to the sessions of an archived project (#635)
+- fix: upload attached files so the agent gets a real file, not a bare name (#632)
+- fix(providers): ask for commands run in a folder outside the worktree (#614) (#626)
+- feat(web): apply a project's permission level to its open sessions (#634)
+- fix(server): start a PM's session without a provider only on a ready one (#633)
+- feat(server): support HTTPS through Tailscale Serve (#594)
+- test(providers): read only complete lines of a fake agent's log while it is written (#631)
+- fix(server): move the orchestrator and PMs to the provider chosen in settings (#581)
+- feat: hold an issue out of the factory loop; PM stops aren't failures (#593) (#628)
+- feat: built-in token saver setting (#602) (#610)
+- fix(providers): ask for commands run in a folder outside the worktree (#621)
+- chore(github): add issue templates that route security reports privately (#575)
+- fix(providers): find CLIs in package managers' folders and show providers' real state (#630)
+- bump @anthropic-ai/claude-agent-sdk to 0.3.330 (#572)
+- fix(providers): prefer a CLI copy that meets the provider's minimum version (#584)
+- fix(runner): stop compiling C# at runtime to read process working directories on Windows (#619)
+- fix(providers): OpenCode's `/` menu lists and runs its commands and skills (#617)
+- fix(runner): a replaced or closing runner writes nothing of the new runner's (#620)
+- fix(server): let go a factory integrator its provider refused while its PR is in verification (#552)
+- fix(providers): never start Cursor's browser login from a background check (#618)
+- fix(desktop): inherit the macOS login shell PATH (#592)
+- fix(desktop): point the macos host build at electron's dist folder (#560)
+- feat(web): archive a project from its sidebar menu (#577)
+- fix(providers): Auto asks after pops that may not go back, cmd start with a title, and shells started by Start-Process (#550) (#553)
+- fix(providers): explain OpenCode's "Model unavailable" and refuse bare model ids (#586)
+- fix: say which sessions a project's permission level doesn't reach (#568) (#583)
+- feat(server): list the loaded providers in start_session's provider parameter (#582)
+- fix(providers): resolve Codex approval paths from the command's working directory (#591)
+- fix(server): recognise more test file names in the factory's tests check (#579)
+- fix(server): serve artifacts whose names hold non-Latin-1 characters (#580)
+- test(runner): read the stalled server's socket so it sees the link drop (#578)
+- fix(runner): stop a replaced or hung runner so two never share a home (#590)
+- fix: per-project automation last run (#605) and failed-launch toast (#606) (#616)
+
+### codeharden
+- fix(server): closing the app waits for previews that are still stopping
+- fix(harden): slash commands in OpenCode sessions are sent as plain prompts for now
+- fix(server): dev preview follow-ups from review
+- feat(server): dev preview rules for starting, stopping and removing
+- refactor(server): a preview's processes are ended one by one, each checked against its start time
+- fix(web): the dev preview setup hint is a plain link
+- fix(server): close the gaps an independent review of the dev preview found
+- fix(server): a preview always starts with the command confirmed at that moment
+- docs(harden): the dev preview user page, changelog note and guide entries
+- feat(harden): a dev command for this repository that takes its ports from the environment
+- feat(web): dev preview bar, project settings and limits
+- feat(server): dev preview service, routes and contracts
+
 ## 2026.1123.1155 — 2026-11-23 11:55
 
 ### codeharden
