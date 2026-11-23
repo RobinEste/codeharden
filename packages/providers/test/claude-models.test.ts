@@ -1,6 +1,6 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Options, Query, ModelInfo as SdkModelInfo } from "@anthropic-ai/claude-agent-sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ClaudeAdapter } from "../src/claude/adapter";
@@ -213,15 +213,25 @@ describe("ClaudeAdapter model discovery", () => {
     const name = win ? "claude.cmd" : "claude";
     const oldDir = mkdtempSync(join(tmpdir(), "codeden-claude-old-"));
     const newDir = mkdtempSync(join(tmpdir(), "codeden-claude-new-"));
-    // A copy that answers `--version`, as installs do: the first model list checks it.
-    const install = (dir: string, build: string) =>
+    // A copy that answers `--version`, as installs do: the first model list checks it. On
+    // Windows that is npm's `claude.cmd` shim and the script it runs (the SDK gets the script).
+    const script = (dir: string) =>
+      join(dir, "node_modules", "@anthropic-ai", "claude-code", "cli.js");
+    const install = (dir: string, build: string) => {
+      if (!win) {
+        writeFileSync(join(dir, name), `#!/bin/sh\n# ${build}\necho '2.1.327 (Claude Code)'\n`, {
+          mode: 0o755,
+        });
+        return;
+      }
+      mkdirSync(dirname(script(dir)), { recursive: true });
+      writeFileSync(script(dir), `// ${build}\nconsole.log("2.1.327 (Claude Code)");\n`);
       writeFileSync(
         join(dir, name),
-        win
-          ? `@echo off\r\nrem ${build}\r\necho 2.1.327 (Claude Code)\r\n`
-          : `#!/bin/sh\n# ${build}\necho '2.1.327 (Claude Code)'\n`,
-        { mode: 0o755 },
+        `@ECHO off\r\nREM ${build}\r\nnode "%~dp0\\node_modules\\@anthropic-ai\\claude-code\\cli.js" %*\r\n`,
       );
+    };
+    const launched = (dir: string) => (win ? script(dir) : join(dir, name));
     install(oldDir, "old build");
     install(newDir, "new build");
     const keys = ["PATH", "Path", "HOME", "USERPROFILE"] as const;
@@ -238,7 +248,7 @@ describe("ClaudeAdapter model discovery", () => {
       setPath(oldDir);
       const adapter = new ClaudeAdapter({ loadSdk: sdk.load });
       await adapter.refreshModels();
-      expect(sdk.state.launches.at(-1)?.pathToClaudeCodeExecutable).toBe(join(oldDir, name));
+      expect(sdk.state.launches.at(-1)?.pathToClaudeCodeExecutable).toBe(launched(oldDir));
 
       // Rewritten in place (the Windows native installer): the same path, a new file.
       install(oldDir, "old build, updated");
@@ -255,7 +265,7 @@ describe("ClaudeAdapter model discovery", () => {
       setPath(newDir);
       await adapter.refreshModels({ maxAgeMs: 60 * 60_000 });
       expect(sdk.state.launches).toHaveLength(3);
-      expect(sdk.state.launches.at(-1)?.pathToClaudeCodeExecutable).toBe(join(newDir, name));
+      expect(sdk.state.launches.at(-1)?.pathToClaudeCodeExecutable).toBe(launched(newDir));
       await expect(adapter.detect()).resolves.toBeDefined();
     } finally {
       for (const key of keys) {
@@ -292,25 +302,16 @@ describe("ClaudeAdapter model discovery", () => {
 
   it("skips discovery when Claude Code is not installed", async () => {
     const sdk = stubSdk();
-    const keys = ["PATH", "Path", "HOME", "USERPROFILE"] as const;
-    const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
     const empty = mkdtempSync(join(tmpdir(), "codeden-empty-path-"));
-    process.env.PATH = empty;
-    if (process.platform === "win32") process.env.Path = empty;
-    // Known install locations (`~/.local/bin`) are looked at too: an empty home has none.
-    process.env.HOME = empty;
-    process.env.USERPROFILE = empty;
-    try {
-      const adapter = new ClaudeAdapter({ loadSdk: sdk.load });
-      await adapter.refreshModels();
-      expect(sdk.state.launches).toHaveLength(0);
-      expect(adapter.models().map((m) => m.id)).toEqual(["default", "opus", "sonnet", "haiku"]);
-    } finally {
-      for (const key of keys) {
-        if (saved[key] === undefined) delete process.env[key];
-        else process.env[key] = saved[key];
-      }
-    }
+    // Nothing on PATH and no known install locations (Homebrew's and the package managers'
+    // folders included): a Claude Code on this machine is never found.
+    const adapter = new ClaudeAdapter({
+      loadSdk: sdk.load,
+      locate: { pathEnv: empty, knownLocations: [] },
+    });
+    await adapter.refreshModels();
+    expect(sdk.state.launches).toHaveLength(0);
+    expect(adapter.models().map((m) => m.id)).toEqual(["default", "opus", "sonnet", "haiku"]);
   });
 });
 

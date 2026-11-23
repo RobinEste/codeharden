@@ -17,7 +17,7 @@
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { Arch, build, Platform } from "electron-builder";
 import { readHardenChannel } from "../../../scripts/harden/channel-define.mjs";
@@ -40,6 +40,12 @@ const require = createRequire(join(root, "package.json"));
 const electronVersion = JSON.parse(
   readFileSync(require.resolve("electron/package.json"), "utf8"),
 ).version;
+
+/** The installed electron package's dist folder, after making sure its binary is downloaded. */
+function electronDistDir() {
+  require("electron");
+  return join(dirname(require.resolve("electron/package.json")), "dist");
+}
 
 if (!existsSync(join(root, "dist", "main.js")) || !existsSync(join(root, "dist", "web"))) {
   throw new Error("apps/desktop/dist is missing: run `pnpm build` first");
@@ -121,8 +127,10 @@ const artifacts = await build({
     ...config,
     electronVersion,
     // The installed Electron for host builds; electron-builder downloads other architectures.
-    // (The electron package downloads its binary on first `require`.)
-    ...(hostOnly ? { electronDist: resolve(require("electron"), "..") } : {}),
+    // (The electron package downloads its binary on first `require`.) electronDist is the
+    // package's dist folder: `require("electron")` returns the executable, which on macOS sits
+    // inside dist/Electron.app/Contents/MacOS, so its parent folder is not dist there.
+    ...(hostOnly ? { electronDist: electronDistDir() } : {}),
   },
 });
 for (const file of artifacts) console.log(`built ${file}`);
