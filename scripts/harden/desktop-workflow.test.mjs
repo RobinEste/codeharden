@@ -1,10 +1,13 @@
 // The desktop installers workflow's safety rules, read from the file as written: it only runs
 // when a person starts it, only one job may write, no input reaches a script except through
-// the environment, and it uses the actions upstream's workflows already use.
+// the environment, it uses the actions upstream's workflows already use, a real run signs and
+// publishes only behind the `release` environment's approval, and a dry run names no
+// environment and is given no secret.
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const read = (name) =>
@@ -51,6 +54,51 @@ function scripts(text) {
   return found.join("\n");
 }
 
+const MAC = [
+  "CSC_LINK",
+  "CSC_KEY_PASSWORD",
+  "APPLE_ID",
+  "APPLE_APP_SPECIFIC_PASSWORD",
+  "APPLE_TEAM_ID",
+];
+const WIN = ["WIN_CSC_LINK", "WIN_CSC_KEY_PASSWORD"];
+/** A secret read in an expression (`secrets.NAME`), as opposed to the word in a sentence. */
+const SECRET = /\bsecrets\.[A-Za-z_]/;
+
+/** Every `NAME: ${{ … }}` line of `text` whose expression names a secret, as [name, expression]. */
+function secretExpressions(text) {
+  return [...text.matchAll(/^\s+([A-Z_]+): \$\{\{ (.*secrets\.[A-Z_]+.*) \}\}$/gm)].map(
+    ([, name, expression]) => [name, expression],
+  );
+}
+
+/**
+ * The value of a workflow expression for one run. The expressions here use only `!`, `&&`,
+ * `||`, `==`, `!=`, brackets, quoted strings, numbers and `fromJSON`, which mean the same in
+ * JavaScript for the values they are given (booleans and non-numeric strings).
+ */
+function evaluate(expression, { dryRun, os = "", secrets = {} }) {
+  const source = expression
+    .replace(/^\$\{\{\s*|\s*\}\}$/g, "")
+    .replace(/\binputs\.dry-run\b/g, "inputs.dryRun")
+    .replace(/\bsecrets\.([A-Z_]+)/g, "(secrets.$1 ?? '')");
+  expect(source).toMatch(/^[\w\s.'"!&|=?()[\],-]+$/);
+  return new Function("inputs", "matrix", "secrets", "fromJSON", `return (${source});`)(
+    { dryRun },
+    { os },
+    secrets,
+    JSON.parse,
+  );
+}
+
+/** The value of a top-level key of a job (`    key: value`), as written. */
+function jobKey(job, key) {
+  return new RegExp(`^ {4}${key}: (.+)$`, "m").exec(job)?.[1];
+}
+
+const ALL_SET = Object.fromEntries([...MAC, ...WIN].map((n) => [n, `value-of-${n}`]));
+const SYSTEMS = ["windows-latest", "macos-latest", "ubuntu-latest"];
+
 describe("the desktop installers workflow", () => {
   it("starts only when a person runs it, dry by default", () => {
     const on = workflow.slice(workflow.indexOf("\non:\n"), workflow.indexOf("\npermissions:"));
@@ -65,20 +113,21 @@ describe("the desktop installers workflow", () => {
     expect(workflow).toMatch(/^permissions: \{\}$/m);
     expect(workflow).not.toContain("id-token");
     const all = jobs(workflow);
-    expect(Object.keys(all)).toEqual(["check", "build", "release"]);
+    expect(Object.keys(all)).toEqual(["check", "build", "sign", "release"]);
     expect(all.check).toMatch(/permissions:\n\s+contents: read\n/);
     expect(all.build).toMatch(/permissions:\n\s+contents: read\n/);
-    expect(all.check + all.build).not.toMatch(/: write\b/);
+    expect(all.sign).toMatch(/permissions:\n\s+contents: read\n/);
+    expect(all.check + all.build + all.sign).not.toMatch(/: write\b/);
     expect(all.release).toMatch(/permissions:\n\s+contents: write\n\s+actions: read\n/);
   });
 
   it("publishes only after every build, and only when dry-run is off", () => {
-    const { release, build } = jobs(workflow);
-    expect(release).toContain("needs: [check, build]");
+    const { release, build, sign } = jobs(workflow);
+    expect(release).toContain("needs: [check, build, sign]");
     expect(release).toMatch(/^ {4}if: \$\{\{ !inputs\.dry-run \}\}$/m);
     // The build jobs never upload to a release themselves.
-    expect(build).not.toContain("gh release");
-    expect(build).not.toMatch(/--publish (?!never)/);
+    expect(build + sign).not.toContain("gh release");
+    expect(build + sign).not.toMatch(/--publish (?!never)/);
     // Draft first, the update files after the installers, published last.
     const order = [
       "--draft",
@@ -108,25 +157,26 @@ describe("the desktop installers workflow", () => {
   });
 
   it("gives each system its own signing secrets and no other system's", () => {
-    const { build, check, release } = jobs(workflow);
-    const mac = [
-      "CSC_LINK",
-      "CSC_KEY_PASSWORD",
-      "APPLE_ID",
-      "APPLE_APP_SPECIFIC_PASSWORD",
-      "APPLE_TEAM_ID",
-    ];
-    const win = ["WIN_CSC_LINK", "WIN_CSC_KEY_PASSWORD"];
-    const given = [...build.matchAll(/^\s+([A-Z_]+): \$\{\{ (.*secrets\.[A-Z_]+.*) \}\}$/gm)];
-    // Every secret is behind its system's condition; none is passed to all three.
-    expect(given.map((m) => m[1]).sort()).toEqual([...mac, ...win].sort());
-    for (const [, name, expression] of given) {
+    const { build, check, sign, release } = jobs(workflow);
+    const mac = MAC;
+    const win = WIN;
+    const given = secretExpressions(build).filter(([name]) => name !== "HAS_SIGNING_SECRETS");
+    // Every secret is behind its system's condition, and behind "not a dry run"; none is
+    // passed to all three systems.
+    expect(given.map(([name]) => name).sort()).toEqual([...mac, ...win].sort());
+    for (const [name, expression] of given) {
       const os = mac.includes(name) ? "macos-latest" : "windows-latest";
-      expect(expression).toBe(`matrix.os == '${os}' && secrets.${name} || ''`);
+      expect(expression).toBe(`!inputs.dry-run && matrix.os == '${os}' && secrets.${name} || ''`);
     }
-    // No other job, and no other place in the build job, reads a secret.
-    expect(check + release).not.toContain("secrets.");
-    expect(build.match(/secrets\./g)).toHaveLength(mac.length + win.length);
+    // The one other place: the step that asks only whether a secret is set, once per name.
+    const [, asked] = secretExpressions(build).find(([name]) => name === "HAS_SIGNING_SECRETS");
+    expect([...asked.matchAll(/secrets\.([A-Z_]+) != ''/g)].map((m) => m[1]).sort()).toEqual(
+      [...mac, ...win].sort(),
+    );
+    // No other job names a secret (`sign` runs the build job's steps), and the build job
+    // names none anywhere else.
+    expect(check + sign + release).not.toMatch(SECRET);
+    expect(build.match(new RegExp(SECRET, "g"))).toHaveLength(2 * (mac.length + win.length));
     // And the script drops the other systems' variables again before anything is built.
     const script = scripts(workflow);
     const drop = script.indexOf('if [ "$RUNNER_OS" != "macOS" ]; then unset');
@@ -156,8 +206,14 @@ describe("the desktop installers workflow", () => {
     expect(check).toContain("Gatekeeper does not accept the downloaded app");
   });
 
-  it("does not check the release tag out with the job's credentials kept", () => {
-    expect(jobs(workflow).build).toContain("persist-credentials: false");
+  it("checks out the commit the check job found, without keeping the job's credentials", () => {
+    const { build } = jobs(workflow);
+    expect(build).toContain("persist-credentials: false");
+    // The commit, not the tag: a tag moved while the run waits for approval changes nothing.
+    expect(build).toMatch(
+      /uses: actions\/checkout@\S+\n\s+with:\n\s+ref: \$\{\{ needs\.check\.outputs\.sha \}\}\n/,
+    );
+    expect(build.match(/actions\/checkout/g)).toHaveLength(1);
   });
 
   it("is a protected path of the sync workflow, with what it runs to package the app", () => {
@@ -170,6 +226,114 @@ describe("the desktop installers workflow", () => {
         "apps/desktop/electron-builder.config.mjs",
       ]),
     );
+  });
+});
+
+describe("approval before signing and publishing", () => {
+  const all = jobs(workflow);
+
+  it("puts a real run's signing jobs in the release environment, and only them", () => {
+    const { check, build, sign, release } = all;
+    expect(jobKey(sign, "environment")).toBe("release");
+    // One environment in the whole file: one name to approve, and nothing else to set up.
+    expect(workflow.match(/^\s*environment:/gm)).toHaveLength(1);
+    expect(check + build + release).not.toMatch(/^\s*environment:/m);
+    // The jobs that wait are exactly the systems that have signing secrets.
+    expect(sign).toMatch(/matrix:\n\s+os: \[windows-latest, macos-latest\]\n/);
+    // They run the build job's own steps and variables, not a copy that could drift.
+    expect(build).toMatch(/^ {4}steps: &build-steps$/m);
+    expect(build).toMatch(/^ {4}env: &build-env$/m);
+    expect(jobKey(sign, "steps")).toBe("*build-steps");
+    expect(jobKey(sign, "env")).toBe("*build-env");
+  });
+
+  it("gives a secret to a real run's signing jobs only", () => {
+    const { build } = all;
+    const matrix = /^ {8}os: (\$\{\{ .+ \}\})$/m.exec(build)[1];
+    // A real run: the job without an environment builds Linux alone, and Linux is given
+    // nothing; the systems that are given secrets are the two in `sign`.
+    expect(evaluate(matrix, { dryRun: false })).toEqual(["ubuntu-latest"]);
+    for (const [name, expression] of secretExpressions(build)) {
+      expect(evaluate(expression, { dryRun: false, os: "ubuntu-latest", secrets: ALL_SET })).toBe(
+        name === "HAS_SIGNING_SECRETS" ? false : "",
+      );
+    }
+    const given = (os) =>
+      secretExpressions(build)
+        .filter(([name]) => name !== "HAS_SIGNING_SECRETS")
+        .filter(([, e]) => evaluate(e, { dryRun: false, os, secrets: ALL_SET }) !== "")
+        .map(([name]) => name);
+    expect(given("macos-latest")).toEqual(MAC);
+    expect(given("windows-latest")).toEqual(WIN);
+  });
+
+  it("names no environment on a dry run, asks nobody and gives it no secret", () => {
+    const { build, sign, release } = all;
+    // The only jobs with an environment, and the publishing job, do not run.
+    expect(evaluate(jobKey(sign, "if"), { dryRun: true })).toBe(false);
+    expect(evaluate(jobKey(release, "if"), { dryRun: true })).toBe(false);
+    // The job that does run builds all three systems and has no environment and no `if`.
+    const matrix = /^ {8}os: (\$\{\{ .+ \}\})$/m.exec(build)[1];
+    expect(evaluate(matrix, { dryRun: true })).toEqual(SYSTEMS);
+    expect(jobKey(build, "environment")).toBeUndefined();
+    expect(jobKey(build, "if")).toBeUndefined();
+    // Every secret expression is empty on every system, also while a repository-level copy
+    // of each secret still exists (which is what a job without an environment would read).
+    const expressions = secretExpressions(build);
+    expect(expressions).toHaveLength(MAC.length + WIN.length + 1);
+    for (const os of SYSTEMS) {
+      for (const [name, expression] of expressions) {
+        if (name === "HAS_SIGNING_SECRETS") continue;
+        expect(evaluate(expression, { dryRun: true, os, secrets: ALL_SET })).toBe("");
+      }
+      // The step that asks whether secrets are set is skipped altogether.
+      const asks = /- name: Check that the environment has the signing secrets\n\s+if: (.+)\n/.exec(
+        build,
+      )[1];
+      expect(evaluate(asks, { dryRun: true, os })).toBe(false);
+      expect(evaluate(asks, { dryRun: false, os })).toBe(os !== "ubuntu-latest");
+    }
+  });
+
+  it("cannot publish on a dry run, nor before the signing jobs were approved and passed", () => {
+    const { sign, release } = all;
+    // Its own condition, and the jobs it waits for: `sign` is skipped on a dry run, and a
+    // job is skipped when one it needs was skipped, was rejected or failed (no `always()`).
+    expect(evaluate(jobKey(release, "if"), { dryRun: true })).toBe(false);
+    expect(evaluate(jobKey(release, "if"), { dryRun: false })).toBe(true);
+    expect(jobKey(release, "needs")).toBe("[check, build, sign]");
+    expect(jobKey(sign, "if")).toMatch(/^\$\{\{ !inputs\.dry-run \}\}$/);
+    expect(release).not.toMatch(/always\(\)|cancelled\(\)|failure\(\)/);
+    // It names no environment on purpose: a second job in the environment, an hour after
+    // the first two, would ask for a second approval.
+    expect(jobKey(release, "environment")).toBeUndefined();
+    // Nothing is written before the tag is known to still name the commit that was built.
+    expect(
+      release.indexOf("Check that the tag still names the commit that was built"),
+    ).toBeLessThan(release.indexOf("gh release create"));
+  });
+
+  it("gives the signed macOS build two hours, for Apple's notarization", () => {
+    const timeout = jobKey(all.sign, "timeout-minutes");
+    expect(evaluate(timeout, { dryRun: false, os: "macos-latest" })).toBe(120);
+    expect(evaluate(timeout, { dryRun: false, os: "windows-latest" })).toBe(60);
+    expect(jobKey(all.build, "timeout-minutes")).toBe("60");
+  });
+
+  it("holds no secret and no environment where the tag and the gate are checked", () => {
+    const { check } = all;
+    expect(check).not.toMatch(SECRET);
+    expect(check).not.toMatch(/^\s*environment:/m);
+    // The checks come in this order, all before any job that builds.
+    const order = [
+      "Check the tag's shape and that it exists",
+      "Read which systems a real run must sign",
+      "Check the approval gate",
+    ].map((name) => check.indexOf(`- name: ${name}`));
+    expect(order.every((at) => at > -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(jobKey(all.build, "needs")).toBe("check");
+    expect(jobKey(all.sign, "needs")).toBe("check");
   });
 });
 
@@ -187,14 +351,6 @@ function stepScript(name) {
   return body.join("\n");
 }
 
-const MAC = [
-  "CSC_LINK",
-  "CSC_KEY_PASSWORD",
-  "APPLE_ID",
-  "APPLE_APP_SPECIFIC_PASSWORD",
-  "APPLE_TEAM_ID",
-];
-const WIN = ["WIN_CSC_LINK", "WIN_CSC_KEY_PASSWORD"];
 const set = (names) => Object.fromEntries(names.map((n) => [n, `dummy-${n}`]));
 
 /**
@@ -286,5 +442,266 @@ describe("the build step's signing guards, run as written", () => {
     expect(run.packagedWith).toBeNull();
     expect(run.output).toContain("Missing secrets: WIN_CSC_KEY_PASSWORD");
     expect(run.output).not.toContain("dummy-");
+  });
+});
+
+/**
+ * Runs the step called `name` as written, with `gh` replaced by a function that answers from
+ * `fixtures` (`test-support/stub-gh-installers.sh`: GitHub's answers as JSON, filtered by the
+ * step's own `--jq` with the real `jq`).
+ */
+function runStep(name, env, fixtures = {}) {
+  const dir = mkdtempSync(join(tmpdir(), "codeharden-desktop-step-"));
+  try {
+    const result = spawnSync("bash", ["-c", `. "$STUB_GH"\n${stepScript(name)}`], {
+      cwd: dir,
+      encoding: "utf8",
+      env: {
+        PATH: process.env.PATH,
+        STUB_GH: STUB_GH_INSTALLERS,
+        GITHUB_OUTPUT: join(dir, "github-output"),
+        GITHUB_REPOSITORY: "example/example-harden",
+        GITHUB_REF: "refs/heads/harden",
+        DEFAULT_BRANCH: "harden",
+        CODEHARDEN_REPO: "harperaa/codeharden",
+        ...fixtures,
+        ...env,
+      },
+    });
+    let output = "";
+    try {
+      output = readFileSync(join(dir, "github-output"), "utf8");
+    } catch {
+      // nothing set
+    }
+    return {
+      status: result.status,
+      log: result.stdout + result.stderr,
+      outputs: Object.fromEntries(
+        output
+          .split("\n")
+          .filter(Boolean)
+          .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
+      ),
+    };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const hasJq = spawnSync("jq", ["--version"]).status === 0;
+const STUB_GH_INSTALLERS = fileURLToPath(
+  new URL("./test-support/stub-gh-installers.sh", import.meta.url),
+);
+const TAG_SHA = "a".repeat(40);
+const HEAD_SHA = "b".repeat(40);
+
+/** An environment as GitHub's "Get an environment" returns it. */
+const environment = ({ reviewers = 1, branches = true, bypass = false } = {}) =>
+  JSON.stringify({
+    name: "release",
+    can_admins_bypass: bypass,
+    protection_rules: [
+      ...(branches ? [{ id: 1, type: "branch_policy" }] : []),
+      ...(reviewers
+        ? [
+            {
+              id: 2,
+              type: "required_reviewers",
+              prevent_self_review: false,
+              reviewers: Array.from({ length: reviewers }, (_, i) => ({
+                type: "User",
+                reviewer: { id: i + 1 },
+              })),
+            },
+          ]
+        : []),
+    ],
+    deployment_branch_policy: branches
+      ? { protected_branches: false, custom_branch_policies: true }
+      : null,
+  });
+
+// CI's runners have `jq`; a computer without it skips these (they need GitHub's own filter).
+describe.skipIf(!hasJq)("the check job's steps, run as written", () => {
+  const tag = (fixtures, env = {}) =>
+    runStep(
+      "Check the tag's shape and that it exists",
+      { TAG: "v2026.0105.0518", PACKAGE_NAME: "example-harden", ...env },
+      {
+        FIXTURE_TAG_SHA: TAG_SHA,
+        FIXTURE_HEAD_SHA: HEAD_SHA,
+        FIXTURE_AHEAD_BY: "0",
+        FIXTURE_VERSION: "2026.0105.0518",
+        ...fixtures,
+      },
+    );
+
+  it("passes a release tag of the default branch on, with the commit it names", () => {
+    const run = tag({});
+    expect(run.status).toBe(0);
+    expect(run.outputs).toEqual({
+      tag: "v2026.0105.0518",
+      sha: TAG_SHA,
+      version: "2026.0105.0518",
+      npm_version: "2026.105.518",
+    });
+  });
+
+  it("refuses a tag whose commit the default branch does not contain", () => {
+    const run = tag({ FIXTURE_AHEAD_BY: "3" });
+    expect(run.status).toBe(1);
+    expect(run.log).toContain("v2026.0105.0518 is not a commit of harden");
+    expect(run.outputs).toEqual({});
+  });
+
+  it("refuses a tag that does not exist, has another VERSION or the wrong shape", () => {
+    expect(tag({ FIXTURE_TAG_SHA: "" })).toMatchObject({ status: 1, outputs: {} });
+    expect(tag({ FIXTURE_VERSION: "2026.0105.0001" })).toMatchObject({ status: 1, outputs: {} });
+    const shaped = tag({}, { TAG: "v1.2.3; echo pwned" });
+    expect(shaped.status).toBe(1);
+    expect(shaped.log).not.toMatch(/^pwned$/m);
+  });
+
+  const signing = (value) =>
+    runStep("Read which systems a real run must sign", { SIGNED_INSTALLERS: value });
+
+  it("requires a signed macOS app unless the repository says otherwise", () => {
+    expect(signing("")).toMatchObject({ status: 0, outputs: { must_sign: "macos" } });
+    expect(signing("macos")).toMatchObject({ status: 0, outputs: { must_sign: "macos" } });
+    expect(signing("macos windows").outputs.must_sign).toBe("macos windows");
+    expect(signing("windows,macos, windows").outputs.must_sign).toBe("windows macos");
+    expect(signing("none")).toMatchObject({ status: 0, outputs: { must_sign: "" } });
+  });
+
+  it("stops on a SIGNED_INSTALLERS value it does not know", () => {
+    for (const value of ["linux", "macos none", "all", "macos; echo pwned"]) {
+      const run = signing(value);
+      expect(run.status).toBe(1);
+      expect(run.outputs).toEqual({});
+      expect(run.log).toContain("SIGNED_INSTALLERS must be");
+      expect(run.log).not.toMatch(/^pwned$/m);
+    }
+  });
+
+  const gate = (env, fixture) =>
+    runStep(
+      "Check the approval gate",
+      { DRY_RUN: "false", RELEASE_APPROVAL: "", ...env },
+      fixture === undefined ? {} : { FIXTURE_ENVIRONMENT: fixture },
+    );
+
+  it("lets a real run start when the environment requires a review and restricts branches", () => {
+    const run = gate({}, environment());
+    expect(run.status).toBe(0);
+    expect(run.log).toContain("a real run waits for an approval");
+    expect(run.log).not.toContain("::error::");
+    expect(run.log).not.toContain("::warning::");
+  });
+
+  it("refuses a real run when the environment is missing: GitHub would create it unprotected", () => {
+    const run = gate({});
+    expect(run.status).toBe(1);
+    expect(run.log).toContain('::error::The environment "release" does not exist');
+  });
+
+  it("refuses a real run without required reviewers or without a branch rule", () => {
+    const open = gate({}, environment({ reviewers: 0 }));
+    expect(open.status).toBe(1);
+    expect(open.log).toContain("has no required reviewers");
+    const anyBranch = gate({}, environment({ branches: false }));
+    expect(anyBranch.status).toBe(1);
+    expect(anyBranch.log).toContain("lets every branch use it");
+    // The environment as GitHub creates it by itself: no rules at all.
+    const bare = gate(
+      {},
+      JSON.stringify({ name: "release", protection_rules: [], deployment_branch_policy: null }),
+    );
+    expect(bare.status).toBe(1);
+    expect(bare.log).toContain("has no required reviewers");
+    expect(bare.log).toContain("lets every branch use it");
+  });
+
+  it("refuses a real run started on another branch than the default one", () => {
+    const run = gate({ GITHUB_REF: "refs/heads/someone/patch" }, environment());
+    expect(run.status).toBe(1);
+    expect(run.log).toContain("::error::A real run must be started on harden");
+    expect(gate({ GITHUB_REF: "refs/tags/harden" }, environment()).status).toBe(1);
+  });
+
+  it("only warns about administrators' bypass", () => {
+    const run = gate({}, environment({ bypass: true }));
+    expect(run.status).toBe(0);
+    expect(run.log).toContain("::warning::");
+    expect(run.log).toContain("lets administrators start its jobs without a review");
+  });
+
+  it("never stops a dry run: it reports what a real run would stop on", () => {
+    for (const [env, fixture] of [
+      [{}, undefined],
+      [{}, environment({ reviewers: 0, branches: false })],
+      [{ GITHUB_REF: "refs/heads/someone/patch" }, environment()],
+    ]) {
+      const run = gate({ DRY_RUN: "true", ...env }, fixture);
+      expect(run.status).toBe(0);
+      expect(run.log).toContain("::warning::A real run would stop here.");
+      expect(run.log).not.toContain("::error::");
+    }
+    expect(gate({ DRY_RUN: "true" }, environment()).log).not.toContain("::warning::");
+  });
+
+  it("skips the environment's rules only when the repository says it publishes unapproved", () => {
+    const none = gate({ RELEASE_APPROVAL: "none" });
+    expect(none.status).toBe(0);
+    expect(none.log).toContain("::notice::RELEASE_APPROVAL is none");
+    expect(gate({ RELEASE_APPROVAL: "required" }).status).toBe(1);
+    // Still on the default branch only, and no other spelling switches the check off.
+    expect(gate({ RELEASE_APPROVAL: "none", GITHUB_REF: "refs/heads/x" }).status).toBe(1);
+    for (const value of ["off", "false", "None", "no"]) {
+      const run = gate({ RELEASE_APPROVAL: value }, environment());
+      expect(run.status).toBe(1);
+      expect(run.log).toContain("RELEASE_APPROVAL must be");
+    }
+    for (const dryRun of ["true", "false"]) {
+      expect(gate({ RELEASE_APPROVAL: "off", DRY_RUN: dryRun }, environment()).status).toBe(1);
+    }
+  });
+});
+
+describe("the signing jobs' first step, run as written", () => {
+  const first = (os, mustSign, has) =>
+    runStep("Check that the environment has the signing secrets", {
+      RUNNER_OS: os,
+      MUST_SIGN: mustSign,
+      HAS_SIGNING_SECRETS: has,
+    });
+
+  it("stops a real run whose environment has no secrets for a system that must be signed", () => {
+    const mac = first("macOS", "macos", "false");
+    expect(mac.status).toBe(1);
+    expect(mac.log).toContain('::error::The environment "release" has no macos signing secrets');
+    const win = first("Windows", "macos windows", "false");
+    expect(win.status).toBe(1);
+    expect(win.log).toContain("has no windows signing secrets");
+    // An empty answer (the expression could not be read) is not a yes.
+    expect(first("macOS", "macos", "").status).toBe(1);
+  });
+
+  it("goes on when the secrets are set, or the system may be published unsigned", () => {
+    expect(first("macOS", "macos", "true").status).toBe(0);
+    expect(first("Windows", "macos windows", "true").status).toBe(0);
+    expect(first("Windows", "macos", "false").status).toBe(0);
+    expect(first("macOS", "", "false").status).toBe(0);
+    expect(first("macOS", "windows", "false").status).toBe(0);
+  });
+
+  it("comes before anything is checked out or installed", () => {
+    const { build } = jobs(workflow);
+    const at = (text) => build.indexOf(text);
+    expect(at("- name: Check that the environment has the signing secrets")).toBeGreaterThan(-1);
+    expect(at("- name: Check that the environment has the signing secrets")).toBeLessThan(
+      at("actions/checkout"),
+    );
+    expect(at("actions/checkout")).toBeLessThan(at("pnpm install"));
   });
 });

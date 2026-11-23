@@ -1,33 +1,63 @@
 name: Desktop installers
+# What the person who is asked to approve sees as the run's title: which tag, and whether it
+# signs and publishes.
+run-name: Desktop installers ${{ inputs.tag }} ${{ inputs.dry-run && '(dry run)' || '(sign and publish)' }}
 
 # Builds the desktop installers of one CodeHarden release on Windows, macOS and Linux and,
 # when asked, attaches them to that release on GitHub (docs/codeharden-desktop-release.md).
 #
 # This fork's own workflow. Upstream's Release workflow (release.yml) stays disabled: it would
 # publish to npm and react to every `v*.*.*` tag, which CodeHarden's tags match. This one never
-# starts by itself: a person runs it (Actions > Desktop installers > Run workflow) for a tag
-# that already exists.
+# starts by itself: a person runs it (Actions > Desktop installers > Run workflow, on the
+# default branch) for a tag that already exists.
 #
 #   tag      the release to build, `v<VERSION>` (`v2026.0105.0518`); it must exist
-#   dry-run  on (the default): build and check everything and keep the installers as workflow
-#            artifacts; no release is created or changed.
-#            off: also attach the installers and the update files to the tag's GitHub release
-#            and publish it as the latest.
+#   dry-run  on (the default): build and check everything, unsigned, and keep the installers
+#            as workflow artifacts; no release is created or changed, no secret is read and
+#            nobody is asked to approve anything.
+#            off (a real run): wait for a person's approval, then sign, attach the installers
+#            and the update files to the tag's GitHub release and publish it as the latest.
+#
+# Approval. A real run's signing jobs use the GitHub environment `release`, which the owner
+# protects with "Required reviewers" (Settings > Environments). GitHub starts such a job, and
+# lets it read the environment's secrets, only after a reviewer pressed "Review deployments"
+# on the run's page. The signing secrets are kept in that environment, not in the repository:
+# a repository secret can be read by any workflow on any branch, an environment's only by a
+# job that names the environment, from a branch the environment allows, after the review.
+#   - One approval per real run. The macOS and the Windows job name the environment and wait
+#     together; one review releases both. The job that publishes names no environment (it
+#     would ask a second time, an hour later): it needs both signing jobs, so it can't start
+#     before the approval, and it never starts when the review is rejected.
+#   - A dry run names no environment anywhere, so it never waits, and every secret expression
+#     is empty for it: it builds exactly as a repository without secrets does.
+#   - `check` refuses a real run when the environment is missing (GitHub would create it on
+#     first use, with no protection), has no required reviewers, or lets any branch use it.
+#     The environment's branch rule is matched against the branch the run was started on, not
+#     against the tag, so the rule to set is "only the default branch".
+#   - A fork that publishes without approval sets the repository variable RELEASE_APPROVAL to
+#     `none` (required reviewers don't exist for private repositories on every plan).
 #
 # Jobs:
-#   check    the tag has the right shape, exists, and its VERSION file names it.
-#   build    one per system. Checks the tag out, builds and packages (the same script and
-#            configuration as a local `pnpm desktop:dist`), checks the macOS signatures, and
-#            uploads the files as an artifact. Read-only token: these jobs run the
-#            repository's and its dependencies' code.
-#   release  only when dry-run is off, and only after all three builds passed. Creates the
+#   check    the tag has the right shape, exists, names a commit of the default branch and its
+#            VERSION file names it; a real run was started on the default branch and the
+#            approval gate is there. Holds no secret. The later jobs use the commit found
+#            here, not whatever the tag names by then.
+#   build    the builds that hold no secret: all three systems of a dry run, Linux (nothing
+#            to sign) of a real run. Checks the commit out, builds and packages (the same
+#            script and configuration as a local `pnpm desktop:dist`), checks the macOS
+#            signatures, and uploads the files as an artifact. Read-only token: these jobs
+#            run the repository's and its dependencies' code.
+#   sign     real runs only: macOS and Windows, the same steps as `build`, in the environment
+#            `release`. Waits for the approval; then, before anything is checked out, stops if
+#            the environment has no signing secrets for a system that must be signed.
+#   release  only when dry-run is off, and only after every build passed. Creates the
 #            release as a draft when the tag has none, attaches every file (the `latest*.yml`
 #            update files last) and only then publishes it and marks it latest. An installed
 #            app reads the latest *published* release, so it never sees one without its
 #            update files. If this job fails, the release stays as it was left (a draft);
 #            run the workflow again for the same tag.
 #
-# Signing is optional and per system; each build job is given its own system's secrets only:
+# Signing is per system; each signing job's build step is given its own system's secrets only:
 #   macOS    CSC_LINK + CSC_KEY_PASSWORD (a Developer ID Application .p12) and, for
 #            notarization, APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID. All five or
 #            none: with some of them missing the job stops and names them, instead of
@@ -38,8 +68,11 @@ name: Desktop installers
 #            electron-builder falls back to it on Windows, and would try to sign the
 #            installer with the Apple certificate.
 #   Linux    none.
-# Without them Windows installers are unsigned and macOS apps are signed ad hoc
-# (apps/desktop/electron-builder.config.mjs).
+# Which systems a real run must sign is the repository variable SIGNED_INSTALLERS: `macos`
+# when unset, or `windows`, `macos windows`, `none`. A real run stops when such a system has
+# no secrets, instead of publishing an unsigned app over a signed one. A system that is not
+# listed is published unsigned when it has no secrets: Windows installers unsigned, macOS apps
+# signed ad hoc (apps/desktop/electron-builder.config.mjs). A dry run is always unsigned.
 #
 # A fork builds its own app: the names come from its PACKAGE_NAME repository variable (and the
 # optional PRODUCT_NAME, APP_ID, DEFAULT_PORT), and the app updates from the fork's own
@@ -75,14 +108,17 @@ jobs:
       contents: read
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
+      sha: ${{ steps.tag.outputs.sha }}
       version: ${{ steps.tag.outputs.version }}
       npm_version: ${{ steps.tag.outputs.npm_version }}
+      must_sign: ${{ steps.signing.outputs.must_sign }}
     steps:
       - name: Check the tag's shape and that it exists
         id: tag
         shell: bash
         env:
           TAG: ${{ inputs.tag }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           PACKAGE_NAME: ${{ vars.PACKAGE_NAME }}
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -96,7 +132,22 @@ jobs:
           if ! gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" --silent 2> /dev/null; then
             echo "::error::The tag ${TAG} does not exist in ${GITHUB_REPOSITORY}"; exit 1
           fi
-          found=$(gh api "repos/${GITHUB_REPOSITORY}/contents/VERSION?ref=${TAG}" \
+          # The commit the tag names now. The later jobs build and publish this commit, so a
+          # tag that is moved while the run waits for its approval changes nothing.
+          sha=$(gh api "repos/${GITHUB_REPOSITORY}/commits/refs/tags/${TAG}" --jq '.sha')
+          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Could not find the commit ${TAG} names"; exit 1
+          fi
+          # Only a commit of the default branch is built. A real run executes the tag's
+          # packaging scripts and dependencies with the signing secrets, so they must be code
+          # that reached the default branch the usual way, not whatever a tag was pushed onto.
+          head=$(gh api "repos/${GITHUB_REPOSITORY}/commits/refs/heads/${DEFAULT_BRANCH}" --jq '.sha')
+          ahead=$(gh api "repos/${GITHUB_REPOSITORY}/compare/${head}...${sha}" --jq '.ahead_by')
+          if [ "$ahead" != "0" ]; then
+            echo "::error::${TAG} is not a commit of ${DEFAULT_BRANCH}: a release tag is made on ${DEFAULT_BRANCH} (scripts/harden/release.sh)"
+            exit 1
+          fi
+          found=$(gh api "repos/${GITHUB_REPOSITORY}/contents/VERSION?ref=${sha}" \
             -H "Accept: application/vnd.github.raw" | tr -d '[:space:]')
           if [ "$found" != "$version" ]; then
             echo "::error::VERSION at ${TAG} is \"${found}\", not ${version}: this is not a CodeHarden release tag"
@@ -109,24 +160,121 @@ jobs:
           fi
           {
             echo "tag=${TAG}"
+            echo "sha=${sha}"
             echo "version=${version}"
             echo "npm_version=${npm_version}"
           } >> "$GITHUB_OUTPUT"
-          echo "Building ${TAG} (app version ${npm_version})"
+          echo "Building ${TAG} (app version ${npm_version}, commit ${sha})"
 
+      # Which systems a real run must sign. Decided here, where no secret is, so a wrong value
+      # stops the run before anyone is asked to approve it.
+      - name: Read which systems a real run must sign
+        id: signing
+        shell: bash
+        env:
+          SIGNED_INSTALLERS: ${{ vars.SIGNED_INSTALLERS }}
+        run: |
+          set -euo pipefail
+          wanted="${SIGNED_INSTALLERS:-macos}"
+          must_sign=""
+          if [ "$wanted" != "none" ]; then
+            for word in ${wanted//,/ }; do
+              case "$word" in
+                macos | windows)
+                  case " ${must_sign} " in
+                    *" ${word} "*) ;;
+                    *) must_sign="${must_sign}${must_sign:+ }${word}" ;;
+                  esac
+                  ;;
+                *)
+                  echo "::error::The repository variable SIGNED_INSTALLERS must be unset (macos), or one of: macos, windows, macos windows, none"
+                  exit 1
+                  ;;
+              esac
+            done
+          fi
+          echo "must_sign=${must_sign}" >> "$GITHUB_OUTPUT"
+          echo "A real run must sign: ${must_sign:-nothing}"
+
+      # A real run signs and publishes only after a person approved it, and that is the
+      # environment's doing, not this file's: GitHub holds the `sign` jobs until a required
+      # reviewer has approved. What this step adds is a refusal to start when that protection
+      # is not there, because GitHub creates an environment that a workflow names and that
+      # does not exist, with no rules at all. Anyone who can read the repository can read an
+      # environment's rules (not its secrets), so this needs no more than the read-only token.
+      # A dry run reports the same findings as warnings and goes on: it uses no environment.
+      - name: Check the approval gate
+        shell: bash
+        env:
+          DRY_RUN: ${{ inputs.dry-run }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_APPROVAL: ${{ vars.RELEASE_APPROVAL }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          docs='docs/codeharden-desktop-release.md, "Approval before signing and publishing"'
+          problems=0
+          stop() {
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "::warning::A real run would stop here. $1"
+            else
+              echo "::error::$1"
+            fi
+            problems=1
+          }
+          # The environment's branch rule looks at the branch a run was started on. This is the
+          # same rule, said early and by name; the environment is what enforces it.
+          if [ "$GITHUB_REF" != "refs/heads/${DEFAULT_BRANCH}" ]; then
+            stop "A real run must be started on ${DEFAULT_BRANCH}; this one was started on ${GITHUB_REF}."
+          fi
+          case "${RELEASE_APPROVAL:-required}" in
+            none)
+              echo "::notice::RELEASE_APPROVAL is none: this repository publishes its installers without an approval, and the environment's rules are not checked."
+              ;;
+            required)
+              if ! rules=$(gh api "repos/${GITHUB_REPOSITORY}/environments/release" --jq \
+                '"\([.protection_rules[]? | (.reviewers // []) | length] | add // 0) \(.deployment_branch_policy != null) \(.can_admins_bypass == true)"'); then
+                stop "The environment \"release\" does not exist (or can't be read). Create it and protect it first (${docs}), or set the repository variable RELEASE_APPROVAL to none to publish without an approval."
+              else
+                read -r reviewers restricted bypass <<< "$rules"
+                if [ "$reviewers" = "0" ]; then
+                  stop "The environment \"release\" has no required reviewers, so nothing would wait for an approval. Add them (${docs}), or set the repository variable RELEASE_APPROVAL to none to publish without an approval."
+                fi
+                if [ "$restricted" != "true" ]; then
+                  stop "The environment \"release\" lets every branch use it, so a workflow on any branch could ask for its secrets. Under \"Deployment branches and tags\" choose \"Selected branches and tags\" and add the branch ${DEFAULT_BRANCH} (${docs})."
+                fi
+                if [ "$bypass" = "true" ]; then
+                  echo "::warning::The environment \"release\" lets administrators start its jobs without a review (\"Allow administrators to bypass configured protection rules\" is on)."
+                fi
+                if [ "$problems" = 0 ]; then
+                  echo "::notice::The environment \"release\" requires a review (${reviewers} reviewer(s)) and restricts its branches: a real run waits for an approval before it signs or publishes."
+                fi
+              fi
+              ;;
+            *)
+              echo "::error::The repository variable RELEASE_APPROVAL must be unset (required), required or none"
+              exit 1
+              ;;
+          esac
+          if [ "$problems" = 1 ] && [ "$DRY_RUN" != "true" ]; then exit 1; fi
+
+  # The builds that hold no secret: all three systems of a dry run, and Linux (which has
+  # nothing to sign) of a real run. No environment, so nothing here waits for an approval, and
+  # every secret expression in the steps is empty here: `!inputs.dry-run` is false for a dry
+  # run, and no secret is given to Linux.
   build:
     name: build (${{ matrix.os }})
     needs: check
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        os: ${{ fromJSON(inputs.dry-run && '["windows-latest", "macos-latest", "ubuntu-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     # A hung step (a launch check that never ends) fails the job instead of running for hours.
     timeout-minutes: 60
     permissions:
       contents: read
-    env:
+    env: &build-env
       NPM_VERSION: ${{ needs.check.outputs.npm_version }}
       # The fork's names, for the build (scripts/harden/channel-define.mjs). Empty means the
       # default; the release repository is always this one.
@@ -139,10 +287,39 @@ jobs:
       TEMPLATE_REPOSITORY: ${{ vars.TEMPLATE_REPOSITORY }}
       TEMPLATE_BRANCH: ${{ vars.TEMPLATE_BRANCH }}
       RELEASE_REPOSITORY: ${{ github.repository }}
-    steps:
+    steps: &build-steps
+      # The `sign` jobs only (a real run's macOS and Windows), within seconds of the approval
+      # and before anything is checked out: a system that must be signed and has no signing
+      # secret stops here. That is the case of an environment that was created but never given
+      # its secrets; without this the run would publish an unsigned app over a signed one.
+      # Only whether a secret is set reaches this step, never a value. It can't be asked
+      # before the approval: a workflow's token can't list an environment's secrets, and it
+      # can't tell an environment's secret from a repository secret of the same name.
+      - name: Check that the environment has the signing secrets
+        if: ${{ !inputs.dry-run && matrix.os != 'ubuntu-latest' }}
+        shell: bash
+        env:
+          MUST_SIGN: ${{ needs.check.outputs.must_sign }}
+          HAS_SIGNING_SECRETS: ${{ matrix.os == 'macos-latest' && (secrets.CSC_LINK != '' || secrets.CSC_KEY_PASSWORD != '' || secrets.APPLE_ID != '' || secrets.APPLE_APP_SPECIFIC_PASSWORD != '' || secrets.APPLE_TEAM_ID != '') || matrix.os == 'windows-latest' && (secrets.WIN_CSC_LINK != '' || secrets.WIN_CSC_KEY_PASSWORD != '') }}
+        run: |
+          set -euo pipefail
+          if [ "$RUNNER_OS" = "macOS" ]; then system=macos; else system=windows; fi
+          case " ${MUST_SIGN} " in
+            *" ${system} "*) ;;
+            *)
+              echo "${system}: a real run may publish this system unsigned (SIGNED_INSTALLERS)."
+              exit 0
+              ;;
+          esac
+          if [ "$HAS_SIGNING_SECRETS" != "true" ]; then
+            echo "::error::The environment \"release\" has no ${system} signing secrets, and a real run must sign the ${system} app (the repository variable SIGNED_INSTALLERS; macos when unset). Add them as environment secrets under Settings > Environments > release (docs/codeharden-desktop-release.md). A repository that publishes this system unsigned says so in SIGNED_INSTALLERS."
+            exit 1
+          fi
+          echo "${system}: the signing secrets are set."
+
       - uses: actions/checkout@v7
         with:
-          ref: refs/tags/${{ needs.check.outputs.tag }}
+          ref: ${{ needs.check.outputs.sha }}
           persist-credentials: false
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
@@ -177,16 +354,18 @@ jobs:
       - name: Build the installers
         shell: bash
         env:
+          # Real runs only (`!inputs.dry-run`): a dry run gets an empty value for each, also
+          # while a repository-level copy of a secret still exists.
           # macOS only: the Developer ID Application certificate (.p12, base64 or a URL), its
           # password, and the Apple account that notarizes.
-          CSC_LINK: ${{ matrix.os == 'macos-latest' && secrets.CSC_LINK || '' }}
-          CSC_KEY_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.CSC_KEY_PASSWORD || '' }}
-          APPLE_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_ID || '' }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ matrix.os == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ matrix.os == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
+          CSC_LINK: ${{ !inputs.dry-run && matrix.os == 'macos-latest' && secrets.CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ !inputs.dry-run && matrix.os == 'macos-latest' && secrets.CSC_KEY_PASSWORD || '' }}
+          APPLE_ID: ${{ !inputs.dry-run && matrix.os == 'macos-latest' && secrets.APPLE_ID || '' }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ !inputs.dry-run && matrix.os == 'macos-latest' && secrets.APPLE_APP_SPECIFIC_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ !inputs.dry-run && matrix.os == 'macos-latest' && secrets.APPLE_TEAM_ID || '' }}
           # Windows only: a code-signing certificate (.pfx, base64 or a URL) and its password.
-          WIN_CSC_LINK: ${{ matrix.os == 'windows-latest' && secrets.WIN_CSC_LINK || '' }}
-          WIN_CSC_KEY_PASSWORD: ${{ matrix.os == 'windows-latest' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
+          WIN_CSC_LINK: ${{ !inputs.dry-run && matrix.os == 'windows-latest' && secrets.WIN_CSC_LINK || '' }}
+          WIN_CSC_KEY_PASSWORD: ${{ !inputs.dry-run && matrix.os == 'windows-latest' && secrets.WIN_CSC_KEY_PASSWORD || '' }}
         run: |
           set -euo pipefail
           mac=(CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID)
@@ -277,11 +456,38 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  # A real run's macOS and Windows builds: the same steps as `build`, in the environment
+  # `release`. GitHub does not start these jobs, and gives them no secret of the environment,
+  # until a required reviewer has approved the run. Both wait at the same time for the same
+  # environment, so one review releases both. Skipped on a dry run, which therefore never asks.
+  sign:
+    name: build and sign (${{ matrix.os }})
+    needs: check
+    if: ${{ !inputs.dry-run }}
+    environment: release
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    # macOS gets two hours: Apple's notarization of the two apps (arm64 and x64) is waited for
+    # inside the build step, and it is slow for an app Apple has not seen before. The first
+    # signed build here took 46 minutes in that step alone, and the 60 minutes the job had
+    # then leave no room for a slower day. The approval is waited for before the job is sent
+    # to a runner, so that wait should not count; a job nobody approves fails after 30 days.
+    timeout-minutes: ${{ matrix.os == 'macos-latest' && 120 || 60 }}
+    permissions:
+      contents: read
+    env: *build-env
+    steps: *build-steps
+
   # The only job that can write to the repository, and it runs no code from it: it moves the
-  # files the build jobs made onto the release.
+  # files the build jobs made onto the release. It names no environment, so the run asks for
+  # one approval, not two: it needs the `sign` jobs, which did wait for it, and is skipped
+  # when they were rejected, failed or (a dry run) never ran.
   release:
     name: Attach to the release and publish it
-    needs: [check, build]
+    needs: [check, build, sign]
     if: ${{ !inputs.dry-run }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -291,8 +497,21 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ needs.check.outputs.tag }}
+      SHA: ${{ needs.check.outputs.sha }}
       VERSION: ${{ needs.check.outputs.version }}
     steps:
+      # The installers were built from the commit `check` found. A tag that was moved since
+      # would get a release whose files are not its own.
+      - name: Check that the tag still names the commit that was built
+        shell: bash
+        run: |
+          set -euo pipefail
+          now=$(gh api "repos/${GITHUB_REPOSITORY}/commits/refs/tags/${TAG}" --jq '.sha')
+          if [ "$now" != "$SHA" ]; then
+            echo "::error::${TAG} was moved while this run was building: it named ${SHA} and names ${now} now. Nothing was attached."
+            exit 1
+          fi
+
       - name: Download the installers of this run
         shell: bash
         run: |

@@ -24,6 +24,9 @@
 #   - the labels sync-approved, sync-needs-review and sync-hold;
 #   - Actions enabled, the "Upstream sync merge" workflow enabled, the Release workflow
 #     disabled.
+# It creates no environment and touches no secret: the `release` environment that the Desktop
+# installers workflow signs and publishes behind is made by the owner, by hand (it is named
+# under "Left for you").
 # It never forces a push, never deletes or rewrites anything and stores no token: upstream is
 # fetched over HTTPS without credentials, and everything else uses your own sign-in. A step
 # your sign-in may not do is reported with what it needs, and the rest still runs. It ends
@@ -348,6 +351,13 @@ cat << EOF
     and lint before each push. The tests run in CI, on pull requests into ${branch}.
   - Releases: scripts/harden/release.sh --dry-run, then --push. npm: scripts/harden/publish.sh,
     signed in to npm as the owner of ${package}.
+  - Desktop installers: the "Desktop installers" workflow, run by hand. A dry run works at
+    once. A run that publishes waits for an approval and reads its signing secrets from a
+    GitHub environment named release, which only you can make: Settings > Environments, with
+    required reviewers, only the branch ${branch}, and the secrets as environment secrets.
+    This script creates no environment and touches no secret. Without certificates or
+    reviewers, set the variables SIGNED_INSTALLERS=none and RELEASE_APPROVAL=none instead.
+    docs/codeharden-desktop-release.md has the steps.
   - The Release workflow (${RELEASE_WORKFLOW}) stays disabled; nothing publishes from CI.
 EOF
 if [ "$manual_count" -gt 0 ]; then exit 1; fi
