@@ -1,6 +1,7 @@
 import {
   CODEDEN_VERSION,
   HealthResponse,
+  hardenReleaseUrl,
   ReleaseNotes,
   type UpdateInstallRequest,
   UpdateStatus,
@@ -53,7 +54,7 @@ export function mockUpdatesApi(): UpdatesApi {
     notes: async (version) => ({
       version,
       body: `### What's new in ${version}\n\n- Mock release notes.`,
-      url: `https://github.com/leonvanzyl/codeden/releases/tag/v${version}`,
+      url: hardenReleaseUrl(version),
     }),
     serverVersion: async () => CODEDEN_VERSION,
   };
