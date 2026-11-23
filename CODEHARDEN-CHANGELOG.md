@@ -1,5 +1,19 @@
 # CodeHarden releases
 
+## 2026.1123.0007 — 2026-11-23 00:07
+
+### codeharden
+- test(harden): guard the page and manifest the build names
+- ci: take the expected page title from the build's own product name
+- ci: expect the product's own name in the served page's title
+- feat(server): give Docker sandboxes the fork's own names
+- feat(web): name the page and the installed web app after the product
+- test(harden): follow strings when skipping comments, check every define block
+- docs: how the fork's changes are kept through upstream merges
+- test(harden): fail when an upstream merge brings upstream's identity back
+- docs: how the desktop installers of a release are built and published
+- ci: add a manual workflow that builds the desktop installers of a release
+
 ## 2026.1122.2302 — 2026-11-22 23:02
 
 ### codeharden
