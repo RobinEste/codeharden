@@ -14,6 +14,18 @@ It installs software from npm and creates resources in your Clerk, Convex and (i
 | App shell | **Minimal** (preselected), **All modules**, or **Pick** with a tick box per content module the template has. |
 | Runs on | Which of your signed-in agent providers runs the setup. A provider that runs project command files runs the template's `/install`; any other reads the template's install instructions and follows them. |
 
+## Connections
+
+After the form, **Connections** lists the services your choices need (Convex always, Doppler when chosen) and whether this computer is signed in to each. CodeHarden finds out by asking each service's own command-line tool; it reads, copies and stores no token or session file, and the tools keep their own sign-ins.
+
+- **Signed out:** **Sign in to Convex** (or Doppler) starts that tool's own login. The step shows a link to the service's sign-in page, and the code that page should show; finish in your browser and the row turns green. A login waits five minutes at most and can be cancelled; either way no process is left running.
+- **Tool not installed** (Doppler): the step shows the install command for you to run in a terminal yourself, because it can ask for your password. Then **Check again**.
+- **Several Convex teams:** pick the team the project is created in. The first one is preselected.
+
+**If a row says Node.js isn't on the app's path:** an app started from the Dock or a launcher gets the system's bare path, without the folders your terminal adds (Homebrew, a Node version manager). The step asks your own shell for its path at every check, so this is rare; when it still happens, start CodeHarden from a terminal where `npx` works. The same goes for the setup session: if it reports that `node` or `npm` isn't found, quit the app, start it from such a terminal and send "continue" in the session.
+
+The commands are fixed in the product: `npx convex@<pinned version> login status` and `login --login-flow poll --no-open`, `doppler me` and `doppler login`. Nothing you type becomes part of a command. These checks and logins work on the computer running CodeHarden only: from a phone or another device the step says so and the setup session asks you there instead.
+
 Then **Review** shows what will happen: where the project is created, the template commit that will be installed (short id and date), that packages are installed from npm, what is created in your accounts and where you remove each item, what the setup session may do, and that the app's URL only works while the setup session's processes are running. **Create project and start setup** starts it; **Cancel** or closing the dialog leaves nothing behind.
 
 If the template gained a commit while you were reading, nothing is created: the new commit is shown and you confirm again.
@@ -31,7 +43,7 @@ The setup is an ordinary agent session in the new project, called "Secure Founda
 
 It works in three parts:
 
-1. **Checks and sign-ins.** Node 18 or newer, npm and git; `npm install`; your Convex sign-in. If this computer isn't signed in to Convex, the session gives you a link to open (it lands in the inbox) and waits. With several Convex teams it asks which one. With Doppler it checks that the Doppler CLI is installed and signed in, and asks you to install it or to run `doppler login` yourself if not: it never runs an installer that needs your password.
+1. **A last check.** Node 18 or newer, npm and git; `npm install`; and that the sign-ins from the Connections step still hold. Only if one is missing does the session ask you (it lands in the inbox): a link to sign in to Convex, which team if you have several and chose none, or to install the Doppler CLI or run `doppler login` yourself. It never runs an installer that needs your password.
 2. **The install,** without questions: the template's `/install` with your answers.
 3. **Starting the app:** the two dev processes (`npm run convex` and `npm run dev`, or their `:doppler` variants) as long-running processes of the session.
 

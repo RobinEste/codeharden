@@ -104,7 +104,7 @@ function Form({ start = blank, onNext = () => {} }: { start?: FormAnswers; onNex
 }
 
 describe("the form", () => {
-  const review = () => screen.getByRole("button", { name: "Review" }) as HTMLButtonElement;
+  const review = () => screen.getByRole("button", { name: "Next" }) as HTMLButtonElement;
 
   it("works with nothing prefilled: Doppler and Minimal preselected, the path shown", () => {
     const onNext = vi.fn();
@@ -164,7 +164,7 @@ describe("the confirm step", () => {
     expect(text).toContain("acme/starter, branch main, commit 0123456 of 2026-01-05");
     expect(text).toContain("Packages are installed from npm");
     expect(text).toContain("A Clerk app and a Convex project are created");
-    expect(text).toContain("sign in in a browser");
+    expect(text).toContain("you are asked to sign in in a browser");
     expect(text).toContain("The CI token step of the install is skipped");
     expect(text).toContain("runs commands inside the new project without asking for each one");
     expect(text).toContain("Alpha at the Full permission level");

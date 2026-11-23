@@ -22,6 +22,8 @@ export interface FormAnswers {
   shell: SecureFoundationShell;
   modules: string[];
   provider: string;
+  /** The Convex team chosen in the Connections step; absent: the only one, or asked later. */
+  convexTeam?: string;
 }
 
 const SECRETS: Array<[SecureFoundationSecrets, string, string]> = [
@@ -259,7 +261,7 @@ export function FormStep({
           Cancel
         </Button>
         <Button type="submit" disabled={!ready}>
-          Review
+          Next
         </Button>
       </div>
     </form>

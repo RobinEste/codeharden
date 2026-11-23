@@ -18,6 +18,7 @@ const input = (over: Partial<SetupBriefInput> = {}): SetupBriefInput => ({
   repository: "fixture/template",
   commit: "0123456789abcdef0123456789abcdef01234567",
   runsCommandFiles: true,
+  convexTeam: null,
   creates: secureFoundationCreates({ name: "My Site", secrets: "env_local" }),
   ...over,
 });
@@ -91,6 +92,15 @@ describe("the setup brief", () => {
     expect(brief).toContain("Skip `doppler-create-ci-token`");
     expect(brief).toContain("`npm run convex:doppler` and `npm run dev:doppler`");
     expect(brief).toContain('Doppler: a Doppler project named "my-site"');
+  });
+
+  it("passes the Convex team chosen in the form", () => {
+    const brief = setupBrief(input({ convexTeam: "acme-labs" }));
+    const convex = commands(brief)
+      .map(run)
+      .find((r) => r.command === "convex-setup");
+    expect(convex?.args).toEqual({ "project-name": "My Site", team: "acme-labs" });
+    expect(brief).toContain("the person chose the team `acme-labs`");
   });
 
   it("holds the session to the project folder, to the confirmed list and to its secrets", () => {

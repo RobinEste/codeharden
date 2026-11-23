@@ -65,6 +65,7 @@ export * from "./runners";
 export * from "./search";
 export * from "./search-text";
 export * from "./secure-foundation";
+export * from "./secure-foundation-connections";
 export * from "./session-files";
 export * from "./settings";
 export * from "./slash-commands";

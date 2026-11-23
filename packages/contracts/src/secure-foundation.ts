@@ -176,6 +176,14 @@ export const CreateSecureFoundationRequest = z.object({
   provider: ProviderId,
   /** The commit the person saw and confirmed; another commit on the branch is refused. */
   commit: SecureFoundationCommit,
+  /**
+   * The Convex team the project is created in, chosen in the Connections step. Omitted: the
+   * account's only team, or the setup session asks when there are several.
+   */
+  convexTeam: z
+    .string()
+    .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/)
+    .optional(),
 });
 export type CreateSecureFoundationRequest = z.infer<typeof CreateSecureFoundationRequest>;
 export type CreateSecureFoundationRequestInit = z.input<typeof CreateSecureFoundationRequest>;
@@ -226,6 +234,7 @@ export interface SecureFoundationCreated {
 export function secureFoundationCreates(answers: {
   name: string;
   secrets: SecureFoundationSecrets;
+  convexTeam?: string;
 }): SecureFoundationCreated[] {
   const slug = secureFoundationFolder(answers.name);
   const created: SecureFoundationCreated[] = [
@@ -236,7 +245,7 @@ export function secureFoundationCreates(answers: {
     },
     {
       service: "Convex",
-      item: `a Convex project named "${slug}" with a cloud dev deployment, in your Convex team`,
+      item: `a Convex project named "${slug}" with a cloud dev deployment, in ${answers.convexTeam ? `your Convex team "${answers.convexTeam}"` : "your Convex team"}`,
       removeAt: "the Convex dashboard, in the project's settings",
     },
   ];

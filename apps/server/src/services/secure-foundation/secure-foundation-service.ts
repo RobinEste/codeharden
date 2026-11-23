@@ -1,13 +1,5 @@
-import {
-  lstatSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-} from "node:fs";
-import { basename, dirname, join, resolve, sep } from "node:path";
+import { lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { dirname, join, resolve, sep } from "node:path";
 import {
   type CreateProjectRequest,
   type CreateProjectResponse,
@@ -38,6 +30,8 @@ import {
 import { badRequest, conflict, errorMessage, ServiceError } from "../errors";
 import type { Exec } from "../exec";
 import { setupBrief } from "./brief";
+import { ConnectionsService } from "./connections/connections-service";
+import { claimLink, isOwnFolder, removeCreated } from "./folders";
 import {
   fetchTemplate,
   readModules,
@@ -66,6 +60,8 @@ export interface SecureFoundationDeps {
   startSession: (req: StartSessionRequestInit) => Promise<StartSessionResponse>;
   /** `fresh` unless a fork flips `SECURE_FOUNDATION_REPOSITORY_MODE`. */
   repositoryMode?: SecureFoundationRepositoryMode;
+  /** Sign-in state and logins of the services' CLIs (the Connections step). */
+  connections?: ConnectionsService;
 }
 
 type Step = "fetch" | "files" | "project" | "session";
@@ -76,30 +72,17 @@ const STEP_LABEL: Record<Step, string> = {
   session: "starting the setup session",
 };
 
-/** The Clerk claim link in the install's summary: a line `Visit: https://…clerk.com/…`. */
-export function claimLink(summary: string): string | null {
-  for (const line of summary.split("\n")) {
-    if (!line.startsWith("Visit:")) continue;
-    const text = line.slice("Visit:".length).trim();
-    if (text.length > 2_000 || text.includes(" ")) continue;
-    try {
-      const url = new URL(text);
-      const host = url.hostname.toLowerCase();
-      const clerk = ["clerk.com", "clerk.dev"].some((d) => host === d || host.endsWith(`.${d}`));
-      if (url.protocol === "https:" && clerk) return text;
-    } catch {
-      // Not a link.
-    }
-  }
-  return null;
-}
-
 /**
  * "Secure Foundation": create a project from the build's template and start its setup session
  * (`packages/contracts/src/secure-foundation.ts`, `docs/secure-foundation.md`).
  */
 export class SecureFoundationService {
-  constructor(private readonly deps: SecureFoundationDeps) {}
+  /** The Connections step: sign-in state and logins of the services' own CLIs. */
+  readonly connections: ConnectionsService;
+
+  constructor(private readonly deps: SecureFoundationDeps) {
+    this.connections = deps.connections ?? new ConnectionsService();
+  }
 
   private get mode(): SecureFoundationRepositoryMode {
     return this.deps.repositoryMode ?? SECURE_FOUNDATION_REPOSITORY_MODE;
@@ -272,6 +255,7 @@ export class SecureFoundationService {
               repository: source.repository,
               commit: fetched.commit,
               runsCommandFiles: provider.runsCommandFiles,
+              convexTeam: req.convexTeam ?? null,
               creates: secureFoundationCreates(req),
             }),
           },
@@ -370,35 +354,4 @@ export function chosenModules(
   return names.filter((n) => req.modules.includes(n));
 }
 
-/**
- * True when `dest` is a real folder that sits directly in its parent: not a link, and not
- * reached through one. Only such a folder is written to, or cleaned up.
- */
-export function isOwnFolder(dest: string): boolean {
-  try {
-    if (!lstatSync(dest).isDirectory()) return false;
-    return realpathSync(dest) === join(realpathSync(dirname(dest)), basename(dest));
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Remove what a failed create wrote: the folder, or only its contents when it was there before.
- * Nothing is removed unless `dest` is still a folder of its own: a link put in its place is
- * left alone, and so is whatever it points at.
- */
-export function removeCreated(dest: string, existed: boolean): void {
-  try {
-    if (!isOwnFolder(dest)) return;
-    if (!existed) {
-      rmSync(dest, { recursive: true, force: true });
-      return;
-    }
-    for (const entry of readdirSync(dest)) {
-      rmSync(join(dest, entry), { recursive: true, force: true });
-    }
-  } catch {
-    // Best effort: the error that brought us here is the one to report.
-  }
-}
+export { isOwnFolder, removeCreated } from "./folders";

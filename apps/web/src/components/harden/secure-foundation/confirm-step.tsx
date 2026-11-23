@@ -39,6 +39,7 @@ export function ConfirmStep({
     ...options,
     name: answers.name.trim(),
     secrets: answers.secrets,
+    convexTeam: answers.convexTeam,
     modules: modulesOf(answers, template),
     provider,
     template,
