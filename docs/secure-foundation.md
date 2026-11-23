@@ -81,7 +81,7 @@ With **Create a GitHub repository and deploy to Vercel** ticked, the setup also 
 - The repository is created **private**. What is pushed is this project's own history: the single first commit and what the install adds, none of the template's.
 - The Vercel project takes the repository's name and is connected to it, so later pushes to `main` redeploy.
 - The site is **public** on a `vercel.app` address and runs on the development Clerk and Convex, the same ones as on your computer. On Vercel this uses the project's production slot, as the template's dev route does; nothing is deployed with production keys, and `/deploy-to-prod` is never run.
-- With Doppler, a Doppler token is stored as the repository's Actions secret `DOPPLER_TOKEN` and as the Vercel project's only environment variable. Without Doppler, the app's environment variables, its development keys included, are copied to the Vercel project.
+- With Doppler, a Doppler token is stored as the repository's Actions secret `DOPPLER_TOKEN` and as the only environment variable the setup adds to the Vercel project (Vercel or an integration of yours may add others of its own). Without Doppler, the app's environment variables, its development keys included, are copied to the Vercel project.
 
 The verification view lists all of this by name. The setup session is given exactly those names and stops to ask if anything differs: another owner, a public repository, a production deploy. A repository or a Vercel project of that name that already exists is refused in the session's first part, before anything is created: nothing is pushed or deployed into it.
 

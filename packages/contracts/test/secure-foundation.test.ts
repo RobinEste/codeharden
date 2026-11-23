@@ -377,7 +377,7 @@ describe("the deploy option", () => {
     expect(local[3]?.item).toContain("public vercel.app address");
     const doppler = secureFoundationCreates({ name: "My Site", secrets: "doppler", deploy });
     expect(doppler[3]?.item).toContain("Actions secret DOPPLER_TOKEN");
-    expect(doppler[4]?.item).toContain("a Doppler token as its only environment variable");
+    expect(doppler[4]?.item).toContain("a Doppler token as the only environment variable the setup adds");
   });
 });
 

@@ -312,7 +312,7 @@ export function secureFoundationCreates(answers: {
       {
         service: "Vercel",
         short: "a Vercel project with a public site",
-        item: `a Vercel project named "${deploy.repository}" in the scope "${deploy.vercelScope}", connected to that repository, with ${doppler ? "a Doppler token as its only environment variable" : "the app's environment variables (its development keys) copied to it"}, and the site published on a public vercel.app address running on the development Clerk and Convex`,
+        item: `a Vercel project named "${deploy.repository}" in the scope "${deploy.vercelScope}", connected to that repository, with ${doppler ? "a Doppler token as the only environment variable the setup adds" : "the app's environment variables (its development keys) copied to it"}, and the site published on a public vercel.app address running on the development Clerk and Convex`,
         removeAt: "the project's settings on Vercel",
       },
     );
