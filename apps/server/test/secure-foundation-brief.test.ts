@@ -19,6 +19,7 @@ const input = (over: Partial<SetupBriefInput> = {}): SetupBriefInput => ({
   commit: "0123456789abcdef0123456789abcdef01234567",
   runsCommandFiles: true,
   convexTeam: null,
+  deploy: null,
   creates: secureFoundationCreates({ name: "My Site", secrets: "env_local" }),
   ...over,
 });
@@ -101,6 +102,71 @@ describe("the setup brief", () => {
       .find((r) => r.command === "convex-setup");
     expect(convex?.args).toEqual({ "project-name": "My Site", team: "acme-labs" });
     expect(brief).toContain("the person chose the team `acme-labs`");
+  });
+
+  describe("with the deploy option", () => {
+    const deploy = {
+      owner: "acme-org",
+      repository: "my-site",
+      visibility: "private" as const,
+      vercelScope: "acme-team",
+    };
+    const brief = (over: Partial<SetupBriefInput> = {}) =>
+      setupBrief(
+        input({
+          deploy,
+          creates: secureFoundationCreates({ name: "My Site", secrets: "env_local", deploy }),
+          ...over,
+        }),
+      );
+
+    it("gives the session exactly the confirmed owner, repository and scope", () => {
+      const text = brief();
+      const ran = commands(text).map(run);
+      expect(ran.find((r) => r.command === "github-setup")?.args).toEqual({
+        "repo-name": "my-site",
+        owner: "acme-org",
+      });
+      expect(ran.map((r) => r.command)).toEqual([
+        "init",
+        "convex-setup",
+        "configure",
+        "github-setup",
+        "vercel-env-dev",
+        "vercel-deploy",
+      ]);
+      expect(text).toContain('npx vercel project add "my-site" --scope="acme-team"');
+      expect(text).toContain("GitHub: a private repository acme-org/my-site");
+      expect(text).toContain("Run this project's `/deploy-to-dev` command");
+      expect(text).toContain("## Part 4: start the app");
+    });
+
+    it("refuses an existing repository or project, a public one and production", () => {
+      const text = brief();
+      expect(text).toContain('`gh repo view "acme-org/my-site"` has to fail');
+      expect(text).toContain("don't pick one yourself and don't push into it");
+      expect(text).toContain("don't deploy into it");
+      expect(text).toContain("If it answers `repo_exists` or `owner_mismatch`, stop");
+      expect(text).toContain("Never run `/deploy-to-prod`");
+      expect(text).toContain("never make the repository public");
+      expect(text).toContain("If it answers `production_already_promoted`, stop.");
+      expect(text).toContain("a public repository, a production deploy");
+      expect(text).not.toContain("Don't create a GitHub repository");
+    });
+
+    it("stores the Doppler token in the repository only now that there is one", () => {
+      const ran = commands(brief({ doppler: true }))
+        .map(run)
+        .map((r) => r.command);
+      expect(ran.indexOf("doppler-create-ci-token")).toBeGreaterThan(ran.indexOf("github-setup"));
+      expect(commands(setupBrief(input({ doppler: true }))).join()).not.toContain("ci-token");
+    });
+
+    it("reads the deploy file where the provider doesn't run command files", () => {
+      expect(brief({ runsCommandFiles: false })).toContain(
+        "Read `.claude/commands/deploy-to-dev.md` and follow it step by step.",
+      );
+    });
   });
 
   it("holds the session to the project folder, to the confirmed list and to its secrets", () => {

@@ -66,7 +66,9 @@ export function secureFoundationRoutes(s: AppServices) {
     )
     .get("/projects/:id/finish", (c) =>
       c.json<SecureFoundationFinish>(
-        isRemoteRequest(c) ? { clerkClaimUrl: null } : sf.finish(c.req.param("id")),
+        isRemoteRequest(c)
+          ? { clerkClaimUrl: null, deployedUrl: null }
+          : sf.finish(c.req.param("id")),
       ),
     );
 }

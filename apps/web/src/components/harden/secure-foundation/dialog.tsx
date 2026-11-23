@@ -27,6 +27,7 @@ import {
   SECURE_FOUNDATION_TITLE,
   secureFoundationDocsUrl,
 } from "./copy";
+import { deployOf } from "./deploy";
 import { type FormAnswers, FormStep } from "./form-step";
 import { useSecureFoundationPrefill, useSecureFoundationTemplate } from "./use-secure-foundation";
 
@@ -57,6 +58,7 @@ export function SecureFoundationDialog({
     shell: options.defaults.shell,
     modules: [],
     provider: options.providers[0]?.id ?? "",
+    deploy: options.defaults.deploy,
   });
   // The suggestion fills the field once, and only while the person hasn't typed in it.
   const suggested = prefill.data?.adminEmail;
@@ -66,8 +68,11 @@ export function SecureFoundationDialog({
   }, [suggested]);
 
   const create = useMutation({
-    mutationFn: () =>
-      client.secureFoundation.create(
+    mutationFn: () => {
+      // A ticked deploy without its owner, name and scope is an error, never a local project.
+      if (deployOf(answers) === null)
+        throw new Error("The deploy's repository and scope are not set.");
+      return client.secureFoundation.create(
         CreateSecureFoundationRequest.parse({
           name: answers.name,
           adminEmail: answers.adminEmail,
@@ -77,8 +82,10 @@ export function SecureFoundationDialog({
           provider: answers.provider,
           commit: template.data?.commit,
           convexTeam: answers.convexTeam,
+          deploy: deployOf(answers) ?? undefined,
         }),
-      ),
+      );
+    },
     onSuccess: ({ project, sessionId }) => {
       queryClient.setQueryData<Snapshot>(snapshotKey, (s) =>
         s ? withCreatedProject(s, project) : s,

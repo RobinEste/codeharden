@@ -53,6 +53,8 @@ export class ConnectionsService {
   private readonly logins = new Map<string, Running>();
   private scratch: string | null = null;
   private hooked = false;
+  /** Logins being started, by service: a second request joins the first instead of racing it. */
+  private readonly starting = new Map<SecureFoundationService, Promise<SecureFoundationLogin>>();
 
   constructor(private readonly deps: ConnectionsDeps = {}) {}
 
@@ -82,9 +84,10 @@ export class ConnectionsService {
 
   private async state(service: SecureFoundationService): Promise<SecureFoundationConnection> {
     const commands = this.commands[service];
+    const env = await this.env();
     const result = await runCli(commands.status.program, commands.status.args, {
       cwd: this.cwd(),
-      env: await this.env(),
+      env,
       timeoutMs: commands.statusTimeoutMs,
     });
     if (result.notFound) {
@@ -95,20 +98,54 @@ export class ConnectionsService {
         message: commands.missing,
         install: commands.install,
         teams: [],
+        account: null,
+        owners: [],
+        missingScopes: [],
+        scopes: [],
       };
     }
-    const reading = commands.readStatus({ ...result, output: result.output.replace(ANSI, "") });
+    const clean = (r: typeof result) => ({ ...r, output: r.output.replace(ANSI, "") });
+    let reading = commands.readStatus(clean(result), null);
+    if (reading.signedIn === true && commands.extra) {
+      const extra = await runCli(commands.extra.program, commands.extra.args, {
+        cwd: this.cwd(),
+        env,
+        timeoutMs: commands.statusTimeoutMs,
+      });
+      reading = commands.readStatus(clean(result), clean(extra));
+    }
+    const missing = reading.missingScopes ?? [];
     const message =
       reading.signedIn === true
-        ? `Signed in to ${commands.label}.`
+        ? missing.length > 0
+          ? `Signed in to ${commands.label}, but without the ${missing.join(", ")} permission the deploy needs.`
+          : `Signed in to ${commands.label}.`
         : reading.signedIn === false
           ? `Not signed in to ${commands.label}.`
           : `${commands.label} couldn't be checked${result.timedOut ? " (it took too long)" : ""}. ${commands.manual}`;
-    return { service, cli: "ready", ...reading, message, install: null };
+    return {
+      service,
+      cli: "ready",
+      account: null,
+      owners: [],
+      missingScopes: [],
+      scopes: [],
+      ...reading,
+      message,
+      install: null,
+    };
   }
 
-  /** Start a service's login, or return the one already running for it. */
-  async startLogin(service: SecureFoundationService): Promise<SecureFoundationLogin> {
+  /** Start a service's login, or join the one that is starting or running for it. */
+  startLogin(service: SecureFoundationService): Promise<SecureFoundationLogin> {
+    const starting = this.starting.get(service);
+    if (starting) return starting;
+    const started = this.begin(service).finally(() => this.starting.delete(service));
+    this.starting.set(service, started);
+    return started;
+  }
+
+  private async begin(service: SecureFoundationService): Promise<SecureFoundationLogin> {
     this.forget();
     for (const running of this.logins.values()) {
       if (running.login.service === service && isLoginRunning(running.login)) return running.login;
@@ -119,6 +156,12 @@ export class ConnectionsService {
       process.once("exit", () => this.dispose());
     }
     const commands = this.commands[service];
+    // Signed in but short of a permission: add it, instead of signing in again.
+    let command = commands.login;
+    if (commands.refresh) {
+      const now = await this.state(service);
+      if (now.signedIn === true && now.missingScopes.length > 0) command = commands.refresh;
+    }
     const id = randomUUID();
     const record: Running = {
       login: {
@@ -138,7 +181,7 @@ export class ConnectionsService {
       endedAt: null,
     };
     this.logins.set(id, record);
-    record.cli = startCli(commands.login.program, commands.login.args, {
+    record.cli = startCli(command.program, command.args, {
       cwd: this.cwd(),
       env: await this.env(),
       onOutput: (text) => this.read(id, text),

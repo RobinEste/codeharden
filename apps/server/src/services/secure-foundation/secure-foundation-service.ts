@@ -7,6 +7,7 @@ import {
   type CreateSecureFoundationResponse,
   type Project,
   type ProviderInfo,
+  SECURE_FOUNDATION_DEFAULT_DEPLOY,
   SECURE_FOUNDATION_DEFAULT_SECRETS,
   SECURE_FOUNDATION_DEFAULT_SHELL,
   SECURE_FOUNDATION_REPOSITORY_MODE,
@@ -31,7 +32,7 @@ import { badRequest, conflict, errorMessage, ServiceError } from "../errors";
 import type { Exec } from "../exec";
 import { setupBrief } from "./brief";
 import { ConnectionsService } from "./connections/connections-service";
-import { claimLink, isOwnFolder, removeCreated } from "./folders";
+import { claimLink, deployedLink, isOwnFolder, removeCreated } from "./folders";
 import {
   fetchTemplate,
   readModules,
@@ -119,6 +120,7 @@ export class SecureFoundationService {
       defaults: {
         secrets: SECURE_FOUNDATION_DEFAULT_SECRETS,
         shell: SECURE_FOUNDATION_DEFAULT_SHELL,
+        deploy: SECURE_FOUNDATION_DEFAULT_DEPLOY,
       },
       repositoryMode: this.mode,
       autonomy: SECURE_FOUNDATION_SETUP_AUTONOMY,
@@ -256,6 +258,7 @@ export class SecureFoundationService {
               commit: fetched.commit,
               runsCommandFiles: provider.runsCommandFiles,
               convexTeam: req.convexTeam ?? null,
+              deploy: req.deploy ?? null,
               creates: secureFoundationCreates(req),
             }),
           },
@@ -286,9 +289,18 @@ export class SecureFoundationService {
     try {
       text = readFileSync(join(project.path, "docs", "INSTALL.md"), "utf8").slice(0, 200_000);
     } catch {
-      return { clerkClaimUrl: null };
+      text = "";
     }
-    return { clerkClaimUrl: claimLink(text) };
+    let deployment = "";
+    try {
+      deployment = readFileSync(join(project.path, "docs", "DEPLOYMENT-DEV.md"), "utf8").slice(
+        0,
+        200_000,
+      );
+    } catch {
+      deployment = "";
+    }
+    return { clerkClaimUrl: claimLink(text), deployedUrl: deployedLink(deployment) };
   }
 
   /** The new project's folder: a direct child of the projects folder, whatever the name. */

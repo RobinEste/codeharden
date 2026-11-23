@@ -10,20 +10,32 @@ import type { SecureFoundationSecrets } from "./secure-foundation";
  */
 
 /** A service the install signs in to with its own CLI. */
-export const SecureFoundationService = z.enum(["convex", "doppler"]);
+export const SecureFoundationService = z.enum(["convex", "doppler", "github", "vercel"]);
 export type SecureFoundationService = z.infer<typeof SecureFoundationService>;
 
 /**
  * The npm packages run with `npx` for the Connections step, pinned to a version (never
  * "latest", never from the template or the form). Convex's is the version the template locks.
  */
-export const SECURE_FOUNDATION_NPX_PACKAGES = { convex: "convex@1.43.0" } as const;
+export const SECURE_FOUNDATION_NPX_PACKAGES = {
+  convex: "convex@1.43.0",
+  vercel: "vercel@66.6.0",
+} as const;
+
+/** The GitHub permissions the template's deploy route checks for. */
+export const SECURE_FOUNDATION_GITHUB_SCOPES = ["repo", "workflow", "read:org"] as const;
 
 /** The services a form's answers need, in the order the step shows them. */
 export function secureFoundationServices(answers: {
   secrets: SecureFoundationSecrets;
+  /** The deploy option is ticked. */
+  deploy?: boolean;
 }): SecureFoundationService[] {
-  return answers.secrets === "doppler" ? ["convex", "doppler"] : ["convex"];
+  return [
+    "convex",
+    ...(answers.secrets === "doppler" ? (["doppler"] as const) : []),
+    ...(answers.deploy ? (["github", "vercel"] as const) : []),
+  ];
 }
 
 /** A Convex team slug, as `--team` takes it. */
@@ -46,6 +58,14 @@ export const SecureFoundationConnection = z.object({
   install: z.string().nullable(),
   /** Convex: the account's teams (several means a choice). Empty for other services. */
   teams: z.array(ConvexTeam).default([]),
+  /** GitHub and Vercel: the signed-in account's name. Personal data, as the lists below. */
+  account: z.string().nullable().default(null),
+  /** GitHub: who can own the new repository: the account first, then its organisations. */
+  owners: z.array(z.string()).default([]),
+  /** GitHub: permissions the deploy needs that the sign-in lacks. */
+  missingScopes: z.array(z.string()).default([]),
+  /** Vercel: the teams a project can be created in. */
+  scopes: z.array(z.object({ slug: z.string(), name: z.string() })).default([]),
 });
 export type SecureFoundationConnection = z.infer<typeof SecureFoundationConnection>;
 

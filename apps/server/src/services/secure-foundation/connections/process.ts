@@ -57,7 +57,7 @@ export function minimalEnv(base: NodeJS.ProcessEnv = process.env): NodeJS.Proces
 }
 
 /** Arguments are fixed in code; this is the last check that none could be read as shell text. */
-const SAFE_ARG = /^[\w.:\\/@=+,-]+$/;
+const SAFE_ARG = /^[\w.:\\/@=+,[\]-]+$/;
 
 export interface CliProcess {
   /** Null when the program isn't installed (nothing was started). */

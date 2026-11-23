@@ -97,6 +97,22 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
       {HINT[status.phase] && (
         <p className="mt-1.5 text-2xs text-muted-foreground">{HINT[status.phase]}</p>
       )}
+      {finish.data?.deployedUrl && (
+        <p className="mt-2 text-2xs" data-testid="secure-foundation-deployed">
+          <span className="font-medium">Deployed (dev):</span>{" "}
+          <a
+            href={finish.data.deployedUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="underline underline-offset-2"
+          >
+            {finish.data.deployedUrl}
+          </a>{" "}
+          <span className="text-muted-foreground">
+            Public, on the development Clerk and Convex. It stays up when the setup session stops.
+          </span>
+        </p>
+      )}
       {claim && (
         <p className="mt-2 flex flex-wrap items-center gap-2 text-2xs">
           <a
