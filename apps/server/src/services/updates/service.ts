@@ -2,6 +2,7 @@ import {
   CODEDEN_VERSION,
   compareVersions,
   HARDEN_INSTALL_COMMAND,
+  HARDEN_PRODUCT_NAME,
   type InstallSource,
   isNewerVersion,
   type ReleaseNotes,
@@ -22,6 +23,7 @@ import {
   writePointer,
 } from "./app-dir";
 import type { DesktopUpdater } from "./desktop";
+import { hardenUpdateBaseline } from "./harden-baseline";
 import { type InstallAppOptions, installAppVersion } from "./installer";
 import { takeUpdateResult } from "./last-result";
 import { fetchLatestVersion, fetchReleaseNotes, type NotesSources } from "./registry";
@@ -113,7 +115,7 @@ export class UpdateService {
     if (last && !last.ok) {
       this.state = "failed";
       this.target = last.to;
-      this.installError = last.error ?? `CodeDen ${last.to} did not start`;
+      this.installError = last.error ?? `${HARDEN_PRODUCT_NAME} ${last.to} did not start`;
     }
   }
 
@@ -173,7 +175,10 @@ export class UpdateService {
     return {
       current,
       latest: this.latest,
-      updateAvailable: enabled && this.latest !== null && isNewerVersion(this.latest, current),
+      updateAvailable:
+        enabled &&
+        this.latest !== null &&
+        isNewerVersion(this.latest, hardenUpdateBaseline(this.host.source, current, this.latest)),
       enabled,
       mode: this.deps.mode(),
       checkedAt: this.checkedAt === null ? null : new Date(this.checkedAt).toISOString(),
@@ -200,7 +205,7 @@ export class UpdateService {
   install(opts: { version?: string; restart?: boolean } = {}): UpdateStatus {
     if (this.host.source !== "packaged") {
       throw conflict(
-        "You're running CodeDen from source: pull and rebuild to update.",
+        `You're running ${HARDEN_PRODUCT_NAME} from source: pull and rebuild to update.`,
         "running_from_source",
       );
     }

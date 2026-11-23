@@ -122,7 +122,7 @@ describe.skipIf(!built)("self-update with a fake registry (§16)", () => {
 
   it("rolls back to the launched copy, and `update` installs and switches again", async () => {
     const rolledBack = run(["update", "--rollback"]);
-    expect(rolledBack).toContain(`Rolled back. CodeDen ${CURRENT} starts next time`);
+    expect(rolledBack).toContain(`Rolled back. CodeHarden ${CURRENT} starts next time`);
     expect(readPointer(home)).toBeNull();
     expect(listInstalled(home)).toEqual([{ version: NEXT, current: false, valid: true }]);
 
@@ -130,7 +130,9 @@ describe.skipIf(!built)("self-update with a fake registry (§16)", () => {
     expect(updated).toContain(`Updated to ${NEXT}.`);
     expect(readPointer(home)).toMatchObject({ version: NEXT, previous: CURRENT });
     // Now running as NEXT, there is nothing newer.
-    expect(await runWithRegistry(["update"])).toContain(`CodeDen ${NEXT} is the latest version.`);
+    expect(await runWithRegistry(["update"])).toContain(
+      `CodeHarden ${NEXT} is the latest version.`,
+    );
   }, 120_000);
 
   it("refuses a fetched package that is not the channel's package", async () => {

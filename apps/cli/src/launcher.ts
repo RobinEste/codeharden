@@ -22,6 +22,9 @@ import {
   HARDEN_UPDATE_COMMAND,
 } from "@codeden/contracts/harden-channel";
 
+/** The product's name, for `cli.ts`, which may import nothing but this module. */
+export { HARDEN_PRODUCT_NAME } from "@codeden/contracts/harden-channel";
+
 /** How the running CLI was launched; set on `globalThis` for the rest of the bundle. */
 export interface LaunchInfo {
   /** The `codeden` copy the user ran. */
