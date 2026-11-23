@@ -1,4 +1,6 @@
-# The CodeDen desktop app
+# The CodeHarden desktop app
+
+> **CodeHarden is its own app.** It is built from CodeDen and this page still says "CodeDen" where it describes what the app does, but on your computer it is a separate product: the app is **CodeHarden** (app id `com.codeharden.app`), its data lives in `~/.codeharden`, it listens on port 4417, opens `codeharden://` links, keeps its secrets under its own name in the keychain and clones repositories into `~/codeharden-projects`. It installs and runs next to the CodeDen app without touching it, and it only ever updates from CodeHarden's own releases. See [Next to CodeDen](#next-to-codeden).
 
 The desktop app is CodeDen as an app on your computer: its own window, a tray (menu bar) icon that shows what your agents are doing, notifications, a badge for things waiting on you, and automatic updates. It runs the same server, runner and UI as `npx codeharden`, on the same data, so you can use either and switch whenever you like.
 
@@ -10,11 +12,11 @@ Download the installer for your system from the [latest GitHub Release](https://
 
 | System | File | Notes |
 |---|---|---|
-| Windows 10/11 (x64) | `CodeDen-Setup-<version>.exe` | Installs for your user only (no admin prompt) into `%LOCALAPPDATA%\Programs\CodeDen`, with Start menu and desktop shortcuts and an uninstaller (Settings > Apps) |
-| macOS (Apple silicon) | `CodeDen-<version>-arm64.dmg` | Drag CodeDen to Applications |
-| macOS (Intel) | `CodeDen-<version>-x64.dmg` | |
-| Linux (x64) | `CodeDen-<version>-x86_64.AppImage` | `chmod +x` it and run it; it can update itself |
-| Debian/Ubuntu (x64) | `codeden_<version>_amd64.deb` | `sudo apt install ./codeden_<version>_amd64.deb` |
+| Windows 10/11 (x64) | `CodeHarden-Setup-<version>.exe` | Installs for your user only (no admin prompt) into `%LOCALAPPDATA%\Programs\CodeHarden`, with Start menu and desktop shortcuts and an uninstaller (Settings > Apps) |
+| macOS (Apple silicon) | `CodeHarden-<version>-arm64.dmg` | Drag CodeHarden to Applications |
+| macOS (Intel) | `CodeHarden-<version>-x64.dmg` | |
+| Linux (x64) | `CodeHarden-<version>-x86_64.AppImage` | `chmod +x` it and run it; it can update itself |
+| Debian/Ubuntu (x64) | `codeharden_<version>_amd64.deb` | `sudo apt install ./codeharden_<version>_amd64.deb` |
 
 ### Unsigned builds
 
@@ -28,32 +30,50 @@ SmartScreen says "Windows protected your PC". Choose **More info**, then **Run a
 
 Without a Developer ID, the macOS app is signed ad hoc and isn't notarized by Apple, so macOS can't verify who made it. You allow it once:
 
-1. Open the `.dmg` and drag **CodeDen** to **Applications**.
-2. Open CodeDen from Applications. macOS says it can't verify that CodeDen is free of malware (or that it's from an unidentified developer). Choose **Done** (or **OK**); don't move it to the Bin.
-3. Open **System Settings › Privacy & Security** and scroll down to **Security**. Next to the message about CodeDen, choose **Open Anyway**.
-4. Open CodeDen again and choose **Open Anyway** in the dialog. Enter your password if asked.
+1. Open the `.dmg` and drag **CodeHarden** to **Applications**.
+2. Open CodeHarden from Applications. macOS says it can't verify that CodeHarden is free of malware (or that it's from an unidentified developer). Choose **Done** (or **OK**); don't move it to the Bin.
+3. Open **System Settings › Privacy & Security** and scroll down to **Security**. Next to the message about CodeHarden, choose **Open Anyway**.
+4. Open CodeHarden again and choose **Open Anyway** in the dialog. Enter your password if asked.
 
-After that CodeDen opens normally. On macOS 14 and earlier you can instead Control-click (or right-click) CodeDen in Applications, choose **Open**, then **Open** again.
+After that CodeHarden opens normally. On macOS 14 and earlier you can instead Control-click (or right-click) CodeHarden in Applications, choose **Open**, then **Open** again.
 
-**If macOS says "CodeDen is damaged and can't be opened"** (version 0.4.4 and earlier weren't signed at all, which macOS reports this way), don't move it to the Bin. Remove the download flag macOS put on the app instead:
+**If macOS says "CodeHarden is damaged and can't be opened"** (version 0.4.4 and earlier weren't signed at all, which macOS reports this way), don't move it to the Bin. Remove the download flag macOS put on the app instead:
 
 1. Open **Terminal** (in Applications › Utilities).
 2. Run this command:
 
    ```sh
-   xattr -dr com.apple.quarantine /Applications/CodeDen.app
+   xattr -dr com.apple.quarantine /Applications/CodeHarden.app
    ```
 
-3. Open CodeDen again.
+3. Open CodeHarden again.
 
 **A macOS app without a Developer ID can't update itself:** macOS only installs updates into an app signed with a Developer ID, so download new versions from the [latest GitHub Release](https://github.com/harperaa/codeharden/releases/latest) and drag them over the old one. **Settings › About** says when this applies.
 
+## Next to CodeDen
+
+CodeHarden and CodeDen share nothing, so both can be installed and running at once:
+
+| | CodeHarden | CodeDen |
+|---|---|---|
+| App | `CodeHarden` (`com.codeharden.app`) | `CodeDen` (`dev.codeden.app`) |
+| Data folder | `~/.codeharden` | `~/.codeden` |
+| Default port | 4417 | 4317 |
+| Links | `codeharden://` | `codeden://` |
+| Keychain service (API keys, GitHub token) | `codeharden` | `codeden` |
+| Default folder for cloned repositories | `~/codeharden-projects` | `~/codeden-projects` |
+| Updates from | `harperaa/codeharden` releases, npm `codeharden` | upstream's |
+
+**Coming from an earlier CodeHarden.** Versions up to 2026.1122.2240 used CodeDen's folder, `~/.codeden`. From this version on CodeHarden starts in `~/.codeharden`, and a first start there is empty: nothing is moved or copied, and `~/.codeden` is left exactly as it is. To keep using the old data, start with `--home ~/.codeden` (`npx codeharden --home ~/.codeden`, or the app with `--home`, see [Command line](#command-line)), or set `CODEDEN_HOME`. Don't point CodeHarden and CodeDen at the same folder while both run. Keys saved in the keychain by the earlier version are under CodeDen's name; enter them again in Settings. Projects you already cloned stay where they are (for example in `~/codeden-projects`): add them again with **Add project** and pick the folder.
+
+The names CodeHarden keeps from CodeDen are the ones inside your projects and sessions, so the two stay compatible there: the `.codeden/` folder in a repository, the `codeden/…` branch names, the `CODEDEN_*` environment variables and the `codeden` MCP server agents see.
+
 ## First launch
 
-The app uses the same data folder as `npx codeharden`: `~/.codeden` (or `CODEDEN_HOME`). On launch it:
+The app uses the same data folder as `npx codeharden`: `~/.codeharden` (or `CODEDEN_HOME`). On launch it:
 
 1. **Attaches** to a CodeDen server that is already running for that folder (for example one you started with `npx codeharden`), or
-2. **starts its own** server on port 4317 (or any free port if 4317 is taken), which starts the runner as usual.
+2. **starts its own** server on port 4417 (or any free port if 4417 is taken), which starts the runner as usual.
 
 Then the window opens on the UI, already signed in. A first launch shows the same setup checklist as the browser; it reports Node.js as "built into the app".
 
@@ -81,15 +101,15 @@ The app's server and runner keep running between windows, so they may have start
 
 ### Links
 
-The app registers `codeden://` links:
+The app registers `codeharden://` links:
 
 | Link | Opens |
 |---|---|
-| `codeden://` | Home |
-| `codeden://inbox` | The inbox |
-| `codeden://session/<id>` | A session |
-| `codeden://project/<id>` | A project |
-| `codeden://settings/<section>` | A settings page, e.g. `codeden://settings/about` |
+| `codeharden://` | Home |
+| `codeharden://inbox` | The inbox |
+| `codeharden://session/<id>` | A session |
+| `codeharden://project/<id>` | A project |
+| `codeharden://settings/<section>` | A settings page, e.g. `codeharden://settings/about` |
 
 Opening a link while CodeDen runs brings the window to the front on that page; otherwise it starts CodeDen there. Only one copy of the app runs per data folder.
 
@@ -116,7 +136,7 @@ The desktop app updates itself from GitHub Releases, following **Settings > Gene
 
 Notes:
 
-- The npm self-update (`codeharden update`, side-by-side versions in `~/.codeden/app`) is off in the desktop app; the app replaces itself instead. If the app attached to a server you started with `npx codeharden`, the banner is about that npm install, and the app updates itself on its own (with a notification and the tray menu).
+- The npm self-update (`codeharden update`, side-by-side versions in `~/.codeharden/app`) is off in the desktop app; the app replaces itself instead. If the app attached to a server you started with `npx codeharden`, the banner is about that npm install, and the app updates itself on its own (with a notification and the tray menu).
 - macOS needs an app signed with a Developer ID to update (see [Unsigned builds](#unsigned-builds)). The Debian package updates through the downloaded `.deb` (it asks for your password); the AppImage replaces itself.
 - If an update fails, the banner shows why, with **Retry**. You can always install a newer release by hand over the old one.
 
@@ -124,25 +144,25 @@ Notes:
 
 | What | Where |
 |---|---|
-| Your data (database, settings, worktrees, logs) | `~/.codeden` (shared with `npx codeharden`; `CODEDEN_HOME` or `--home` to change it) |
-| The app's own profile (window state, cookies, cache) | `~/.codeden/desktop` |
+| Your data (database, settings, worktrees, logs) | `~/.codeharden` (shared with `npx codeharden`; `CODEDEN_HOME` or `--home` to change it) |
+| The app's own profile (window state, cookies, cache) | `~/.codeharden/desktop` |
 | Session browser cookies and storage (native views) | In memory only, per session; gone when the session's browser closes or the app quits (after the hand-off) |
 | Downloads from the session browser | Your Downloads folder |
-| App logs | `~/.codeden/logs/desktop.log` and `desktop-server.log` (Help > Show Logs) |
-| Claude Code support (installed on first use) | `~/.codeden/deps` |
-| The app itself | Windows: `%LOCALAPPDATA%\Programs\CodeDen`; macOS: `/Applications/CodeDen.app`; Linux: wherever you keep the AppImage, or `/opt/CodeDen` for the `.deb` |
-| Downloaded updates | Windows: `%LOCALAPPDATA%\codeden-updater`; macOS: `~/Library/Caches/codeden-updater`; Linux: `~/.cache/codeden-updater` |
+| App logs | `~/.codeharden/logs/desktop.log` and `desktop-server.log` (Help > Show Logs) |
+| Claude Code support (installed on first use) | `~/.codeharden/deps` |
+| The app itself | Windows: `%LOCALAPPDATA%\Programs\CodeHarden`; macOS: `/Applications/CodeHarden.app`; Linux: wherever you keep the AppImage, or `/opt/CodeHarden` for the `.deb` |
+| Downloaded updates | Windows: `%LOCALAPPDATA%\codeharden-updater`; macOS: `~/Library/Caches/codeharden-updater`; Linux: `~/.cache/codeharden-updater` |
 
-Claude Code support (the Claude Agent SDK) is not part of the app: on first use it is downloaded from the npm registry into `~/.codeden/deps`, checked against its published checksum, without needing npm.
+Claude Code support (the Claude Agent SDK) is not part of the app: on first use it is downloaded from the npm registry into `~/.codeharden/deps`, checked against its published checksum, without needing npm.
 
-Uninstalling the app leaves `~/.codeden` alone; delete it yourself to remove your data.
+Uninstalling the app leaves `~/.codeharden` alone; delete it yourself to remove your data.
 
 ## Command line
 
 The app accepts a few options (for example in a shortcut):
 
 ```text
-CodeDen [--home <dir>] [--port <n>] [--hidden] [codeden://...]
+CodeHarden [--home <dir>] [--port <n>] [--hidden] [codeharden://...]
 ```
 
 `--home` uses another data folder (a separate, independent CodeDen), `--port` picks the port for a server the app starts, and `--hidden` starts in the tray.

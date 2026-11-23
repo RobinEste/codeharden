@@ -1,7 +1,9 @@
 > **CodeHarden** is a hardened fork of [CodeDen](https://github.com/leonvanzyl/codeden) by Leon van Zyl.
 > It stays close to upstream: new upstream changes are reviewed every day for security and function,
 > and merged 48 hours after they are approved. CodeHarden versions are timestamps; the app's own
-> version number stays upstream's. Everything below is CodeDen's own README.
+> version number stays upstream's. It is its own app: its data is in `~/.codeharden`, it listens on
+> port 4417, and it installs and runs next to CodeDen ([how they stay apart](docs/desktop.md#next-to-codeden)).
+> Everything below is CodeDen's own README.
 > Want the same for your own changes? See [Make your own hardened fork](#make-your-own-hardened-fork).
 
 <div align="center">
@@ -150,7 +152,7 @@ Full details: [Security](docs/security.md). To report a vulnerability, see [SECU
 npx codeharden
 ```
 
-Or install the **desktop app** from the [latest release](https://github.com/harperaa/codeharden/releases/latest): `CodeDen-Setup-<version>.exe` on Windows, a `.dmg` on macOS, an AppImage or `.deb` on Linux. If Windows or macOS warns about an unsigned app the first time, see [The desktop app](docs/desktop.md#unsigned-builds).
+Or install the **desktop app** from the [latest release](https://github.com/harperaa/codeharden/releases/latest): `CodeHarden-Setup-<version>.exe` on Windows, a `.dmg` on macOS, an AppImage or `.deb` on Linux. If Windows or macOS warns about an unsigned app the first time, see [The desktop app](docs/desktop.md#unsigned-builds).
 
 1. **The setup checklist** finds your agents, GitHub and git, and only asks about what's missing. Each problem has a one-click fix: an install command, or a **Sign in** button.
 2. **Add a project.** Pick a folder on your computer, or paste a GitHub link to clone one.
@@ -168,7 +170,7 @@ CodeDen updates itself: when a new version is out, a banner offers **Update now*
 No. CodeDen uses your agents' own logins, including Claude, ChatGPT, Cursor and Google subscriptions. API keys are only an optional extra for some image and voice features. Check your provider's terms for how your plan may be used.
 
 **Where does my data go?**
-Nowhere. It stays on your computer, in `~/.codeden/`. The only network traffic is your agents talking to their providers, GitHub (if you use it), and any optional image or voice services you turn on.
+Nowhere. It stays on your computer, in `~/.codeharden/`. The only network traffic is your agents talking to their providers, GitHub (if you use it), and any optional image or voice services you turn on.
 
 **Is there telemetry?**
 No. CodeDen sends no usage data anywhere.
@@ -247,7 +249,7 @@ Review it, then label it: `sync-approved` (the workflow merges it 48 hours later
 - A sync that changes `scripts/harden/` (the release and sync scripts themselves) is never merged for you: it gets `sync-needs-review`, and you merge it by hand with a merge commit.
 - A sync that changes a workflow file can't be merged, or mirrored, by the workflow's own token; its log says so and you do that one by hand.
 
-**Releases and npm, under your name.** After the workflow merges a sync it makes a release on `harden` (a commit, a tag `v<version>` and a changelog entry). After merging your own changes, make one yourself: `scripts/harden/release.sh --dry-run`, then `scripts/harden/release.sh --push`. To publish a release to npm, check its tag out and run `scripts/harden/publish.sh --dry-run`, then `scripts/harden/publish.sh`, signed in to npm as the package's owner: [Publishing to npm](docs/codeharden-npm-release.md) has every step. The scripts read your variables from GitHub with `gh` (or from the environment), and refuse to release or publish in a repository that is not CodeHarden's until they are set, so your users are never updated onto `codeharden` by a default. The app's own name on screen is not changed by any of this; that is yours to change.
+**Releases and npm, under your name.** After the workflow merges a sync it makes a release on `harden` (a commit, a tag `v<version>` and a changelog entry). After merging your own changes, make one yourself: `scripts/harden/release.sh --dry-run`, then `scripts/harden/release.sh --push`. To publish a release to npm, check its tag out and run `scripts/harden/publish.sh --dry-run`, then `scripts/harden/publish.sh`, signed in to npm as the package's owner: [Publishing to npm](docs/codeharden-npm-release.md) has every step. The scripts read your variables from GitHub with `gh` (or from the environment), and refuse to release or publish in a repository that is not CodeHarden's until they are set, so your users are never updated onto `codeharden` by a default. Your fork is also its own app next to CodeHarden and CodeDen: the home folder (`~/.example-harden` written as one word, `~/.exampleharden`), the link scheme, the keychain service, the app id (`com.exampleharden.app`) and the app's name all come from `PACKAGE_NAME`. Three optional build variables name them exactly: `PRODUCT_NAME` (for example `Example Harden`), `APP_ID` and `DEFAULT_PORT` (CodeHarden's is 4417; pick another so both run at once). `scripts/harden/channel-define.mjs` has the details. The "CodeDen" wording inside the UI is not changed by any of this.
 
 Optional: `git config core.hooksPath scripts/harden/hooks` runs the tests on your machine before each push, and the repository variable `CI_TESTS=off` skips them in CI (see "Local test gate" in [AGENTS.md](AGENTS.md)). The script sets neither.
 
