@@ -23,6 +23,8 @@ export interface SetupBriefInput {
   commit: string;
   /** The provider runs project command files (`capabilities.projectCommands`). */
   runsCommandFiles: boolean;
+  /** The Convex team chosen in the form, or null: the only team, or ask when several. */
+  convexTeam: string | null;
   /** What the person confirmed will be created (`secureFoundationCreates`). */
   creates: SecureFoundationCreated[];
 }
@@ -71,8 +73,10 @@ export function setupBrief(input: SetupBriefInput): string {
     `Report "${PREFIX}${MARK.preflight}". Then, in order:`,
     "1. `node -v` is 18 or newer, and `npm -v` and `git --version` work.",
     "2. If `node_modules/.package-lock.json` is missing, run `npm install`.",
-    `3. Convex sign-in: run \`npx convex login status\`. If it doesn't say "Logged in", run \`npx convex login --login-flow poll --no-open --device-name "${secureFoundationFolder(name)}-setup"\` in the background with a five-minute limit, read the URL it prints, and give that URL to the person with \`ask_user\` ("Open this link to sign in to Convex, then answer Done"). Wait for the command to finish. If it times out, offer one more try, then stop.`,
-    "4. Convex team: the status output lists the teams as `- Name (slug)`. With one team, use it. With several, ask which one with `ask_user`, the first team first.",
+    `3. Convex sign-in (the person was offered it in the form, so this is usually a check): run \`npx convex login status\`. If it doesn't say "Status: Logged in", run \`npx convex login --login-flow poll --no-open --device-name "${secureFoundationFolder(name)}-setup"\` in the background with a five-minute limit, read the URL it prints, and give that URL to the person with \`ask_user\` ("Open this link to sign in to Convex, then answer Done"). Wait for the command to finish. If it times out, offer one more try, then stop.`,
+    input.convexTeam
+      ? `4. Convex team: the person chose the team \`${input.convexTeam}\`. Check that the status output lists it (teams are listed as \`- Name (slug)\`); if it doesn't, ask which team with \`ask_user\`.`
+      : "4. Convex team: the status output lists the teams as `- Name (slug)`. With one team, use it. With several, ask which one with `ask_user`, the first team first.",
     ...(doppler
       ? [
           "5. Doppler: `doppler --version` must work. If the CLI is missing, don't install it yourself (it can need an administrator password): ask the person to install it (https://docs.doppler.com/docs/install-cli) and to answer when done. Then `doppler me` must show a signed-in account; if not, ask the person to run `doppler login` in their own terminal and to answer when done.",
@@ -87,7 +91,9 @@ export function setupBrief(input: SetupBriefInput): string {
     ...(modules ? [`- \`node scripts/modules.mjs install ${modules} --apply-edits\``] : []),
     ...(doppler ? [`- \`node scripts/setup.mjs doppler-bootstrap --project-name="${name}"\``] : []),
     `- \`node scripts/setup.mjs init --site-name="${name}" --admin-email="${adminEmail}"\` (no \`--clerk-pk\` or \`--clerk-sk\`)`,
-    `- \`node scripts/setup.mjs convex-setup --project-name="${name}"\`, with \`--team="<slug>"\` when Part 1 chose a team`,
+    input.convexTeam
+      ? `- \`node scripts/setup.mjs convex-setup --project-name="${name}" --team="${input.convexTeam}"\``
+      : `- \`node scripts/setup.mjs convex-setup --project-name="${name}"\`, with \`--team="<slug>"\` when Part 1 chose a team`,
     `- \`node scripts/setup.mjs configure --admin-email="${adminEmail}"\``,
     ...(doppler
       ? [
