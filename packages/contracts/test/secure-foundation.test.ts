@@ -268,3 +268,53 @@ describe("the status of a setup, from its session", () => {
     expect(secureFoundationStatus(other).phase).toBe("preparing");
   });
 });
+
+describe("the Connections step's shapes", () => {
+  it("round-trip, and name only the services the answers need", async () => {
+    const c = await import("../src/index");
+    expect(c.secureFoundationServices({ secrets: "env_local" })).toEqual(["convex"]);
+    expect(c.secureFoundationServices({ secrets: "doppler" })).toEqual(["convex", "doppler"]);
+    const connection = {
+      service: "convex",
+      cli: "ready",
+      signedIn: true,
+      message: "Signed in to Convex.",
+      install: null,
+      teams: [{ name: "Acme Labs", slug: "acme-labs" }],
+    };
+    expect(roundTrip(c.SecureFoundationConnections, { connections: [connection] })).toEqual({
+      connections: [connection],
+    });
+    for (const status of ["starting", "waiting", "done", "failed", "cancelled", "timed_out"]) {
+      const login = { id: "l1", service: "doppler", status, url: null, code: null, message: "" };
+      expect(roundTrip(c.SecureFoundationLogin, login)).toEqual(login);
+      expect(c.isLoginRunning(login as never)).toBe(status === "starting" || status === "waiting");
+    }
+    expect(c.SecureFoundationConnectionsQuery.parse({ services: "convex,doppler" })).toEqual({
+      services: ["convex", "doppler"],
+    });
+    expect(c.SecureFoundationConnectionsQuery.safeParse({ services: "convex,ssh" }).success).toBe(
+      false,
+    );
+    // The npx package is pinned to a version, never "latest".
+    expect(c.SECURE_FOUNDATION_NPX_PACKAGES.convex).toMatch(/^convex@\d+\.\d+\.\d+$/);
+  });
+
+  it("carries the chosen Convex team in the request and names it in what is created", () => {
+    const request = CreateSecureFoundationRequest.parse({
+      name: "My Site",
+      adminEmail: "person@site.test",
+      provider: "fake",
+      commit: COMMIT,
+      convexTeam: "acme-labs",
+    });
+    expect(request.convexTeam).toBe("acme-labs");
+    expect(secureFoundationCreates(request)[1]?.item).toContain('your Convex team "acme-labs"');
+    for (const bad of ["a b", '"; rm', "../x", ""]) {
+      expect(
+        CreateSecureFoundationRequest.safeParse({ ...request, convexTeam: bad }).success,
+        bad,
+      ).toBe(false);
+    }
+  });
+});
