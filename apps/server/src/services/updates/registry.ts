@@ -25,10 +25,13 @@ export async function fetchLatestVersion(
   doFetch: typeof fetch = fetch,
 ): Promise<string> {
   // A scoped name keeps its `@` and escapes the slash, as the registry expects.
-  const res = await doFetch(`${registry}/-/package/${PACKAGE_NAME.replaceAll("/", "%2f")}/dist-tags`, {
-    headers: { accept: "application/json" },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
-  });
+  const res = await doFetch(
+    `${registry}/-/package/${PACKAGE_NAME.replaceAll("/", "%2f")}/dist-tags`,
+    {
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    },
+  );
   if (!res.ok) throw new Error(`registry answered ${res.status}`);
   const body = (await res.json()) as { latest?: unknown };
   if (typeof body.latest !== "string") throw new Error("registry sent no latest version");
