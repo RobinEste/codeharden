@@ -113,7 +113,7 @@ export async function runCommand(args: string[], parsed: ParsedCli): Promise<num
     });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "EADDRINUSE") {
-      console.error(`Port ${port} is in use. Try: codeden --port ${port + 1}`);
+      console.error(`Port ${port} is in use. Try: ${HARDEN_COMMAND} --port ${port + 1}`);
       return 1;
     }
     throw error;

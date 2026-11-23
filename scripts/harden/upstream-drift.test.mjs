@@ -3,8 +3,10 @@
 //
 //   1. No product code uses one of upstream CodeDen's identity values as a value (its npm
 //      package, repository, home folder, projects folder, port, app id, link scheme, keychain
-//      service, app name), except the uses in ALLOWED below, each with its reason.
+//      service, app name, or its command in text that says what to type), except the uses in
+//      ALLOWED below, each with its reason.
 //   2. Every place the fork redirected to its own channel (CALL_SITES below) still reads it.
+//      The same list holds the defaults the fork sets differently (`harden-defaults.ts`).
 //
 // Upstream's values are fixed text here and are never compared with this fork's own names, so
 // the test reads the same in CodeHarden and in a fork configured with its own variables.
@@ -98,6 +100,15 @@ const RULES = [
     use: "HARDEN_PACKAGE_NAME, HARDEN_COMMAND, HARDEN_DEEP_LINK_SCHEME, HARDEN_KEYCHAIN_SERVICE or HARDEN_APP_SLUG, whichever this value is",
   },
   {
+    // The command followed by a subcommand, an option or an argument: `codeden password`,
+    // `codeden --port`, `codeden <dir>`. Not part of a longer name: `.codeden/`, `codeden/…`
+    // branches, `@codeden/…` packages, `mcp__codeden__…`, `CODEDEN_…` variables, `codeden-…`.
+    id: "command-in-text",
+    pattern: /(?<![\w./@$-])codeden (?:--?[a-z]|[a-z<[])/,
+    back: "upstream's command `codeden` in text that says what to type or names the program (`Run: codeden password`, `codeden --port`)",
+    use: "HARDEN_COMMAND, put into the text in place of the word (HARDEN_PACKAGE_NAME where the text means the npm package); a line of the CLI's help goes inside `HELP = named(...)` in `apps/cli/src/args.ts`",
+  },
+  {
     id: "app-name",
     pattern:
       /(["'`])CodeDen\1|\bCodeDen[-_](?:Setup|\$\{)|\bCodeDen\.(?:app|exe|AppImage)\b|(?:productName|shortcutName|executableName|artifactName|applicationName|setName|setAppUserModelId|setTitle|\btitle)\b\W{0,6}CodeDen\b/,
@@ -131,6 +142,8 @@ const WHY = {
     "the package and command name inside the sandbox image (`codeden`, in `/opt/codeden`): nothing outside a container sees it, and the image is built on this machine from this build's own bundle, never fetched from npm under that name. What Docker itself is asked for by name (the image, labels, containers, volumes) is the fork's: rule `sandbox-names`",
   hello: "how the app introduces itself to an agent CLI or a web server (a client name)",
   commits: "the author name of checkpoint commits and of git inside the sandbox image",
+  runnerLabel:
+    "the prefix of the runner's own log and error lines: the process and its link, which the sandbox image starts as `codeden runner-link` (see `sandbox`). A label in a log, not a command a person is told to type",
 };
 
 /**
@@ -185,10 +198,14 @@ const ALLOWED = [
   [/^packages\/providers\/src\/(?:acp|codex)\/process\.ts$/, /clientInfo: \{ name: "codeden", title: "CodeDen",/, WHY.hello],
   ["apps/server/src/services/automations/import-link.ts", /"user-agent": "codeden"/, WHY.hello],
   ["apps/server/src/services/remote-image.ts", /"user-agent": "CodeDen"/, WHY.hello],
-  // Two paths until the sync of 2026-11-23 is merged (upstream moved the line to session-open.ts); then only the new one.
-  [["packages/providers/src/opencode/session.ts", "packages/providers/src/opencode/session-open.ts"], /INSTRUCTIONS_KEY = "codeden"/, "the key of the app's entry in an OpenCode session's instructions"],
+  ["packages/providers/src/opencode/session-open.ts", /INSTRUCTIONS_KEY = "codeden"/, "the key of the app's entry in an OpenCode session's instructions"],
   ["apps/runner/src/git/checkpoints.ts", /GIT_(?:AUTHOR|COMMITTER)_NAME: "CodeDen"/, WHY.commits],
   ["apps/cli/docker/Dockerfile", /user\.name "CodeDen"/, WHY.commits],
+  ["apps/runner/src/git/checkpoints.ts", /"-m", "codeden checkpoint"/, "the reflog message of a checkpoint ref, written into repositories' git data: a stored label shared with upstream, not a command"],
+  // --- the command name where it is not something a person is told to type
+  ["apps/cli/src/args.ts", /^ {2}codeden (?=[a-z[])/, "a line of the CLI's help, inside `HELP = named(...)`: `named()` rewrites every such line to the channel's command before it is shown (the file's CALL_SITES entry checks that the help is still wrapped and that no such line stands outside it)"],
+  ["apps/runner/src/main.ts", /(?<=["`])codeden runner: /, WHY.runnerLabel],
+  ["apps/runner/src/link/runner-link.ts", /(?<=`)codeden runner-link: /, WHY.runnerLabel],
   ["packages/contracts/src/network.ts", /^\s*"codeden",$/, "an entry in the list of passwords too easy to guess"],
   // --- the sandbox image
   ["apps/server/src/execution/docker/args.ts", /^\s*"codeden",$/, WHY.sandbox],
@@ -313,7 +330,7 @@ const CALL_SITES = [
   // --- the channel itself
   ["packages/contracts/src/harden-channel.ts", "the one module that names the package, repository and identity", "HARDEN_PACKAGE_NAME", "HARDEN_REPOSITORY", "HARDEN_PRODUCT_NAME", "HARDEN_APP_ID", "HARDEN_HOME_DIRNAME", "HARDEN_PROJECTS_DIRNAME", "HARDEN_KEYCHAIN_SERVICE", "HARDEN_DEEP_LINK_SCHEME", "HARDEN_DEFAULT_PORT", "__CODEHARDEN_PACKAGE__", "__CODEHARDEN_SLUG__", "__CODEHARDEN_PORT__"],
   ["packages/contracts/src/harden-version.ts", "the version line every display uses", "formatHardenVersion", "HARDEN_VERSION", "UPSTREAM_VERSION", "__CODEHARDEN_VERSION__"],
-  ["packages/contracts/src/index.ts", "exports the channel, the version and the brand modules", /export \* from "\.\/harden-channel"/, /export \* from "\.\/harden-version"/, /export \* from "\.\/harden-brand"/, /export \* from "\.\/harden-mark"/],
+  ["packages/contracts/src/index.ts", "exports the channel, the defaults, the version and the brand modules", /export \* from "\.\/harden-channel"/, /export \* from "\.\/harden-defaults"/, /export \* from "\.\/harden-version"/, /export \* from "\.\/harden-brand"/, /export \* from "\.\/harden-mark"/],
   ["packages/contracts/src/harden-brand.ts", "the wordmark's two parts and the paths of the product's own web icons", "hardenWordmark", "hardenWordmarkHtml", "HARDEN_WEB_ICONS", "HARDEN_PUBLIC_ICON_PATHS", "HARDEN_FAVICON_PATH"],
   ["packages/contracts/src/harden-mark.ts", "the mark's shapes and the brand's colours, written by scripts/harden/brand/make.mjs", "HARDEN_MARK", "HARDEN_BRAND_RED", "HARDEN_BRAND_RED_ON_DARK", "HARDEN_BRAND_WHITE"],
   ["packages/contracts/package.json", "lets the CLI launcher load the channel alone", /"\.\/harden-channel": "\.\/src\/harden-channel\.ts"/],
@@ -329,14 +346,21 @@ const CALL_SITES = [
   ["apps/server/src/services/secrets.ts", "the keychain service secrets are kept under", /service = HARDEN_KEYCHAIN_SERVICE/],
   ["apps/server/src/security.ts", "the command the locked page tells people to run, that page's title and wordmark, and the product's icons a browser may fetch without a cookie", "HARDEN_NPX_COMMAND", /<title>\$\{HARDEN_PRODUCT_NAME\}<\/title>/, /<h1>\$\{hardenWordmarkHtml\("dark"\)\} is locked<\/h1>/, /\.\.\.HARDEN_PUBLIC_ICON_PATHS,/],
   ["apps/server/src/routes/api.ts", "the versions the server reports", "HARDEN_VERSION", "UPSTREAM_VERSION"],
-  ["apps/cli/src/args.ts", "the CLI's default port, home and command in the help", /DEFAULT_PORT = HARDEN_DEFAULT_PORT/, "HARDEN_HOME_DISPLAY", "HARDEN_COMMAND", "formatHardenVersion"],
-  ["apps/cli/src/network-command.ts", "the network command's port comes from the CLI's default", /import \{ DEFAULT_PORT \} from "\.\/args"/],
+  ["apps/cli/src/args.ts", "the CLI's default port, home and command in the help (every help line is renamed by `named()`)", /DEFAULT_PORT = HARDEN_DEFAULT_PORT/, "HARDEN_HOME_DISPLAY", "HARDEN_COMMAND", "formatHardenVersion", /export const HELP = named\(`/, helpLinesOnlyInHelp],
+  ["apps/cli/src/network-command.ts", "the network command's port comes from the CLI's default, and its usage and hints name the channel's command", /import \{ DEFAULT_PORT \} from "\.\/args"/, /`Usage: \$\{HARDEN_COMMAND\} network /, /`Run: \$\{HARDEN_COMMAND\} password`/],
   ["apps/cli/src/launcher.ts", "the launcher's home, the installed package it may start and the commands it prints", /join\(homedir\(\), HARDEN_HOME_DIRNAME\)/, /pkg\.name !== HARDEN_PACKAGE_NAME/, "HARDEN_PACKAGE_SEGMENTS", "HARDEN_NPX_COMMAND", "HARDEN_UPDATE_COMMAND", "HARDEN_COMMAND", /export \{ HARDEN_PRODUCT_NAME \};/, /`\$\{HARDEN_PRODUCT_NAME\} \$\{pinned\} in /],
   ["apps/cli/src/harden-home.ts", "the notice about the old home", "HARDEN_HOME_DIRNAME", "UPSTREAM_HOME_DIRNAME", "hardenHomeNotice"],
   ["apps/cli/src/cli.ts", "the bare package version is printed for the updater's probe only, and the warning about an installed version that didn't load names the product", /CODEDEN_NO_SWITCH === "1"/, /`\$\{HARDEN_PRODUCT_NAME\} \$\{decision\.version\} failed to load/],
-  ["apps/cli/src/main.ts", "the version line of `--version`", "formatHardenVersion"],
-  ["apps/cli/src/commands.ts", "the version line and command name in CLI output", "formatHardenVersion", "HARDEN_COMMAND"],
-  ["apps/cli/src/doctor.ts", "the version line and update command in `doctor`", "formatHardenVersion", "HARDEN_UPDATE_COMMAND"],
+  ["apps/cli/src/main.ts", "the version line of `--version`, and the command in the usage of `runner-link`", "formatHardenVersion", "HARDEN_COMMAND"],
+  ["apps/cli/src/commands.ts", "the version line and command name in CLI output", "formatHardenVersion", "HARDEN_COMMAND", /Try: \$\{HARDEN_COMMAND\} --port /],
+  ["apps/cli/src/doctor.ts", "the version line, the update command and the install hint in `doctor`", "formatHardenVersion", "HARDEN_UPDATE_COMMAND", /\$\{HARDEN_COMMAND\} doctor --install/],
+  ["packages/providers/src/claude/sdk/load.ts", "the command in the hint shown when Claude Code support can't be installed", /\$\{HARDEN_COMMAND\} doctor --install/],
+  ["apps/web/src/components/settings/sections-network.tsx", "the command in the Trusted origins hint of Settings › Network access", /\{HARDEN_COMMAND\} network origin add /],
+  ["apps/server/src/execution/docker/backend.ts", "the npm package named when the sandbox image can't be built", /from the \$\{HARDEN_PACKAGE_NAME\} package/],
+  ["apps/cli/scripts/third-party-notices.mjs", "the package named at the top of the bundled licence notices", /readHardenChannel\(process\.env, \{ quiet: true \}\)\.packageName/],
+  // --- defaults the fork sets differently from upstream
+  ["packages/contracts/src/harden-defaults.ts", "the provider switch at a usage limit ships off (a person turns it on in Settings › Providers)", /HARDEN_AUTO_SWITCH_ON_LIMIT_DEFAULT = false;/],
+  ["packages/contracts/src/settings.ts", "the default of `providers.autoSwitchOnLimit` is the fork's, not upstream's `true`", /autoSwitchOnLimit: z\.boolean\(\)\.default\(HARDEN_AUTO_SWITCH_ON_LIMIT_DEFAULT\),/],
   ["apps/cli/src/update-command.ts", "the update command it prints, and the product's name in every message of the update command", "HARDEN_UPDATE_COMMAND", productNameOnlyByConstant],
   ["apps/cli/src/restart.ts", "the product's name in the messages of the restart into an updated version", productNameOnlyByConstant],
   // --- the sandbox in Docker: one Docker is shared by every product on the machine
@@ -410,9 +434,65 @@ const CALL_SITES = [
   // --- OpenCode sessions: slash commands are plain prompts in this fork for now
   ["packages/providers/src/opencode/commands.ts", "the commands OpenCode lists pass the fork's switch before they are reported or routed", /commands = hardenListedCommands\(/],
   ["packages/providers/src/opencode/harden-commands.ts", "the switch itself, off in the product", "hardenListedCommands", /^let run = false;$/m],
+  // --- fixes the fork carries in upstream's files until upstream has its own. Each has tests of its own (packages/providers/test/harden-risk-stricter.test.ts, harden-scan.test.ts; apps/server/test/harden-factory-hold.test.ts, harden-update-install-env.test.ts): when upstream's fix replaces one in a sync and those tests still pass, take upstream's form and remove the entry.
+  ["packages/providers/src/policy/harden-scan.ts", "the fork's reading of quoted strings and two-part patterns in one pass, the longest command the classifier reads and the work limit", "quotedSpans", "followedBy", "MAX_COMMAND_CHARS", "TOO_LONG", "MAX_WORK_CHARS", "TOO_INVOLVED", "bounded", "spend", holds("if (error instanceof WorkLimit || error instanceof RangeError) return otherwise;")],
+  ["packages/providers/src/policy/risk.ts", "a command longer than the limit, or too involved to read, asks instead of being read or failing; the download check reads its two parts in one pass", holds("if (command.length > MAX_COMMAND_CHARS) return TOO_LONG;"), holds("return bounded(() => classifyWithin(command, given), TOO_INVOLVED);"), holds("followedBy("), lacks("[^|]*\\b(irm|iwr")],
+  ["packages/providers/src/policy/read-only.ts", "a command longer than the limit is refused in a read-only session", holds("if (command.length > MAX_COMMAND_CHARS) {")],
+  ["packages/providers/src/policy/workdir.ts", "a line too long or too involved to read is not known to only read", holds("(line) => line.length <= MAX_COMMAND_CHARS && readsOnly("), holds("return bounded(")],
+  ["packages/providers/src/policy/paths.ts", "a brace expansion in a cd is found without reading on to a far closing brace", holds("\\{[^{}]*\\}/.test(raw)")],
+  ["packages/providers/src/policy/inline-code.ts", "string literals, backtick commands and the two `open` checks are read in one pass (not by a pattern that starts over from every quote or every `open`)", holds("quotedSpans(read, QUOTES)"), holds("quotedSpans(code, QUOTES)"), holds('quotedSpans(code, "`", false)'), lacks("matchAll(LITERAL)"), holds("if (!WRITES.test(code) && !opensToWrite(code)) return [];"), lacks("open\\s*\\([^)]*,")],
+  ["packages/providers/src/policy/variables.ts", "a command line that sets a variable the path rules know, or repeats a command for several values, is also read with the other possibilities; a mktemp template, a braced variable and a temp default are matched in one pass", "variableReadings", holds("if (seen.ambient) readings.push(read({ keepAmbient: true }));"), holds("if (seen.ambient || seen.spread) readings.push(read({ every: true }));"), holds("if (how.keepAmbient) return;"), holds("for (const copy of how.every && copies.length > 1 ? copies : [copies[0] ?? cmd]) {"), holds("if (how.every) table.set(name, null);"), holds("if (moves) return EITHER;"), holds("for (const word of (cmd as Marked).unsure ?? []) {"), ambientNames, holds("/X{3}/i.test(template)"), lacks("X{3,}[\\w.-]*"), lacks("\\{[^}]+\\}"), holds(":?-[^{}]*\\}/g")],
+  ["packages/providers/src/policy/copies.ts", "a cp or mv option cluster is not read past `S`, which takes a value (the next word, when it stands alone)", holds("/^-[a-su-zA-RT-Z]*t(.*)$/s"), holds('if (/^-[a-su-zA-RT-Z]*S$/.test(arg) || arg === "--suffix") {')],
+  ["packages/providers/src/policy/shell-readings.ts", "a POSIX script holding `$'` is read both ways on every platform, each reading is made for every way its variables may be followed, and the text read is counted", holds('(win && escapes) || ansiC ? ["posix", "keep"] : ["posix"]'), holds("variableReadings(() => groupInputs(parseShell(src, dialect, mode)), scope)"), holds("spend(src.length * modes.length);")],
+  ["packages/providers/src/policy/locations.ts", "cmd's `cd /d` is a switch only where cmd may be the shell, and a shell that isn't known is followed both ways", holds("if (cmdSwitch && i === 0"), holds('isWin(ctx) && shell !== "posix" && shell !== "powershell"'), holds("return refused ? [moved, ctx] : [moved];")],
+  ["apps/server/src/services/factory/hold.ts", "the project manager releases only a hold it placed itself, and holding an issue a person holds doesn't make the hold its own", holds('if (by === "pm" && labelled && !own) {'), holds('if (by === "pm" && issue.labels.includes(FACTORY_HOLD_LABEL) && !own) {'), holds('const own = held.some((h) => h.issueNumber === issue.number && h.by === "pm");'), holds('const own = loop.holds.some((h) => h.issueNumber === issue.number && h.by === "pm");')],
+  ["apps/server/src/mcp/tools/pm/github.ts", "the project manager's triage tool neither puts nor takes the hold label", holds("if (named.some((label) => label.trim().toLowerCase() === FACTORY_HOLD_LABEL)) {")],
+  ["apps/server/src/services/updates/installer.ts", "the update install keeps a person's npm settings that only restrict versions and sources (and not `ignore_scripts`, which would leave native modules unbuilt)", holds('"min_release_age",'), holds('"before",'), holds('"allow_git",'), lacks('"ignore_scripts",')],
   // --- the vision the project manager reads: the fork's own text in a file upstream ships too
   [".codeden/VISION.md", "the fork's own vision (a conflict on this file is resolved to the fork's text)", /^CodeHarden is a hardened fork/],
 ];
+
+/**
+ * True when every line written as a help line (two spaces, upstream's command, a word) stands
+ * inside `HELP = named(`…`)`, the one text `named()` rewrites: the ALLOWED entry for those lines
+ * must not excuse one anywhere else in the file.
+ */
+function helpLinesOnlyInHelp(code) {
+  const start = code.indexOf("export const HELP = named(`");
+  const end = start < 0 ? -1 : code.indexOf("`);", start);
+  if (start < 0 || end < 0) return false;
+  const outside = code.slice(0, start) + code.slice(end);
+  return !/^ {2}codeden (?=[a-z[])/m.test(outside);
+}
+helpLinesOnlyInHelp.say =
+  "every help line (`  codeden <word>`) inside `HELP = named(...)`, none before or after it";
+
+/** True when the set of variables the path rules know is the one the fork's readings are for. */
+function ambientNames(code) {
+  const set = /const AMBIENT = new Set\(\[([^\]]*)\]\)/.exec(code)?.[1] ?? "";
+  const names = [...set.matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort();
+  const want = ["CODEDEN_HOME", "HOME", "PWD", "TEMP", "TMP", "TMPDIR", "ps:home", "ps:pwd"];
+  return (
+    JSON.stringify(names) === JSON.stringify(want) &&
+    code.includes("const ambient = (name: string): boolean => AMBIENT.has(name);")
+  );
+}
+ambientNames.say =
+  "`AMBIENT` holding HOME, PWD, TMPDIR, TEMP, TMP, CODEDEN_HOME, ps:home and ps:pwd, read through `ambient()`";
+
+/** A check that the file's code holds `text` exactly as written (no pattern to escape). */
+function holds(text) {
+  const check = (code) => code.includes(text);
+  check.say = `\`${text}\``;
+  return check;
+}
+
+/** A check that the file's code no longer holds `text` (the form the fork replaced). */
+function lacks(text) {
+  const check = (code) => !code.includes(text);
+  check.say = `the fork's form in place of \`${text}\``;
+  return check;
+}
 
 /** True when every `define` block of a bundler config spreads the version and the channel. */
 function bothDefinesInEveryBundle(code) {
@@ -566,6 +646,14 @@ describe("upstream's identity does not come back into product code", () => {
     ["the home folder in a file that also names the project folder", "apps/server/src/services/automations/sources.ts", 'const dir = join(homedir(), ".codeden", "automations");', "home-folder"],
     ["a value after a string that looks like a comment start", "apps/server/src/new.ts", 'const hint = "Use /* to start a comment";\nconst port = 4317;', "default-port"],
     ["a value after a URL and before a real comment", "apps/server/src/new.ts", 'const url = "https://registry.npmjs.org/codeden"; // the package', "npm-package"],
+    ["a message that tells people to run upstream's command", "apps/cli/src/network-command.ts", 'console.error("Run: codeden password");', "command-in-text"],
+    ["a usage line", "apps/cli/src/new-command.ts", `const USAGE = ${TICK}Usage: codeden sync [--all]${TICK};`, "command-in-text"],
+    ["an option after the command", "apps/cli/src/commands.ts", `console.error(${TICK}Port ${D}{port} is in use. Try: codeden --port ${D}{port + 1}${TICK});`, "command-in-text"],
+    ["a command in a hint of the web UI", "apps/web/src/components/settings/sections-network.tsx", '            <code className="font-mono">codeden network origin add https://&lt;host&gt;</code> on', "command-in-text"],
+    ["a command in a provider's error message", "packages/providers/src/claude/sdk/load.ts", '"use Settings > First-run setup, or run `codeden doctor --install`.",', "command-in-text"],
+    ["a help line outside the help that is renamed", "apps/cli/src/new-help.ts", `const MORE = ${TICK}\n  codeden sync           Fetch upstream${TICK};`, "command-in-text"],
+    ["a command in the help's own file but not a help line", "apps/cli/src/args.ts", 'const hint = "Run: codeden doctor";', "command-in-text"],
+    ["a new message next to the runner's log prefix", "apps/runner/src/main.ts", 'console.error("codeden runner: stopped. Start it again with: codeden --home x");', "command-in-text"],
     ["an upstream value next to an allowed one", "apps/server/src/services/sessions/handoff.ts", '  send({ from: "codeden", service: "codeden" });', "bare-name"],
   ])("fails on %s", (_name, file, line, rule) => {
     expect(inScope(file), `${file} must be scanned`).toBe(true);
@@ -592,6 +680,26 @@ describe("upstream's identity does not come back into product code", () => {
         "apps/server/src/new.ts",
         'const branch = "codeden/fix-1"; const port = 4417; const tmp = "codeden-x"; const n = 14317;',
       ],
+      // The word where it is not the command: the MCP server and its tools, the folder in a
+      // repository, a branch, a package, a variable, the comment marker, the product's name.
+      [
+        "apps/server/src/new.ts",
+        [
+          'const tool = "mcp__codeden__finish to end, mcp__codeden__ask_user to ask";',
+          'const note = "Read .codeden/project.json first";',
+          "const branch = `codeden/$" + "{slug} is the branch`;",
+          'import { y } from "@codeden/contracts";',
+          'const home = env.CODEDEN_HOME ?? "set CODEDEN_HOME to a folder";',
+          'const marker = "<!-- codeden -->";',
+          'const log = `[codeden] $' + '{message}`; const dir = "codeden-cli-net-";',
+          'const text = "CodeDen is running. Open CodeDen on your phone";',
+        ].join("\n"),
+      ],
+      // The fork's own command, and the places the upstream word stays (see ALLOWED).
+      ["apps/cli/src/network-command.ts", "console.error(`Run: $" + "{HARDEN_COMMAND} password`);"],
+      ["apps/cli/src/network-command.ts", 'console.error("Run: codeharden password");'],
+      ["apps/cli/src/args.ts", "export const HELP = named(`x\n\nUsage:\n  codeden [options]      Start\n  codeden doctor         Check\n`);"],
+      ["apps/runner/src/link/runner-link.ts", "opts.stderr.write(`codeden runner-link: $" + "{message}\\n`);"],
     ];
     for (const [file, text] of quiet) expect(scan(file, text), file).toEqual([]);
   });
@@ -749,6 +857,116 @@ describe("the fork's call sites are still there", () => {
     );
     expect(compared).not.toBe(text(service[0]));
     expect(callSiteProblem(service, compared)).toMatch(/service\.ts no longer has/);
+  });
+
+  it("fails when a default the fork set differently goes back to upstream's", () => {
+    const site = (file) => CALL_SITES.find(([path]) => path === file);
+    const text = (file) => read(file) ?? "";
+    // The settings schema as upstream writes it: the switch on by default.
+    const settings = site("packages/contracts/src/settings.ts");
+    expect(callSiteProblem(settings, text(settings[0]))).toBeNull();
+    const upstream = text(settings[0]).replace(
+      "autoSwitchOnLimit: z.boolean().default(HARDEN_AUTO_SWITCH_ON_LIMIT_DEFAULT),",
+      "autoSwitchOnLimit: z.boolean().default(true),",
+    );
+    expect(upstream).not.toBe(text(settings[0]));
+    expect(callSiteProblem(settings, upstream)).toMatch(
+      /settings\.ts no longer has `autoSwitchOnLimit: z\.boolean\(\)\.default\(HARDEN_AUTO_SWITCH_ON_LIMIT_DEFAULT\),`/,
+    );
+    // The import alone is not the default.
+    expect(upstream).toMatch(/import \{ HARDEN_AUTO_SWITCH_ON_LIMIT_DEFAULT \}/);
+    // The fork's constant flipped to on.
+    const defaults = site("packages/contracts/src/harden-defaults.ts");
+    expect(callSiteProblem(defaults, text(defaults[0]))).toBeNull();
+    const on = text(defaults[0]).replace(
+      "HARDEN_AUTO_SWITCH_ON_LIMIT_DEFAULT = false;",
+      "HARDEN_AUTO_SWITCH_ON_LIMIT_DEFAULT = true;",
+    );
+    expect(on).not.toBe(text(defaults[0]));
+    expect(callSiteProblem(defaults, on)).toMatch(/harden-defaults\.ts no longer has/);
+    expect(callSiteProblem(defaults, null)).toMatch(/harden-defaults\.ts is gone/);
+  });
+
+  it("fails when a message names upstream's command again, or the help is no longer renamed", () => {
+    const site = (file) => CALL_SITES.find(([path]) => path === file);
+    const text = (file) => read(file) ?? "";
+    // The network command as upstream writes it.
+    const network = site("apps/cli/src/network-command.ts");
+    expect(callSiteProblem(network, text(network[0]))).toBeNull();
+    const upstream = text(network[0]).replaceAll("${" + "HARDEN_COMMAND}", "codeden");
+    expect(upstream).not.toBe(text(network[0]));
+    expect(callSiteProblem(network, upstream)).toMatch(/network-command\.ts no longer has/);
+    expect(rulesHit(network[0], upstream)).toEqual(["command-in-text"]);
+    // The help without `named()`: its lines are allowed text, so only the call site can tell.
+    const args = site("apps/cli/src/args.ts");
+    expect(callSiteProblem(args, text(args[0]))).toBeNull();
+    const bare = text(args[0]).replace("export const HELP = named(`", "export const HELP = (`");
+    expect(bare).not.toBe(text(args[0]));
+    expect(rulesHit(args[0], bare)).toEqual([]);
+    expect(callSiteProblem(args, bare)).toMatch(/args\.ts no longer has/);
+    // A line shaped like a help line in another text of that file: the allowance for the help's
+    // lines lets it through the scan, so the call site speaks.
+    const elsewhere = `${text(args[0])}\nexport const MORE = \`\n  codeden sync           Fetch\n\`;\n`;
+    expect(rulesHit(args[0], elsewhere)).toEqual([]);
+    expect(callSiteProblem(args, elsewhere)).toMatch(/none before or after it/);
+    // The hint in Settings.
+    const hint = site("apps/web/src/components/settings/sections-network.tsx");
+    const plain = text(hint[0]).replace(
+      "{HARDEN_COMMAND} network origin",
+      "codeden network origin",
+    );
+    expect(plain).not.toBe(text(hint[0]));
+    expect(callSiteProblem(hint, plain)).toMatch(/sections-network\.tsx no longer has/);
+    expect(rulesHit(hint[0], plain)).toEqual(["command-in-text"]);
+  });
+
+  it("fails when a fix the fork carries in upstream's file is merged away", () => {
+    const site = (file) => CALL_SITES.find(([path]) => path === file);
+    const text = (file) => read(file) ?? "";
+    // [file, the fork's line, the line as upstream has it]
+    // biome-ignore format: one case per line
+    const cases = [
+      ["packages/providers/src/policy/risk.ts", "  if (command.length > MAX_COMMAND_CHARS) return TOO_LONG;\n", ""],
+      ["packages/providers/src/policy/inline-code.ts", "quotedSpans(read, QUOTES)", "read.matchAll(LITERAL)"],
+      ["packages/providers/src/policy/risk.ts", "return bounded(() => classifyWithin(command, given), TOO_INVOLVED);", "return classifyWithin(command, given);"],
+      ["packages/providers/src/policy/variables.ts", "    if (how.keepAmbient) return;\n", ""],
+      ["packages/providers/src/policy/variables.ts", "how.every && copies.length > 1 ? copies : [copies[0] ?? cmd]", "[copies[0] ?? cmd]"],
+      ["packages/providers/src/policy/variables.ts", '"TMPDIR",', ""],
+      ["packages/providers/src/policy/variables.ts", ":?-[^{}]*\\}/g", ":?-[^}]*\\}/g"],
+      ["packages/providers/src/policy/shell-readings.ts", "variableReadings(() => groupInputs(parseShell(src, dialect, mode)), scope)", "resolveVariables(groupInputs(parseShell(src, dialect, mode)), new Map(scope))"],
+      ["packages/providers/src/policy/shell-readings.ts", "  spend(src.length * modes.length);\n", ""],
+      ["packages/providers/src/policy/read-only.ts", "if (command.length > MAX_COMMAND_CHARS) {", "if (false) {"],
+      ["packages/providers/src/policy/workdir.ts", "line.length <= MAX_COMMAND_CHARS && readsOnly(", "readsOnly("],
+      ["packages/providers/src/policy/paths.ts", "\\{[^{}]*\\}/.test(raw)", "\\{[^}]*\\}/.test(raw)"],
+      ["packages/providers/src/policy/inline-code.ts", "if (!WRITES.test(code) && !opensToWrite(code)) return [];", "if (!WRITES.test(code)) return [];"],
+      ["packages/providers/src/policy/locations.ts", "return refused ? [moved, ctx] : [moved];", "return [moved];"],
+      ["packages/providers/src/policy/locations.ts", ' && shell !== "powershell"', ""],
+      ["packages/providers/src/policy/copies.ts", 'if (/^-[a-su-zA-RT-Z]*S$/.test(arg) || arg === "--suffix") {', "if (false) {"],
+      ["apps/server/src/services/factory/hold.ts", 'if (by === "pm" && issue.labels.includes(FACTORY_HOLD_LABEL) && !own) {', "if (false) {"],
+      ["apps/server/src/services/factory/hold.ts", 'held.some((h) => h.issueNumber === issue.number && h.by === "pm")', "held.some((h) => h.issueNumber === issue.number)"],
+      ["apps/server/src/mcp/tools/pm/github.ts", "if (named.some((label) => label.trim().toLowerCase() === FACTORY_HOLD_LABEL)) {", "if (false) {"],
+      ["packages/providers/src/policy/variables.ts", "mktemp(?: -d)?(?: ([\\w.-]+))?", "mktemp(?: -d)?(?: [\\w.-]*X{3,}[\\w.-]*)?"],
+      ["packages/providers/src/policy/variables.ts", "\\{[^}]|", "\\{[^}]+\\}|"],
+      ["packages/providers/src/policy/copies.ts", "[a-su-zA-RT-Z]", "[a-su-zA-Z]"],
+      ["packages/providers/src/policy/shell-readings.ts", "(win && escapes) || ansiC ?", "win && escapes ?"],
+      ["packages/providers/src/policy/locations.ts", "if (cmdSwitch && i === 0", "if (i === 0"],
+      ["apps/server/src/services/factory/hold.ts", 'if (by === "pm" && labelled && !own) {', "if (false) {"],
+      ["apps/server/src/services/updates/installer.ts", '  "min_release_age",\n', ""],
+    ];
+    // A file may have more than one entry (the installer has the channel's too): any may speak.
+    const problems = (file, code) =>
+      CALL_SITES.filter(([path]) => path === file)
+        .map((entry) => callSiteProblem(entry, code))
+        .filter(Boolean);
+    for (const [file, ours, upstream] of cases) {
+      expect(problems(file, text(file)), file).toEqual([]);
+      const merged = text(file).replace(ours, upstream);
+      expect(merged, `${file}: ${ours}`).not.toBe(text(file));
+      expect(problems(file, merged).join("\n"), `${file}: ${ours}`).toMatch(/no longer has/);
+    }
+    expect(callSiteProblem(site("packages/providers/src/policy/harden-scan.ts"), null)).toMatch(
+      /harden-scan\.ts is gone/,
+    );
   });
 
   it("fails when the Secure Foundation option's slot disappears from the dialog", () => {

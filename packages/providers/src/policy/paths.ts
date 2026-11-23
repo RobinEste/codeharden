@@ -179,7 +179,7 @@ function rooted(value: string, ctx: PathContext): boolean {
 export function isKnownFolder(target: string, ctx: PathContext): boolean {
   const raw = target.trim().replace(/^["']|["']$/g, "");
   if (/^[+-]\d*$/.test(raw) || /^~[^\\/]/.test(raw)) return false;
-  if (/[*?[`]|^\(|\{[^}]*\}/.test(raw)) return false;
+  if (/[*?[`]|^\(|\{[^{}]*\}/.test(raw)) return false;
   const value = expand(target, ctx);
   if (/[$%]/.test(value)) return false;
   if (rooted(value, ctx)) return true;

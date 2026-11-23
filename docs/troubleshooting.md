@@ -35,7 +35,7 @@ To fix:
 | What | Where |
 |---|---|
 | Runner output | `~/.codeden/logs/runner.log` |
-| Server log lines | Run with `CODEDEN_DEBUG=1 codeden` to print them in the terminal. The desktop app always writes them to `~/.codeden/logs/desktop-server.log` (moved to `desktop-server.log.1` past 5 MB) |
+| Server log lines | Run with `CODEDEN_DEBUG=1 codeharden` to print them in the terminal. The desktop app always writes them to `~/.codeden/logs/desktop-server.log` (moved to `desktop-server.log.1` past 5 MB) |
 | Running server | `~/.codeden/server.json` (port and pid) |
 | Running runner | `~/.codeden/runner/runner.json` (port, pid and version) |
 | Database | `~/.codeden/codeden.db` (SQLite, WAL mode) |
@@ -178,15 +178,15 @@ npm uses your normal configuration (`.npmrc`, `npm_config_registry`, proxy setti
 
 ### An update failed or won't apply
 
-One-click updates install into `~/.codeden/app/<version>/` with npm, then CodeDen restarts into the new version (see [Updating](reference.md#updating)).
+One-click updates install into `~/.codeharden/app/<version>/` with npm, then CodeDen restarts into the new version (see [Updating](reference.md#updating)).
 
 - **"Couldn't update to X: npm install exited ..."**: npm's reason follows, usually a network, proxy or registry problem. npm uses your normal configuration (`.npmrc`, proxy settings). Fix it, then press **Retry**, or run `codeharden update` to see npm's full output.
 - **"Update installed. Restart CodeDen to finish"**: CodeDen couldn't restart itself (it wasn't started by the `codeharden` command, or the new version didn't answer within two minutes). Run `codeharden stop`, then start it again the usual way; the new version starts.
 - **"CodeDen X exited before it started"**: the new version crashed on start, so CodeDen went back to the old one and shows the error. Check the terminal output, then retry or report it. `codeharden update --rollback` (or **Roll back** in Settings > About) also goes back.
-- **"CodeDen X ... can't start (...); running Y instead"**: the installed version's files are incomplete (an interrupted install, cleaned folder or antivirus). Run `codeharden update` to reinstall it, or delete `~/.codeden/app/<version>/` and `~/.codeden/app/current.json` to run the copy you launched.
+- **"CodeDen X ... can't start (...); running Y instead"**: the installed version's files are incomplete (an interrupted install, cleaned folder or antivirus). Run `codeharden update` to reinstall it, or delete `~/.codeharden/app/<version>/` and `~/.codeharden/app/current.json` to run the copy you launched.
 - **`codeharden` still starts the old version**: run `codeharden doctor` and look at *Launched copy*, *Installed versions* and *Current version*. A copy you launched that is newer than the installed one always wins (for example after `npm i -g codeharden@latest`), and a source checkout never switches.
-- **`npx` keeps an old copy**: that's fine: the npx copy only launches the version in `~/.codeden/app`. To refresh npx's own copy, run `npx codeharden@latest` once.
-- A `.install.lock` in `~/.codeden/app` left by a crashed install is cleared once its process is gone, or after 10 minutes. Old versions are pruned to the current and previous ones; a folder still in use on Windows is removed on a later update.
+- **`npx` keeps an old copy**: that's fine: the npx copy only launches the version in `~/.codeharden/app`. To refresh npx's own copy, run `npx codeharden@latest` once.
+- A `.install.lock` in `~/.codeharden/app` left by a crashed install is cleared once its process is gone, or after 10 minutes. Old versions are pruned to the current and previous ones; a folder still in use on Windows is removed on a later update.
 
 ### "older than the tested minimum"
 

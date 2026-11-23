@@ -6,6 +6,7 @@ import {
   type BackendStatus,
   CODEDEN_VERSION,
   HARDEN_APP_SLUG,
+  HARDEN_PACKAGE_NAME,
   type SandboxRef,
   type SandboxSpec,
   type SandboxSummary,
@@ -146,7 +147,7 @@ export class DockerBackend implements ExecutionBackend {
     const source = (this.opts.imageSource ?? findImageSource)();
     if (!source) {
       throw new BackendError(
-        "This copy of CodeDen can't build the runner image: build the CLI first (pnpm build), or run CodeDen from the codeden package",
+        `This copy of CodeDen can't build the runner image: build the CLI first (pnpm build), or run CodeDen from the ${HARDEN_PACKAGE_NAME} package`,
       );
     }
     const image = imageName(this.version);

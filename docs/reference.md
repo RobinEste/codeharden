@@ -80,7 +80,7 @@ Environment variables: `CODEDEN_HOME` (data directory), `CODEDEN_DEBUG=1` (serve
 
 CodeDen checks npm for a new version when it starts and every 6 hours (only the package name is sent; turn it off under **Settings > General > Updates**). When one is out, a banner says so: **What's new** shows the release notes, **Update now** installs it and restarts CodeDen, and the page reconnects on its own. Running agents are drained and resumed, the same as after any runner restart.
 
-- **How it works.** New versions install side by side into `~/.codeden/app/<version>/`, and `~/.codeden/app/current.json` names the one to run. Whatever `codeharden` you start (`npx codeharden`, a global install) checks that file first and runs the newer installed version in its place, so there's nothing to reinstall by hand. The previous version is kept for rollback.
+- **How it works.** New versions install side by side into `~/.codeharden/app/<version>/`, and `~/.codeharden/app/current.json` names the one to run. Whatever `codeharden` you start (`npx codeharden`, a global install) checks that file first and runs the newer installed version in its place, so there's nothing to reinstall by hand. The previous version is kept for rollback.
 - **Install automatically.** Set **Updates** to *Install automatically* to download new versions in the background; they start the next time you open CodeDen (or right away with **Restart now**).
 - **From the terminal.** `codeharden update` does the same as the button (and restarts a running CodeDen); `codeharden update --rollback` goes back to the previous version. `codeharden doctor` lists the installed versions and which one starts.
 - **Roll back** from **Settings > About** as well.

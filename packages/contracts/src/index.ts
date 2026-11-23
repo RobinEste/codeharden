@@ -40,6 +40,7 @@ export * from "./form-answers";
 export * from "./github";
 export * from "./harden-brand";
 export * from "./harden-channel";
+export * from "./harden-defaults";
 export * from "./harden-mark";
 export * from "./harden-version";
 export * from "./hook-output";
