@@ -335,6 +335,8 @@ const CALL_SITES = [
   ["apps/desktop/src/server/serve.ts", "the name and version line of the server the app hosts", "HARDEN_PRODUCT_NAME", "formatHardenVersion"],
   // --- web UI
   ["scripts/harden/web-identity.mjs", "the build step that names the page and the web manifest after the product", /readHardenChannel\(env, options\)/, "productName", "titledHtml", "namedManifest"],
+  ["apps/web/index.html", "the places the build puts the product name in (the page title, the home-screen title)", /<title>[^<]+<\/title>/, /name="apple-mobile-web-app-title" content="/, /rel="manifest" href="\/manifest\.webmanifest"/],
+  ["apps/web/public/manifest.webmanifest", "the installed web app's name, which the build replaces with the product name; a build does not fail when this file is gone", /"name": "/, /"short_name": "/],
   ["apps/web/src/lib/attention/title.ts", "the tab title, bare, counted and waiting", /APP_TITLE = HARDEN_PRODUCT_NAME/, /Waiting on you · \$\{APP_TITLE\}/],
   ["apps/web/src/lib/platform.ts", "the tab title the badge falls back to", /document\.title : HARDEN_PRODUCT_NAME/],
   ["apps/server/src/routes/static.ts", "the title of the page served when the web UI is not built", /<title>\$\{HARDEN_PRODUCT_NAME\}<\/title>/],
