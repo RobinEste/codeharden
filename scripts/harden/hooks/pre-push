@@ -2,8 +2,9 @@
 # Blocks a push of a branch whose tests haven't passed on this machine (see "Local test gate"
 # in AGENTS.md). Enabled per clone with: git config core.hooksPath scripts/harden/hooks
 #
-# Not gated: tags, deletions, and pushes to harden or main (they receive merges and release
-# commits, which were tested on their branches), and branches that change documentation only.
+# Not gated: tags, deletions, and pushes to harden, main or mirror (the working branch receives
+# merges and release commits, which were tested on their branches; main and, in a fork of
+# CodeHarden, mirror are pure copies of upstream), and branches that change documentation only.
 # Git's own `--no-verify` skips the hook; say so in the pull request if you ever use it.
 set -euo pipefail
 
@@ -14,7 +15,7 @@ head=$(git rev-parse HEAD)
 while read -r local_ref local_sha remote_ref _remote_sha; do
   [ "$local_sha" = "$zero" ] && continue
   case "$remote_ref" in
-    refs/tags/* | refs/heads/harden | refs/heads/main) continue ;;
+    refs/tags/* | refs/heads/harden | refs/heads/main | refs/heads/mirror) continue ;;
   esac
   # Documentation only, compared with harden: nothing to test (CI skips these too).
   base=$(git merge-base "$local_sha" refs/remotes/origin/harden 2> /dev/null || true)

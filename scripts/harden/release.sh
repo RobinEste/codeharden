@@ -21,15 +21,12 @@
 # never moves a tag. Plain bash, also on macOS's bash 3.2.
 set -euo pipefail
 
-UPSTREAM_URL="${UPSTREAM_URL:-https://github.com/leonvanzyl/codeden}"
-UPSTREAM_NAME="${UPSTREAM_NAME:-leonvanzyl/codeden}"
-MIRROR_BRANCH="${MIRROR_BRANCH:-main}"
-TARGET_BRANCH="${TARGET_BRANCH:-harden}"
+REMOTE="${RELEASE_REMOTE:-origin}"
+script_dir=$(cd "$(dirname "$0")" && pwd)
 CHANGELOG_FILE="${CHANGELOG_FILE:-CODEHARDEN-CHANGELOG.md}"
 CHANGELOG_TITLE="${CHANGELOG_TITLE:-# CodeHarden releases}"
 BASE_FILE="${BASE_FILE:-state/upstream-base}"
 RELEASE_TZ="${RELEASE_TZ:-America/New_York}"
-REMOTE="${RELEASE_REMOTE:-origin}"
 
 dry_run=0
 push=0
@@ -53,6 +50,21 @@ die() {
 
 cd "$(git rev-parse --show-toplevel 2> /dev/null)" || die "run this inside the repository"
 
+# Which upstream this fork follows and which branch is released: the repository variables
+# UPSTREAM_REPO, UPSTREAM_BRANCH and HARDEN_BRANCH (scripts/harden/fork-config.sh has the
+# order they are looked up in, and CodeHarden's defaults).
+FORK_CONFIG_WHO="release"
+FORK_CONFIG_REMOTE="$REMOTE"
+# shellcheck source=scripts/harden/fork-config.sh
+. "${script_dir}/fork-config.sh"
+fork_config_resolve UPSTREAM_REPO UPSTREAM_BRANCH HARDEN_BRANCH
+UPSTREAM_URL="${UPSTREAM_URL:-https://github.com/${UPSTREAM_REPO}}"
+UPSTREAM_NAME="${UPSTREAM_NAME:-$UPSTREAM_REPO}"
+TARGET_BRANCH="${TARGET_BRANCH:-$HARDEN_BRANCH}"
+# The changelog heading for this fork's own commits: the repository's name.
+OWN_NAME="${OWN_NAME:-$(fork_lower "${FORK_REPO#*/}")}"
+OWN_NAME="${OWN_NAME:-codeharden}"
+
 for f in VERSION "$CHANGELOG_FILE" "$BASE_FILE"; do
   [ -f "$f" ] || die "this checkout has no $f; can't make a release"
 done
@@ -65,8 +77,8 @@ fi
 
 if [ -z "$upstream_ref" ]; then
   upstream_ref="refs/sync/upstream"
-  git fetch --quiet --no-tags "$UPSTREAM_URL" "+refs/heads/${MIRROR_BRANCH}:${upstream_ref}" \
-    || die "couldn't fetch ${MIRROR_BRANCH} from $UPSTREAM_URL"
+  git fetch --quiet --no-tags "$UPSTREAM_URL" "+refs/heads/${UPSTREAM_BRANCH}:${upstream_ref}" \
+    || die "couldn't fetch ${UPSTREAM_BRANCH} from $UPSTREAM_URL"
 fi
 git cat-file -e "${upstream_ref}^{commit}" 2> /dev/null || die "$upstream_ref is not a commit here"
 
@@ -110,7 +122,7 @@ entry() {
     printf -- '- rebuild only (upstream base or dependency refresh)\n\n'
   fi
   if [ -n "$upstream_lines" ]; then printf '### upstream (%s)\n%s\n\n' "$UPSTREAM_NAME" "$upstream_lines"; fi
-  if [ -n "$own_lines" ]; then printf '### codeharden\n%s\n\n' "$own_lines"; fi
+  if [ -n "$own_lines" ]; then printf '### %s\n%s\n\n' "$OWN_NAME" "$own_lines"; fi
 }
 
 if [ "$dry_run" = 1 ]; then
