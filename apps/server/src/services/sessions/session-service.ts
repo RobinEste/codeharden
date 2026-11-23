@@ -250,6 +250,10 @@ export class SessionService {
       pending: queued
         ? { input: req.input && this.externalize(session, req.input), workspace }
         : null,
+      // What a role session is compared with when its role's provider setting changes.
+      ...(req.role !== "agent" && {
+        roleProvider: this.deps.settings.get().providers[req.role].provider,
+      }),
     };
     repo.create(session, meta);
     if (queued) {

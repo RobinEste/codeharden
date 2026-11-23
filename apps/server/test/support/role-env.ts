@@ -131,6 +131,8 @@ export function withRoles(run: (env: RoleEnv) => Promise<void>) {
         sessions,
         projects,
         inbox,
+        settings: settingsStore,
+        runner,
         onMoved: (from, to) => asks.retarget(from.id, to.id),
         log: (message) => logged.push(message),
       });
@@ -143,8 +145,9 @@ export function withRoles(run: (env: RoleEnv) => Promise<void>) {
         inbox,
         asks,
         set: (next) => {
+          const before = settings.providers;
           settings = Settings.parse(next);
-          return roles.applyProviderSettings();
+          return roles.applyProviderSettings(before);
         },
         setQuietly: (next) => {
           settings = Settings.parse(next);

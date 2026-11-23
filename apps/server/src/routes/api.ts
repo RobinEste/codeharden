@@ -117,6 +117,7 @@ export function createApi(ctx: ApiContext) {
         if (!patch || typeof patch !== "object" || Array.isArray(patch)) {
           throw badRequest("Expected a JSON object");
         }
+        const before = s.settings.get().providers;
         let settings: ReturnType<typeof s.settings.update>;
         try {
           settings = s.settings.update(patch);
@@ -126,7 +127,7 @@ export function createApi(ctx: ApiContext) {
         s.store.append([{ type: "settings.updated", sessionId: null, payload: { settings } }]);
         if (patch.imageGeneration) s.images.invalidate();
         // A role moved to another provider gets a fresh session there (§8.1).
-        if (patch.providers) await s.orchestration.roles.applyProviderSettings();
+        if (patch.providers) await s.orchestration.roles.applyProviderSettings(before);
         return c.json(settings);
       })
       .post("/shutdown", async (c) => {

@@ -2,23 +2,33 @@ import {
   type QueuedMessage,
   type RoleSessionsRef,
   type Session,
+  type Settings,
   StartSessionRequest,
 } from "@codeden/contracts";
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import type { Db } from "../../db/client";
 import { rowToSession } from "../../db/rows";
 import { sessions } from "../../db/schema";
+import type { SettingsStore } from "../../settings-store";
 import { ServiceError } from "../errors";
 import type { InboxService } from "../inbox-service";
 import { projectDefaultProvider } from "../projects/project-config";
 import type { ProjectService } from "../projects/project-service";
-import type { SessionRepo } from "../sessions/repo";
+import type { RunnerPort } from "../runner-port";
+import type { SessionRepo, StoredStartMeta } from "../sessions/repo";
 import type { SessionService } from "../sessions/session-service";
 
 export type OrchestrationRole = "orchestrator" | "pm";
 
 /** A role session with a turn starting, running or waiting on the user is left where it is. */
 const BUSY = new Set<Session["status"]>(["created", "queued", "starting", "running", "waiting"]);
+
+const EMPTY_META: StoredStartMeta = {
+  workspaceMode: "repo_root",
+  workspaceFallback: null,
+  forced: null,
+  queuedBehind: [],
+};
 
 const keyOf = (role: OrchestrationRole, projectId: string | null) => `${role}:${projectId ?? ""}`;
 
@@ -29,8 +39,8 @@ const keyOf = (role: OrchestrationRole, projectId: string | null) => `${role}:${
  * provider resume token. Provider, model and effort come from `settings.providers.<role>`.
  *
  * A session can't change provider, so a role moves to another one with a fresh session: when
- * the settings name a provider other than the one the role session runs on, that session is
- * retired (stopped and archived, its transcript kept) once no turn is
+ * the role's provider setting is changed to a provider other than the one the role session
+ * runs on, that session is retired (stopped and archived, its transcript kept) once no turn is
  * running, and the next use of the role starts a new one on the chosen provider. Messages
  * waiting in the retired session's queue move to the new one, which is then started at once.
  */
@@ -47,6 +57,9 @@ export class RoleSessions {
       sessions: SessionService;
       inbox: Pick<InboxService, "list" | "close">;
       projects: ProjectService;
+      settings: Pick<SettingsStore, "get">;
+      /** The home runner: its providers are the ones a role can move to. */
+      runner: Pick<RunnerPort, "isConnected" | "providers">;
       /** A role's session was replaced by a new one, which took over its queued messages. */
       onMoved?: (from: Session, to: Session) => void;
       log?: (message: string) => void;
@@ -101,17 +114,46 @@ export class RoleSessions {
     return ref;
   }
 
+  /** The current role sessions: the orchestrator's and every project's PM. */
+  private current(): Session[] {
+    const ref = this.refs();
+    const ids = [ref.orchestrator, ...Object.values(ref.pms)].filter((id) => id !== null);
+    return ids.flatMap((id) => this.deps.repo.find(id)?.session ?? []);
+  }
+
   /**
-   * The provider the settings now name for this role session, when it is another one than the
-   * session runs on (null otherwise, and while the settings leave the choice to Auto).
+   * The provider this role session moves to, or null while it stays. Only a change of the role's
+   * own setting (`settings.providers.<role>.provider`) moves a session: it is compared with the
+   * value the session was started under (`StoredStartMeta.roleProvider`). A project's default
+   * provider changing, or a session from before that value was recorded, moves nothing.
+   *
+   * A changed setting that doesn't move the session is settled (recorded as seen) when it
+   * leaves the choice to Auto, or when a new session would start on the provider this one
+   * already runs on. It stays open while it can't be judged: the runner is away, so its
+   * providers aren't known, or it doesn't have the named provider (yet).
    */
   private moveTarget(session: Session): string | null {
+    const under = this.deps.repo.find(session.id)?.startMeta?.roleProvider;
+    const setting = this.deps.settings.get().providers[session.role].provider;
+    if (under === undefined || under === setting) return null;
+    const { runner } = this.deps;
+    if (!runner.isConnected()) return null;
+    if (setting !== "auto" && !runner.providers().some((p) => p.id === setting)) return null;
     const project = session.projectId ? this.deps.projects.get(session.projectId) : null;
-    const wanted = this.deps.sessions.configuredProvider(
-      session.role,
-      project ? projectDefaultProvider(project) : null,
-    );
-    return wanted && wanted !== session.provider ? wanted : null;
+    const target =
+      setting === "auto"
+        ? null
+        : this.deps.sessions.configuredProvider(
+            session.role,
+            project ? projectDefaultProvider(project) : null,
+          );
+    if (target && target !== session.provider) return target;
+    this.recordSetting(session.id, setting);
+    return null;
+  }
+
+  private recordSetting(sessionId: string, roleProvider: string): void {
+    this.deps.repo.setStartMeta(sessionId, (meta) => ({ ...(meta ?? EMPTY_META), roleProvider }));
   }
 
   /** Whether the session is to be retired now: its role moved, and no turn is under way. */
@@ -189,9 +231,20 @@ export class RoleSessions {
   /**
    * The settings changed: retire the role sessions whose provider was switched, one after the
    * other. A session with a turn under way (or on its way to the runner) stays until it is
-   * checked again, on the role's next message or wake. Never rejects: failures are logged.
+   * checked again, on the role's next message or wake. `previous` is the provider settings
+   * before the change: a role session from before the setting was recorded on sessions takes
+   * its value from there, so this change moves it like any other.
+   *
+   * The settings request doesn't wait for the returned promise (stopping a session can take a
+   * while); it never rejects, and failures are logged.
    */
-  applyProviderSettings(): Promise<void> {
+  applyProviderSettings(previous?: Settings["providers"]): Promise<void> {
+    if (previous) {
+      for (const session of this.current()) {
+        if (this.deps.repo.find(session.id)?.startMeta?.roleProvider !== undefined) continue;
+        this.recordSetting(session.id, previous[session.role].provider);
+      }
+    }
     const run = this.applying.then(() => this.retireMoved());
     this.applying = run;
     return run;
