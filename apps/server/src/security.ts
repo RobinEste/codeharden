@@ -1,4 +1,4 @@
-import { HARDEN_NPX_COMMAND } from "@codeden/contracts";
+import { HARDEN_NPX_COMMAND, HARDEN_PRODUCT_NAME } from "@codeden/contracts";
 import type { Context, MiddlewareHandler } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import { isLoopbackAddress, normalizeAddress } from "./network/addresses";
@@ -190,7 +190,7 @@ async function remoteGate(
   return c.json({ error: { code: "sign_in_required", message: "Sign in to CodeDen" } }, 401);
 }
 
-const UNAUTHORIZED_PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>CodeDen</title>
+const UNAUTHORIZED_PAGE = `<!doctype html><html><head><meta charset="utf-8"><title>${HARDEN_PRODUCT_NAME}</title>
 <style>body{font-family:system-ui,sans-serif;background:#0b0d10;color:#e6e8eb;display:grid;place-items:center;height:100vh;margin:0}
 main{max-width:28rem;text-align:center}code{background:#1b1f24;padding:.15rem .4rem;border-radius:.3rem}</style></head>
 <body><main><h1>CodeDen is locked</h1><p>Open CodeDen with <code>${HARDEN_NPX_COMMAND}</code> to get an authenticated link.</p></main></body></html>`;

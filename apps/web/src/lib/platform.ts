@@ -1,4 +1,8 @@
-import type { CodedenDesktopApi, CodedenDesktopBrowserApi } from "@codeden/contracts";
+import {
+  type CodedenDesktopApi,
+  type CodedenDesktopBrowserApi,
+  HARDEN_PRODUCT_NAME,
+} from "@codeden/contracts";
 import { copyText } from "./clipboard";
 import { createDesktopPlatform } from "./platform-desktop";
 
@@ -40,7 +44,7 @@ export interface PlatformBridge {
   launchAtLoginSupported(): Promise<boolean>;
 }
 
-const baseTitle = typeof document !== "undefined" ? document.title : "CodeDen";
+const baseTitle = typeof document !== "undefined" ? document.title : HARDEN_PRODUCT_NAME;
 
 type BadgeNavigator = Navigator & {
   setAppBadge?: (n: number) => Promise<void>;
