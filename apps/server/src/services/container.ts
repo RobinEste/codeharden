@@ -43,6 +43,7 @@ import {
   singleRunner,
 } from "./runner-port";
 import type { SecretStore } from "./secrets";
+import { createSecureFoundation, type SecureFoundationService } from "./secure-foundation";
 import { AutoRetry, type AutoRetryDeps } from "./sessions/auto-retry";
 import { ChecksLoop } from "./sessions/checks-loop";
 import { GeneratedImages } from "./sessions/generated-images";
@@ -176,6 +177,8 @@ export interface AppServices {
   /** Update checks and one-click self-update (§16; the desktop app's own updater, §17). */
   updates: Updates;
   setup: SetupService;
+  /** The "Secure Foundation" add-project option (`docs/secure-foundation.md`). */
+  secureFoundation: SecureFoundationService;
   /** Claude Code support: the Claude Agent SDK, installed on demand (§14). */
   claudeSdk: ClaudeSdkService;
   configFiles: ConfigFiles;
@@ -221,12 +224,8 @@ export function createServices(opts: ServicesOptions): AppServices {
       settings: () => opts.settings.get(),
       oneShot: runnerOneShot(opts.runner),
     });
-  const projects = new ProjectService({
-    db: opts.db,
-    store: opts.store,
-    exec,
-    projectsDir: opts.projectsDir ?? join(userHome, HARDEN_PROJECTS_DIRNAME),
-  });
+  const projectsDir = opts.projectsDir ?? join(userHome, HARDEN_PROJECTS_DIRNAME);
+  const projects = new ProjectService({ db: opts.db, store: opts.store, exec, projectsDir });
   const sessionRepo = new SessionRepo(opts.db, opts.store);
   const artifacts = new ArtifactService(opts.db, opts.store, opts.paths.artifacts);
   const outbox = new Outbox(opts.db, opts.store);
@@ -501,6 +500,14 @@ export function createServices(opts: ServicesOptions): AppServices {
     }),
     localStt,
     setup,
+    secureFoundation: createSecureFoundation({
+      exec,
+      projectsDir,
+      projects,
+      sessions: () => sessions as SessionService,
+      runner: opts.runner,
+      setup,
+    }),
     claudeSdk,
     usage,
     factory,
