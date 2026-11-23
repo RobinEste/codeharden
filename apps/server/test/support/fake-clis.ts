@@ -1,4 +1,13 @@
-import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 
@@ -87,6 +96,27 @@ export interface FakeClis {
 
 export type FakeName = "npx" | "doppler" | "gh";
 
+const ALL: FakeName[] = ["npx", "doppler", "gh"];
+
+/**
+ * The folders the fakes need besides their own: Node's and the system's. A CLI that is left
+ * out must be missing whatever the machine has installed (a Linux CI runner has a real `gh` in
+ * `/usr/bin`, a Mac may have one beside Node), so with `missing` names the folders are copied
+ * as links into `dir`, without those names. No real CLI is ever started by a test.
+ */
+function systemFolders(dir: string, missing: FakeName[]): string[] {
+  const folders = [dirname(process.execPath), "/usr/bin", "/bin"];
+  if (missing.length === 0) return folders;
+  return folders.map((folder, index) => {
+    const copy = join(dir, `system-${index}`);
+    mkdirSync(copy);
+    for (const name of existsSync(folder) ? readdirSync(folder) : []) {
+      if (!(missing as string[]).includes(name)) symlinkSync(join(folder, name), join(copy, name));
+    }
+    return copy;
+  });
+}
+
 export function makeFakeClis(only: FakeName[] = ["npx", "doppler", "gh"]): FakeClis {
   const dir = mkdtempSync(join(tmpdir(), "fake-clis-"));
   for (const name of only) {
@@ -99,7 +129,13 @@ export function makeFakeClis(only: FakeName[] = ["npx", "doppler", "gh"]): FakeC
   return {
     dir,
     env: {
-      PATH: [dir, dirname(process.execPath), "/usr/bin", "/bin"].join(delimiter),
+      PATH: [
+        dir,
+        ...systemFolders(
+          dir,
+          ALL.filter((name) => !only.includes(name)),
+        ),
+      ].join(delimiter),
       HOME: dir,
       SECRET_FROM_THE_SERVER: "must-not-reach-a-cli",
       CODEDEN_HOME: "/nowhere",
