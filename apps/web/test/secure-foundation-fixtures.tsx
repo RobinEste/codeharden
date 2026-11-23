@@ -102,7 +102,7 @@ export function openDialog(sf: Partial<Api> = {}, opts: Partial<SecureFoundation
   const connections = vi.fn<Api["connections"]>(async (services) => ({
     connections: services.map((s) => connection(s)),
   }));
-  renderWithClient(
+  const { unmount } = renderWithClient(
     <SecureFoundationDialog options={{ ...options, ...opts }} onClose={onClose} />,
     clientWith({
       template: async () => template,
@@ -114,7 +114,14 @@ export function openDialog(sf: Partial<Api> = {}, opts: Partial<SecureFoundation
     }),
     { withRouter: true },
   );
-  return { onClose, create: (sf.create as typeof create) ?? create, verify, connections };
+  return {
+    onClose,
+    create: (sf.create as typeof create) ?? create,
+    verify,
+    connections,
+    /** The add-project dialog closing this one. */
+    close: unmount,
+  };
 }
 
 export const goButton = () => screen.getByTestId("secure-foundation-go") as HTMLButtonElement;

@@ -26,6 +26,7 @@ export type CheckId =
   | "signins"
   | SecureFoundationService
   | "deploy"
+  | "answers"
   | "create";
 
 export interface CheckItem {
@@ -64,6 +65,7 @@ const LABEL: Record<CheckId, string> = {
   github: "GitHub",
   vercel: "Vercel",
   deploy: "Deploy",
+  answers: "Your answers",
   create: "Creating the project",
 };
 export const checkLabel = (id: CheckId) => LABEL[id];
@@ -313,6 +315,21 @@ export function withCreateFailure(items: CheckItem[], error: unknown): CheckItem
       blocking: false,
       message,
       fix: "Press Go to try again.",
+    },
+  ];
+}
+
+/** The checks of a run whose answers were edited while it ran: it creates nothing. */
+export function withAnswersChanged(items: CheckItem[]): CheckItem[] {
+  return [
+    ...items,
+    {
+      id: "answers",
+      label: LABEL.answers,
+      status: "needs_you",
+      blocking: true,
+      message: "An answer changed while Go was checking, so these checks are of the earlier ones.",
+      fix: "Nothing was created. Press Go to check what is on the form now.",
     },
   ];
 }

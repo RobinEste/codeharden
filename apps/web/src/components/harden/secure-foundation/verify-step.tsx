@@ -134,19 +134,22 @@ export function VerifyStep({
           ),
         )}
       </ul>
-      <ConvexTeamField
-        teams={teams}
-        value={answers.convexTeam}
-        onChange={(convexTeam) => onChange((a) => ({ ...a, convexTeam }))}
-      />
-      {answers.deploy && (
-        <DeployFields
-          github={of("github")}
-          vercel={of("vercel")}
-          answers={answers}
-          onChange={set}
+      {/* The choices Go is working on can't be edited while it checks or creates. */}
+      <fieldset disabled={go.busy !== null} className="min-w-0 space-y-4 disabled:opacity-70">
+        <ConvexTeamField
+          teams={teams}
+          value={answers.convexTeam}
+          onChange={(convexTeam) => onChange((a) => ({ ...a, convexTeam }))}
         />
-      )}
+        {answers.deploy && (
+          <DeployFields
+            github={of("github")}
+            vercel={of("vercel")}
+            answers={answers}
+            onChange={set}
+          />
+        )}
+      </fieldset>
       {template && provider ? (
         <div>
           <h3 className="mb-1.5 text-xs font-medium">What happens when you press Go</h3>

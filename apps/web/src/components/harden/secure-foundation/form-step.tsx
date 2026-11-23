@@ -60,155 +60,158 @@ export function FormStep({
         if (ready && !busy) onGo();
       }}
     >
-      <Field label="Project name" htmlFor="sf-name">
-        <Input
-          id="sf-name"
-          value={answers.name}
-          onChange={(e) => set({ name: e.target.value })}
-          placeholder="My Site"
-          maxLength={60}
-          autoFocus
-        />
-        <p className="text-2xs text-muted-foreground" data-testid="secure-foundation-path">
-          {answers.name && !name.success
-            ? "Use letters, digits, spaces, dots, dashes and underscores, starting with a letter or digit."
-            : path
-              ? `Also the site's name. Created in ${path}`
-              : "Also the site's name and, in lower case with dashes, the folder's."}
-        </p>
-      </Field>
-      <Field label="Admin email" htmlFor="sf-email">
-        <Input
-          id="sf-email"
-          type="email"
-          value={answers.adminEmail}
-          onChange={(e) => set({ adminEmail: e.target.value, emailTouched: true })}
-          placeholder="you@your-domain.com"
-          autoComplete="off"
-        />
-        <p className="text-2xs text-muted-foreground">
-          {answers.adminEmail && !email.success
-            ? "Enter a real email address: the install refuses placeholders."
-            : "Who signs in as the site's admin. Suggested from git on this computer when it has one; it goes to the install and nowhere else."}
-        </p>
-      </Field>
-      <Field label="Secrets">
-        <div className="grid gap-2 sm:grid-cols-2">
-          {SECRETS.map(([id, title, text]) => (
-            <Choice
-              key={id}
-              name="sf-secrets"
-              title={title}
-              checked={answers.secrets === id}
-              onSelect={() => set({ secrets: id })}
-            >
-              {text}
-            </Choice>
-          ))}
-        </div>
-      </Field>
-      <Field label="App shell">
-        <div className="grid gap-2 sm:grid-cols-3">
-          {SHELLS.map(([id, title, text]) => (
-            <Choice
-              key={id}
-              name="sf-shell"
-              title={title}
-              checked={answers.shell === id}
-              onSelect={() => set({ shell: id })}
-            >
-              {text}
-            </Choice>
-          ))}
-        </div>
-        {answers.shell === "pick" && (
-          <div className="space-y-1 pt-1">
-            {(template?.modules ?? []).map((m) => (
-              <label key={m.name} className="flex items-start gap-2 text-xs">
+      {/* While Go checks or creates, the answers it is working on can't be edited. */}
+      <fieldset disabled={busy !== null} className="min-w-0 space-y-4 disabled:opacity-70">
+        <Field label="Project name" htmlFor="sf-name">
+          <Input
+            id="sf-name"
+            value={answers.name}
+            onChange={(e) => set({ name: e.target.value })}
+            placeholder="My Site"
+            maxLength={60}
+            autoFocus
+          />
+          <p className="text-2xs text-muted-foreground" data-testid="secure-foundation-path">
+            {answers.name && !name.success
+              ? "Use letters, digits, spaces, dots, dashes and underscores, starting with a letter or digit."
+              : path
+                ? `Also the site's name. Created in ${path}`
+                : "Also the site's name and, in lower case with dashes, the folder's."}
+          </p>
+        </Field>
+        <Field label="Admin email" htmlFor="sf-email">
+          <Input
+            id="sf-email"
+            type="email"
+            value={answers.adminEmail}
+            onChange={(e) => set({ adminEmail: e.target.value, emailTouched: true })}
+            placeholder="you@your-domain.com"
+            autoComplete="off"
+          />
+          <p className="text-2xs text-muted-foreground">
+            {answers.adminEmail && !email.success
+              ? "Enter a real email address: the install refuses placeholders."
+              : "Who signs in as the site's admin. Suggested from git on this computer when it has one; it goes to the install and nowhere else."}
+          </p>
+        </Field>
+        <Field label="Secrets">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {SECRETS.map(([id, title, text]) => (
+              <Choice
+                key={id}
+                name="sf-secrets"
+                title={title}
+                checked={answers.secrets === id}
+                onSelect={() => set({ secrets: id })}
+              >
+                {text}
+              </Choice>
+            ))}
+          </div>
+        </Field>
+        <Field label="App shell">
+          <div className="grid gap-2 sm:grid-cols-3">
+            {SHELLS.map(([id, title, text]) => (
+              <Choice
+                key={id}
+                name="sf-shell"
+                title={title}
+                checked={answers.shell === id}
+                onSelect={() => set({ shell: id })}
+              >
+                {text}
+              </Choice>
+            ))}
+          </div>
+          {answers.shell === "pick" && (
+            <div className="space-y-1 pt-1">
+              {(template?.modules ?? []).map((m) => (
+                <label key={m.name} className="flex items-start gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={answers.modules.includes(m.name)}
+                    onChange={(e) =>
+                      set({
+                        modules: e.target.checked
+                          ? [...answers.modules, m.name]
+                          : answers.modules.filter((n) => n !== m.name),
+                      })
+                    }
+                  />
+                  <span>
+                    <span className="font-medium">{m.title}</span>{" "}
+                    <span className="text-muted-foreground">{m.description}</span>
+                  </span>
+                </label>
+              ))}
+              {template && template.modules.length === 0 && (
+                <p className="text-2xs text-muted-foreground">
+                  This template has no content modules.
+                </p>
+              )}
+            </div>
+          )}
+        </Field>
+        <details className="rounded-lg border border-border p-2.5" data-testid="sf-advanced">
+          <summary className="cursor-pointer text-xs font-medium">
+            Advanced{" "}
+            <span className="font-normal text-muted-foreground">
+              Deploy {answers.deploy ? "on" : "off"} · runs on{" "}
+              {provider?.displayName ?? "no signed-in provider"}
+            </span>
+          </summary>
+          <div className="space-y-4 pt-3">
+            <Field label="Deploy">
+              <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2.5">
                 <input
                   type="checkbox"
                   className="mt-0.5"
-                  checked={answers.modules.includes(m.name)}
-                  onChange={(e) =>
-                    set({
-                      modules: e.target.checked
-                        ? [...answers.modules, m.name]
-                        : answers.modules.filter((n) => n !== m.name),
-                    })
-                  }
+                  checked={answers.deploy}
+                  onChange={(e) => set({ deploy: e.target.checked })}
                 />
                 <span>
-                  <span className="font-medium">{m.title}</span>{" "}
-                  <span className="text-muted-foreground">{m.description}</span>
+                  <span className="block text-[13px] font-medium">
+                    Create a GitHub repository and deploy to Vercel
+                  </span>
+                  <span className="block text-2xs leading-snug text-muted-foreground">
+                    A private repository and a Vercel project, with the site published on a public
+                    vercel.app address running on the development Clerk and Convex. Needs the GitHub
+                    command-line tool and a Vercel account; the repository's owner and name and the
+                    Vercel scope are shown for you to check before anything is created. Off: the
+                    project stays on this computer.
+                  </span>
                 </span>
               </label>
-            ))}
-            {template && template.modules.length === 0 && (
+            </Field>
+            <Field label="Runs on" htmlFor="sf-provider">
+              {options.providers.length > 1 ? (
+                <select
+                  id="sf-provider"
+                  value={answers.provider}
+                  onChange={(e) => set({ provider: e.target.value })}
+                  className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-[13px]"
+                >
+                  {options.providers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.displayName}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <p className="text-[13px]">{provider?.displayName ?? "No signed-in provider"}</p>
+              )}
               <p className="text-2xs text-muted-foreground">
-                This template has no content modules.
+                {!provider
+                  ? "Sign an agent provider in under Settings › Providers first."
+                  : provider.runsCommandFiles
+                    ? "The setup session runs the template's /install command."
+                    : "This provider doesn't run command files: the setup session reads the template's install instructions and follows them."}
               </p>
-            )}
+            </Field>
           </div>
-        )}
-      </Field>
-      <details className="rounded-lg border border-border p-2.5" data-testid="sf-advanced">
-        <summary className="cursor-pointer text-xs font-medium">
-          Advanced{" "}
-          <span className="font-normal text-muted-foreground">
-            Deploy {answers.deploy ? "on" : "off"} · runs on{" "}
-            {provider?.displayName ?? "no signed-in provider"}
-          </span>
-        </summary>
-        <div className="space-y-4 pt-3">
-          <Field label="Deploy">
-            <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-2.5">
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={answers.deploy}
-                onChange={(e) => set({ deploy: e.target.checked })}
-              />
-              <span>
-                <span className="block text-[13px] font-medium">
-                  Create a GitHub repository and deploy to Vercel
-                </span>
-                <span className="block text-2xs leading-snug text-muted-foreground">
-                  A private repository and a Vercel project, with the site published on a public
-                  vercel.app address running on the development Clerk and Convex. Needs the GitHub
-                  command-line tool and a Vercel account; the repository's owner and name and the
-                  Vercel scope are shown for you to check before anything is created. Off: the
-                  project stays on this computer.
-                </span>
-              </span>
-            </label>
-          </Field>
-          <Field label="Runs on" htmlFor="sf-provider">
-            {options.providers.length > 1 ? (
-              <select
-                id="sf-provider"
-                value={answers.provider}
-                onChange={(e) => set({ provider: e.target.value })}
-                className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-[13px]"
-              >
-                {options.providers.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.displayName}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <p className="text-[13px]">{provider?.displayName ?? "No signed-in provider"}</p>
-            )}
-            <p className="text-2xs text-muted-foreground">
-              {!provider
-                ? "Sign an agent provider in under Settings › Providers first."
-                : provider.runsCommandFiles
-                  ? "The setup session runs the template's /install command."
-                  : "This provider doesn't run command files: the setup session reads the template's install instructions and follows them."}
-            </p>
-          </Field>
-        </div>
-      </details>
+        </details>
+      </fieldset>
       {templateError ? (
         <p className="text-xs text-destructive" role="alert">
           The template couldn't be reached: {templateError}{" "}

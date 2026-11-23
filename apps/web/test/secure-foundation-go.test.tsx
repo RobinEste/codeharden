@@ -69,6 +69,43 @@ describe("Go with everything passing", () => {
     await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
   });
 
+  it("creates nothing when the dialog is closed while it checks", async () => {
+    let done: (v: ReturnType<typeof verified>) => void = () => {};
+    const { create, close } = openDialog({
+      verify: () => new Promise((resolve) => (done = resolve)),
+    });
+    await typeName();
+    fireEvent.click(goButton());
+    await waitFor(() => expect(goButton().textContent).toBe("Checking…"));
+    close();
+    done(verified());
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("locks the answers while it checks, and never creates from answers that changed meanwhile", async () => {
+    let done: (v: ReturnType<typeof verified>) => void = () => {};
+    const { create } = openDialog({ verify: () => new Promise((resolve) => (done = resolve)) });
+    await typeName();
+    fireEvent.click(goButton());
+    await waitFor(() => expect(goButton().textContent).toBe("Checking…"));
+    const name = screen.getByLabelText("Project name") as HTMLInputElement;
+    expect(name.closest("fieldset")?.disabled).toBe(true);
+    // Should an edit get through all the same, the checks no longer count.
+    fireEvent.change(name, { target: { value: "Other Site" } });
+    done(verified());
+    await view();
+    expect(statusOf("check-answers")).toBe("needs_you");
+    expect(screen.getByTestId("check-answers").textContent).toContain("Nothing was created");
+    expect(create).not.toHaveBeenCalled();
+    // Go again checks and creates what is on the form now.
+    fireEvent.click(goButton());
+    await waitFor(() => expect(goButton().textContent).toBe("Checking…"));
+    done(verified());
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0]?.[0]).toMatchObject({ name: "Other Site" });
+  });
+
   it("uses the account's only Convex team without asking", async () => {
     const { create } = openDialog({
       connections: async (services) => ({
