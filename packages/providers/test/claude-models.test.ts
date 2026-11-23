@@ -7,6 +7,7 @@ import { ClaudeAdapter } from "../src/claude/adapter";
 import { listClaudeModels, toModelInfos } from "../src/claude/models";
 import { type ClaudeSdkModule, claudeSdkReady } from "../src/claude/sdk";
 import type { ResolvedCommand } from "../src/util/exec";
+import { clearExecutableCache } from "../src/util/locate";
 
 const exe: ResolvedCommand = { kind: "native", path: "/opt/claude/claude" };
 
@@ -208,17 +209,31 @@ describe("ClaudeAdapter model discovery", () => {
 
   it("finds claude again after an update, and refreshes a recent list from the new one", async () => {
     const sdk = stubSdk();
-    const name = process.platform === "win32" ? "claude.exe" : "claude";
+    const win = process.platform === "win32";
+    const name = win ? "claude.cmd" : "claude";
     const oldDir = mkdtempSync(join(tmpdir(), "codeden-claude-old-"));
     const newDir = mkdtempSync(join(tmpdir(), "codeden-claude-new-"));
-    // Executable, as installs are: a file without the bit is not a command on macOS and Linux.
-    writeFileSync(join(oldDir, name), "old build", { mode: 0o755 });
-    writeFileSync(join(newDir, name), "new build", { mode: 0o755 });
-    const saved = { PATH: process.env.PATH, Path: process.env.Path };
+    // A copy that answers `--version`, as installs do: the first model list checks it.
+    const install = (dir: string, build: string) =>
+      writeFileSync(
+        join(dir, name),
+        win
+          ? `@echo off\r\nrem ${build}\r\necho 2.1.327 (Claude Code)\r\n`
+          : `#!/bin/sh\n# ${build}\necho '2.1.327 (Claude Code)'\n`,
+        { mode: 0o755 },
+      );
+    install(oldDir, "old build");
+    install(newDir, "new build");
+    const keys = ["PATH", "Path", "HOME", "USERPROFILE"] as const;
+    const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
     const setPath = (dir: string) => {
       process.env.PATH = dir;
-      if (process.platform === "win32") process.env.Path = dir;
+      if (win) process.env.Path = dir;
     };
+    // Known install locations (`~/.local/bin`) are looked at too: an empty home has none.
+    process.env.HOME = mkdtempSync(join(tmpdir(), "codeden-claude-home-"));
+    process.env.USERPROFILE = process.env.HOME;
+    clearExecutableCache();
     try {
       setPath(oldDir);
       const adapter = new ClaudeAdapter({ loadSdk: sdk.load });
@@ -226,7 +241,7 @@ describe("ClaudeAdapter model discovery", () => {
       expect(sdk.state.launches.at(-1)?.pathToClaudeCodeExecutable).toBe(join(oldDir, name));
 
       // Rewritten in place (the Windows native installer): the same path, a new file.
-      writeFileSync(join(oldDir, name), "old build, updated");
+      install(oldDir, "old build, updated");
       sdk.state.behaviour = "newer";
       await adapter.refreshModels({ maxAgeMs: 60 * 60_000 });
       expect(sdk.state.launches).toHaveLength(2);
@@ -243,8 +258,10 @@ describe("ClaudeAdapter model discovery", () => {
       expect(sdk.state.launches.at(-1)?.pathToClaudeCodeExecutable).toBe(join(newDir, name));
       await expect(adapter.detect()).resolves.toBeDefined();
     } finally {
-      process.env.PATH = saved.PATH;
-      if (process.platform === "win32") process.env.Path = saved.Path;
+      for (const key of keys) {
+        if (saved[key] === undefined) delete process.env[key];
+        else process.env[key] = saved[key];
+      }
     }
   });
 
