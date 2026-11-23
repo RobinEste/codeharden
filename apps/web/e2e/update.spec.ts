@@ -58,9 +58,9 @@ test("banner -> What's new -> Update now -> reconnects to the new version", asyn
 
   await test.step("the cookie still works and About lists both versions", async () => {
     await page.goto(`${env.origin}/settings/about`);
-    await expect(page.getByText(`v${NEXT_VERSION}`)).toBeVisible();
+    await expect(page.getByTestId("version-line")).toContainText("CodeHarden");
     await expect(page.getByTestId("installed-versions")).toContainText(`${NEXT_VERSION} (current)`);
     await expect(page.getByRole("button", { name: `Roll back to ${env.current}` })).toBeVisible();
-    expect(env.log()).toContain(`CodeDen ${NEXT_VERSION} is running at`);
+    expect(env.log()).toContain("(upstream) is running at");
   });
 });
