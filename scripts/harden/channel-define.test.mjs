@@ -7,6 +7,8 @@ import {
   HARDEN_PACKAGE_NAME,
   HARDEN_PRODUCT_NAME,
   HARDEN_REPOSITORY,
+  HARDEN_TEMPLATE_BRANCH,
+  HARDEN_TEMPLATE_REPOSITORY,
 } from "../../packages/contracts/src/harden-channel.ts";
 import {
   DEFAULT_APP_ID,
@@ -16,6 +18,8 @@ import {
   DEFAULT_PORT,
   DEFAULT_PRODUCT_NAME,
   DEFAULT_RELEASE_REPOSITORY,
+  DEFAULT_TEMPLATE_BRANCH,
+  DEFAULT_TEMPLATE_REPOSITORY,
   hardenChannelDefine,
   readHardenChannel,
   repositoryOfRemote,
@@ -60,6 +64,8 @@ describe("the build-time update channel", () => {
       __CODEHARDEN_APP_ID__: '"com.harden.app"',
       __CODEHARDEN_SLUG__: '"harden"',
       __CODEHARDEN_PORT__: "4417",
+      __CODEHARDEN_TEMPLATE_REPOSITORY__: '"harperaa/secure-vibe-coding-OS"',
+      __CODEHARDEN_TEMPLATE_BRANCH__: '"main"',
     });
   });
 
@@ -73,6 +79,8 @@ describe("the build-time update channel", () => {
       __CODEHARDEN_APP_ID__: '"com.exampleharden.app"',
       __CODEHARDEN_SLUG__: '"exampleharden"',
       __CODEHARDEN_PORT__: "4417",
+      __CODEHARDEN_TEMPLATE_REPOSITORY__: '"harperaa/secure-vibe-coding-OS"',
+      __CODEHARDEN_TEMPLATE_BRANCH__: '"main"',
     });
     expect(JSON.stringify(define)).not.toContain("codeharden");
     // The environment still wins over the remote.
@@ -111,6 +119,8 @@ describe("the build-time update channel", () => {
       __CODEHARDEN_APP_ID__: '"com.codeharden.app"',
       __CODEHARDEN_SLUG__: '"codeharden"',
       __CODEHARDEN_PORT__: "4417",
+      __CODEHARDEN_TEMPLATE_REPOSITORY__: '"harperaa/secure-vibe-coding-OS"',
+      __CODEHARDEN_TEMPLATE_BRANCH__: '"main"',
     });
   });
 
@@ -162,6 +172,43 @@ describe("the build-time update channel", () => {
         FORK,
       ),
     ).toMatchObject({ productName: "Example Harden", appId: "org.example.harden", port: 4500 });
+  });
+
+  it("names the Secure Foundation template, which a fork can replace or switch off", () => {
+    expect(readHardenChannel({}, OWN)).toMatchObject({
+      templateRepository: "harperaa/secure-vibe-coding-OS",
+      templateBranch: "main",
+    });
+    expect(DEFAULT_TEMPLATE_REPOSITORY).toBe(HARDEN_TEMPLATE_REPOSITORY);
+    expect(DEFAULT_TEMPLATE_BRANCH).toBe(HARDEN_TEMPLATE_BRANCH);
+    // A fork keeps the default unless it sets its own.
+    expect(readHardenChannel({ PACKAGE_NAME: "example-harden" }, FORK).templateRepository).toBe(
+      DEFAULT_TEMPLATE_REPOSITORY,
+    );
+    expect(
+      readHardenChannel({ TEMPLATE_REPOSITORY: "acme/starter", TEMPLATE_BRANCH: "stable" }, OWN),
+    ).toMatchObject({ templateRepository: "acme/starter", templateBranch: "stable" });
+    for (const off of ["none", "NONE", " none "]) {
+      expect(readHardenChannel({ TEMPLATE_REPOSITORY: off }, OWN).templateRepository).toBe("");
+    }
+    // An empty variable is an unset one (a workflow passes an unset variable as "").
+    for (const unset of ["", "  "]) {
+      expect(readHardenChannel({ TEMPLATE_REPOSITORY: unset }, OWN).templateRepository).toBe(
+        DEFAULT_TEMPLATE_REPOSITORY,
+      );
+    }
+    expect(hardenChannelDefine({ TEMPLATE_REPOSITORY: "none" }, OWN)).toMatchObject({
+      __CODEHARDEN_TEMPLATE_REPOSITORY__: '""',
+      __CODEHARDEN_TEMPLATE_BRANCH__: '"main"',
+    });
+    for (const bad of ["https://github.com/acme/starter", "acme", "acme/..", "a b/c"]) {
+      expect(() => readHardenChannel({ TEMPLATE_REPOSITORY: bad }, OWN)).toThrow(
+        /TEMPLATE_REPOSITORY/,
+      );
+    }
+    for (const bad of ["a b", "../x", "x..y", "-x"]) {
+      expect(() => readHardenChannel({ TEMPLATE_BRANCH: bad }, OWN)).toThrow(/TEMPLATE_BRANCH/);
+    }
   });
 
   it("refuses a malformed product name, app id or port", () => {

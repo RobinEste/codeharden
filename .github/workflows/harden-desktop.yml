@@ -135,6 +135,9 @@ jobs:
       APP_ID: ${{ vars.APP_ID }}
       DEFAULT_PORT: ${{ vars.DEFAULT_PORT }}
       HARDEN_BRANCH: ${{ vars.HARDEN_BRANCH }}
+      # The Secure Foundation template (unset: CodeHarden's own; `none`: no such option).
+      TEMPLATE_REPOSITORY: ${{ vars.TEMPLATE_REPOSITORY }}
+      TEMPLATE_BRANCH: ${{ vars.TEMPLATE_BRANCH }}
       RELEASE_REPOSITORY: ${{ github.repository }}
     steps:
       - uses: actions/checkout@v7

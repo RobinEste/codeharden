@@ -49,6 +49,8 @@ const capabilities: ProviderCapabilities = {
   mcpStatus: true,
   // `includeHookEvents`: the settings hooks that ran show as `hook_run` items.
   hookRuns: true,
+  // `.claude/commands/*.md` in the project are its `/` commands.
+  projectCommands: true,
 };
 
 const EFFORTS: ReasoningEffort[] = ["low", "medium", "high", "xhigh", "max"];

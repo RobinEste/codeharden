@@ -76,6 +76,11 @@ export const ProviderCapabilities = z.object({
    * of sight.
    */
   hookRuns: z.boolean().optional(),
+  /**
+   * The provider runs a project's own command files: `.claude/commands/<name>.md` is what
+   * `/<name>` runs. False or absent: the agent can only read such a file and follow it.
+   */
+  projectCommands: z.boolean().optional(),
 });
 export type ProviderCapabilities = z.infer<typeof ProviderCapabilities>;
 
