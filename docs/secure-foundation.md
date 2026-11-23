@@ -12,6 +12,7 @@ It installs software from npm and creates resources in your Clerk, Convex and (i
 | Admin email | Who signs in as the site's admin. Suggested from `git config user.email` on this computer when there is one; you can change it. It goes to the install and nowhere else. |
 | Secrets | **Doppler** (preselected): the app's secrets live in a Doppler project. **.env.local**: they are written to a file in the project folder that git ignores. |
 | App shell | **Minimal** (preselected), **All modules**, or **Pick** with a tick box per content module the template has. |
+| Deploy | Off unless you tick it. **Create a GitHub repository and deploy to Vercel** adds a private repository and a Vercel project and publishes the site (see [Deploy](#deploy)). |
 | Runs on | Which of your signed-in agent providers runs the setup. A provider that runs project command files runs the template's `/install`; any other reads the template's install instructions and follows them. |
 
 ## Connections
@@ -37,15 +38,31 @@ If the template gained a commit while you were reading, nothing is created: the 
 - **Convex:** a project named after your project, with a cloud dev deployment, in your Convex team.
 - **Doppler** (if chosen): a project named after your project, with the configs `dev` and `prd`, holding the app's secrets. The install's "CI token" step is skipped, because the project has no GitHub repository to hold that token; run `node scripts/setup.mjs doppler-create-ci-token` yourself once the project has one.
 
+## Deploy
+
+With **Create a GitHub repository and deploy to Vercel** ticked, the setup also runs the template's dev deploy (`/deploy-to-dev`) after the install:
+
+- **Connections** gains two rows. **GitHub** needs the `gh` command-line tool, signed in with the `repo`, `workflow` and `read:org` permissions; a missing one gets a button that adds it. **Vercel** is asked through `npx vercel@<pinned version>`.
+- Once both are signed in you choose the **repository owner** (your account is preselected, your organisations follow), the **repository name** (the folder's name unless you change it) and the **Vercel scope** (the first team is preselected).
+- The repository is created **private**. What is pushed is this project's own history: the single first commit and what the install adds, none of the template's.
+- The Vercel project takes the repository's name and is connected to it, so later pushes to `main` redeploy.
+- The site is **public** on a `vercel.app` address and runs on the development Clerk and Convex, the same ones as on your computer. On Vercel this uses the project's production slot, as the template's dev route does; nothing is deployed with production keys, and `/deploy-to-prod` is never run.
+- With Doppler, a Doppler token is stored as the repository's Actions secret `DOPPLER_TOKEN` and as the Vercel project's only environment variable. Without Doppler, the app's environment variables, its development keys included, are copied to the Vercel project.
+
+The confirm step lists all of this by name. The setup session is given exactly those names and stops to ask if anything differs: another owner, a public repository, a production deploy. A repository or a Vercel project of that name that already exists is refused in the session's first part, before anything is created: nothing is pushed or deployed into it.
+
+At the end you get two URLs: the local one, which only works while the setup session's processes are running, and the deployed one, which stays up. The project page shows both.
+
 ## The setup session
 
 The setup is an ordinary agent session in the new project, called "Secure Foundation setup". It runs at the Full permission level: commands inside the project folder run without asking. It is told to refuse anything outside that folder, and CodeHarden's protected areas and always-ask rules apply as in every session (see [Security](security.md#permissions)).
 
-It works in three parts:
+It works in parts:
 
 1. **A last check.** Node 18 or newer, npm and git; `npm install`; and that the sign-ins from the Connections step still hold. Only if one is missing does the session ask you (it lands in the inbox): a link to sign in to Convex, which team if you have several and chose none, or to install the Doppler CLI or run `doppler login` yourself. It never runs an installer that needs your password.
 2. **The install,** without questions: the template's `/install` with your answers.
-3. **Starting the app:** the two dev processes (`npm run convex` and `npm run dev`, or their `:doppler` variants) as long-running processes of the session.
+3. **The deploy,** only when you ticked it (see [Deploy](#deploy)).
+4. **Starting the app:** the two dev processes (`npm run convex` and `npm run dev`, or their `:doppler` variants) as long-running processes of the session.
 
 Its last message starts with the app's URL, then the Clerk claim link and how to stop and restart.
 
@@ -80,14 +97,16 @@ Neither step removes anything from your accounts. Remove each there:
 - **Clerk:** in the Clerk dashboard, after claiming the app. An app you never claimed expires by itself.
 - **Convex:** in the Convex dashboard, in the project's settings.
 - **Doppler:** in the Doppler dashboard, in the project's settings.
+- **GitHub** (if you deployed): the repository's settings, Danger Zone.
+- **Vercel** (if you deployed): the project's settings. Removing the project takes the site down.
 
 ## What isn't in it yet
 
 - **Your own Clerk keys.** The install always creates the accountless Clerk app. The template's install takes existing keys only as command-line arguments, where other programs on the computer could read a secret key, so the form doesn't ask for them.
-- **A GitHub repository and a deploy.** The project stays local.
+- **A production deploy.** The template's `/deploy-to-prod` (production Clerk, custom domain, billing) is yours to run when you are ready.
 
 ## For fork owners
 
-The template is part of the fork's configuration: the build variables `TEMPLATE_REPOSITORY` (a GitHub `owner/repo`, default `harperaa/secure-vibe-coding-OS`) and `TEMPLATE_BRANCH` (default `main`). `TEMPLATE_REPOSITORY=none` builds without the option. Only that repository is ever fetched: no request can name another. The other defaults are one constant each in `packages/contracts/src/secure-foundation.ts`: `SECURE_FOUNDATION_DEFAULT_SECRETS`, `SECURE_FOUNDATION_SETUP_AUTONOMY`, `SECURE_FOUNDATION_REPOSITORY_MODE` and `SECURE_FOUNDATION_DEFAULT_SHELL`.
+The template is part of the fork's configuration: the build variables `TEMPLATE_REPOSITORY` (a GitHub `owner/repo`, default `harperaa/secure-vibe-coding-OS`) and `TEMPLATE_BRANCH` (default `main`). `TEMPLATE_REPOSITORY=none` builds without the option. Only that repository is ever fetched: no request can name another. The other defaults are one constant each in `packages/contracts/src/secure-foundation.ts`: `SECURE_FOUNDATION_DEFAULT_SECRETS`, `SECURE_FOUNDATION_SETUP_AUTONOMY`, `SECURE_FOUNDATION_REPOSITORY_MODE`, `SECURE_FOUNDATION_DEFAULT_SHELL` and `SECURE_FOUNDATION_DEFAULT_DEPLOY` (whether the deploy option starts ticked).
 
-The template must have what the setup session's brief names: `.claude/commands/install.md`, `scripts/setup.mjs` with the subcommands `init`, `convex-setup`, `configure`, `doppler-bootstrap`, `doppler-sync-env-local` and `write-install-summary`, `scripts/modules.mjs install`, and content modules under `templates/modules/<name>/module.json`.
+The template must have what the setup session's brief names: `.claude/commands/install.md`, `scripts/setup.mjs` with the subcommands `init`, `convex-setup`, `configure`, `doppler-bootstrap`, `doppler-sync-env-local` and `write-install-summary`, `scripts/modules.mjs install`, for the deploy `.claude/commands/deploy-to-dev.md` and `scripts/deploy.mjs` (`github-setup`, `vercel-env-dev`, `vercel-deploy`, `write-summary`), and content modules under `templates/modules/<name>/module.json`.
