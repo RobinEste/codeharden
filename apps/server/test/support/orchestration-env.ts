@@ -1,10 +1,11 @@
-import type {
-  Project,
-  QueueSender,
-  Session,
-  StartSessionRequest,
-  StartSessionResponse,
-  UserInput,
+import {
+  type Project,
+  type QueueSender,
+  type Session,
+  Settings,
+  type StartSessionRequest,
+  type StartSessionResponse,
+  type UserInput,
 } from "@codeden/contracts";
 import { vi } from "vitest";
 import { OrchestrationService } from "../../src/services/orchestration/orchestration-service";
@@ -26,9 +27,9 @@ const START = Date.parse("2026-10-31T12:00:00.000Z");
  * The orchestration service over `createGithubEnv` (a real SQLite database and event log, a fake
  * GitHub) with a scripted session service: a start adds a session row, and a message is recorded
  * as the session would get it (with the status digest and the notices its turn carries, which
- * then count as delivered).
- * No runner, no provider, and the clock is Vitest's: `syncAndSettle` moves it past the wake scheduler's
- * quiet period, so a test reads what a GitHub sync led to without waiting.
+ * then count as delivered). No runner, no provider, and the clock is Vitest's: `syncAndSettle`
+ * moves it past the wake scheduler's quiet period, so a test reads what a GitHub sync led to
+ * without waiting.
  */
 export interface OrchestrationEnv {
   github: GithubEnv;
@@ -74,6 +75,10 @@ export function createOrchestrationEnv(): OrchestrationEnv {
     },
     configuredProvider: () => null,
     isDelivering: () => false,
+    // No session here has a queue: a role's first session adopts nothing.
+    adoptQueued: () => undefined,
+    restoreQueued: () => undefined,
+    stopKeepingQueue: async () => [],
     start: async (req: StartSessionRequest): Promise<StartSessionResponse> => {
       starts.push(req);
       const session: Session = {
@@ -115,6 +120,9 @@ export function createOrchestrationEnv(): OrchestrationEnv {
     projects,
     inbox: github.inbox,
     artifacts: github.artifacts,
+    // The settings as installed (every role on Auto), and a runner with nothing to switch to.
+    settings: { get: () => Settings.parse({}) },
+    runner: { isConnected: () => true, providers: () => [] },
     options: { wake: { debounceMs: DEBOUNCE_MS, maxWaitMs: DEBOUNCE_MS * 4 } },
   });
   orchestration.start();

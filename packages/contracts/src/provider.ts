@@ -77,6 +77,13 @@ export const ProviderCapabilities = z.object({
    */
   hookRuns: z.boolean().optional(),
   /**
+   * `SessionOptions.systemPrompt` reaches the model when the session starts and again on every
+   * resume, and stays in force after compaction, so notes such as the token saver (#602) hold for
+   * the whole conversation. False or absent: it may reach only the first prompt, so sessions on
+   * the provider get no token saver note.
+   */
+  systemPrompt: z.boolean().optional(),
+  /**
    * The provider runs a project's own command files: `.claude/commands/<name>.md` is what
    * `/<name>` runs. False or absent: the agent can only read such a file and follow it.
    */

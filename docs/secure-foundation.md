@@ -109,7 +109,7 @@ The project page shows a **Secure Foundation setup** line: checking this compute
 
 A project Secure Foundation creates starts in **Manual** [autonomy mode](software-factory.md), and in such a project CodeHarden starts no agent work by itself. The setup session runs because you pressed Go for it. Nothing else does:
 
-- **The project manager is not woken.** Pull requests, issues and reviews that appear on GitHub don't start or wake the project's manager, and neither do updates from sessions. A new repository can get pull requests from a dependency bot within minutes; they wait for you. What arrives is kept, and the project manager reads it with its next turn. A wake-up the project manager scheduled for itself, and the automatic retry of one of its turns that failed, wait in the same way.
+- **The project manager is not woken.** Pull requests, issues and reviews that appear on GitHub don't start or wake the project's manager, and neither do updates from sessions. A new repository can get pull requests from a dependency bot within minutes; they wait for you. What arrives is kept, and the project manager reads it with its next turn. A wake-up the project manager scheduled for itself waits in the same way.
 - **No automations and no triage.** Scheduled and event automations don't fire and new issues aren't triaged, as in every project in Manual mode. You can still run an automation by hand.
 - **No factory.** The software factory and the dark factory only run in a project you put in that mode.
 

@@ -394,6 +394,9 @@ const CALL_SITES = [
   ["packages/contracts/src/harden-channel.ts", "the Secure Foundation template in the fork's configuration", "HARDEN_TEMPLATE_REPOSITORY", "HARDEN_TEMPLATE_BRANCH", "__CODEHARDEN_TEMPLATE_REPOSITORY__", "__CODEHARDEN_TEMPLATE_BRANCH__"],
   ["packages/contracts/src/provider.ts", "the capability the setup brief reads instead of a provider id", "projectCommands"],
   ["packages/providers/src/claude/adapter.ts", "the provider that runs project command files says so", /projectCommands: true/],
+  // --- OpenCode sessions: slash commands are plain prompts in this fork for now
+  ["packages/providers/src/opencode/commands.ts", "the commands OpenCode lists pass the fork's switch before they are reported or routed", /commands = hardenListedCommands\(/],
+  ["packages/providers/src/opencode/harden-commands.ts", "the switch itself, off in the product", "hardenListedCommands", /^let run = false;$/m],
   // --- the vision the project manager reads: the fork's own text in a file upstream ships too
   [".codeden/VISION.md", "the fork's own vision (a conflict on this file is resolved to the fork's text)", /^CodeHarden is a hardened fork/],
 ];

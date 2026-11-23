@@ -25,6 +25,7 @@
   "compact": true,
   "mcpStatus": true,
   "hookRuns": true,
+  "systemPrompt": true,
   "projectCommands": true
  },
  "preamble": [],
