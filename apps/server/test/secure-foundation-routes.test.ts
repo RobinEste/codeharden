@@ -11,9 +11,14 @@ import type { SecureFoundationService } from "../src/services/secure-foundation"
  */
 const CLAIM = "https://dashboard.clerk.com/apps/claim?token=fixture";
 const calls: unknown[] = [];
+const verified: unknown[] = [];
 const stub = {
   prefill: async () => ({ adminEmail: "person@site.test" }),
   finish: () => ({ clerkClaimUrl: CLAIM, deployedUrl: "https://my-site.vercel.app" }),
+  verify: async (req: unknown) => {
+    verified.push(req);
+    return { checks: [], template: null };
+  },
   create: async (req: unknown) => {
     calls.push(req);
     return { project: {}, sessionId: "s1", commit: "a".repeat(40) };
@@ -83,6 +88,27 @@ describe("create validates the form on the server", () => {
   it("passes a valid form on with the defaults filled in", async () => {
     const res = await post(good);
     expect(res.status).toBe(201);
-    expect(calls.at(-1)).toEqual({ ...good, secrets: "doppler", shell: "minimal", modules: [] });
+    expect(calls.at(-1)).toEqual({ ...good, secrets: "doppler", shell: "all", modules: [] });
+  });
+
+  it("refuses bad input on create whether or not it was verified first", async () => {
+    // Verifying takes the form as it stands and reports on it...
+    const bad = { ...good, name: "../x", adminEmail: "admin@example.com" };
+    const checked = await app.request(
+      "/verify",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(bad),
+      },
+      from("127.0.0.1"),
+    );
+    expect(checked.status).toBe(200);
+    expect(verified.at(-1)).toMatchObject({ name: "../x" });
+    // ...and a create that never asked, or didn't listen, is still refused before the service.
+    const before = calls.length;
+    expect((await post(bad)).status).toBe(400);
+    expect((await post({ ...good, commit: undefined })).status).toBe(400);
+    expect(calls.length).toBe(before);
   });
 });

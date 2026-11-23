@@ -13,6 +13,8 @@ import {
   SecureFoundationPrefill,
   type SecureFoundationService,
   SecureFoundationTemplate,
+  type VerifySecureFoundationRequestInit,
+  VerifySecureFoundationResponse,
 } from "@codeden/contracts";
 import type { Fetcher } from "./http";
 
@@ -24,6 +26,8 @@ export interface SecureFoundationApi {
   prefill(): Promise<SecureFoundationPrefill>;
   /** The commit the template is at now, with its content modules. */
   template(): Promise<SecureFoundationTemplate>;
+  /** What Go checks first: the fields, the folder, the template's commit and the provider. */
+  verify(input: VerifySecureFoundationRequestInit): Promise<VerifySecureFoundationResponse>;
   /** Create the project and start its setup session. */
   create(input: CreateSecureFoundationRequestInit): Promise<CreateSecureFoundationResponse>;
   /** What a finished install left for the person (the Clerk claim link). */
@@ -44,6 +48,8 @@ export function httpSecureFoundationApi(http: Fetcher): SecureFoundationApi {
     options: () => http.get(base, (v) => SecureFoundationOptions.parse(v)),
     prefill: () => http.get(`${base}/prefill`, (v) => SecureFoundationPrefill.parse(v)),
     template: () => http.post(`${base}/template`, {}, (v) => SecureFoundationTemplate.parse(v)),
+    verify: (input) =>
+      http.post(`${base}/verify`, input, (v) => VerifySecureFoundationResponse.parse(v)),
     create: (input) =>
       http.post(`${base}/projects`, input, (v) => CreateSecureFoundationResponse.parse(v)),
     finish: (projectId) =>
@@ -87,6 +93,7 @@ export function mockSecureFoundationApi(): SecureFoundationApi {
     }),
     prefill: async () => ({ adminEmail: null }),
     template: off,
+    verify: off,
     create: off,
     finish: async () => ({ clerkClaimUrl: null, deployedUrl: null }),
     connections: async () => ({ connections: [] }),

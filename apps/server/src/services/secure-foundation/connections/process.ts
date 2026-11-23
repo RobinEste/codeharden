@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { resolveExecutable } from "../../exec";
 
 /**
- * Running a service's own CLI for the Connections step: without a shell, from an argument
+ * Running a service's own CLI for the sign-in checks: without a shell, from an argument
  * array, with a minimal environment, in a scratch folder that isn't a project.
  */
 

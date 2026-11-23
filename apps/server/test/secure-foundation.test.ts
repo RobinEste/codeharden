@@ -16,6 +16,7 @@ import {
   SECURE_FOUNDATION_SETUP_AUTONOMY,
   SECURE_FOUNDATION_WORK_KEY,
   type StartSessionRequestInit,
+  VerifySecureFoundationRequest,
 } from "@codeden/contracts";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { ServiceError } from "../src/services/errors";
@@ -326,6 +327,137 @@ describe("creating the project", () => {
     const dest = join(projectsDir, "my-site");
     expect(git(dest, "rev-parse", "HEAD")).toBe(fixture.head());
     expect(git(dest, "remote")).toBe("origin");
+  });
+});
+
+describe("verifying before Go", () => {
+  const form = (over: Record<string, unknown> = {}) =>
+    VerifySecureFoundationRequest.parse({
+      name: "My Site",
+      adminEmail: EMAIL,
+      secrets: "doppler",
+      shell: "all",
+      provider: "alpha",
+      ...over,
+    });
+  const status = async (run: ReturnType<SecureFoundationService["verify"]>) =>
+    Object.fromEntries((await run).checks.map((c) => [c.id, c.status]));
+
+  it("passes every check, resolves the commit, and writes and starts nothing", async () => {
+    const result = await service().verify(form());
+    expect(result.checks.map((c) => [c.id, c.status])).toEqual([
+      ["fields", "passed"],
+      ["folder", "passed"],
+      ["template", "passed"],
+      ["provider", "passed"],
+    ]);
+    expect(result.template?.commit).toBe(fixture.head());
+    expect(result.checks[1]?.message).toContain(join(projectsDir, "my-site"));
+    expect(result.checks[2]?.message).toContain(fixture.head().slice(0, 7));
+    // Read-only: not even the projects folder is made, and the fetch is gone.
+    expect(readdirSync(dir)).toEqual([]);
+    expect(created).toEqual([]);
+    expect(started).toEqual([]);
+  });
+
+  it("fails the fields the server wouldn't take, without repeating them", async () => {
+    const bad = form({ name: "../x", adminEmail: "admin@example.com", secrets: "vault" });
+    const result = await service().verify(bad);
+    expect(await status(Promise.resolve(result))).toMatchObject({
+      fields: "failed",
+      folder: "failed",
+      template: "passed",
+      provider: "passed",
+    });
+    const text = JSON.stringify(result.checks);
+    expect(text).toContain("project name");
+    expect(text).toContain("admin email");
+    expect(text).toContain("secrets choice");
+    expect(text).not.toContain("admin@example.com");
+    expect(text).not.toContain("../x");
+    for (const check of result.checks.filter((c) => c.status !== "passed")) {
+      expect(check.fix).toBeTruthy();
+    }
+  });
+
+  it("fails a folder that holds something, a file or a link of that name; an empty one passes", async () => {
+    const dest = join(projectsDir, "my-site");
+    mkdirSync(dest, { recursive: true });
+    expect((await status(service().verify(form()))).folder).toBe("passed");
+    writeFileSync(join(dest, "keep.txt"), "mine\n");
+    const taken = await service().verify(form());
+    expect(taken.checks[1]).toMatchObject({ id: "folder", status: "failed" });
+    expect(taken.checks[1]?.message).toContain("already exists");
+    expect(readdirSync(dest)).toEqual(["keep.txt"]);
+    writeFileSync(join(projectsDir, "a-file"), "x\n");
+    expect((await status(service().verify(form({ name: "A File" })))).folder).toBe("failed");
+    symlinkSync(join(dir, "elsewhere"), join(projectsDir, "linked"), "dir");
+    expect((await status(service().verify(form({ name: "Linked" })))).folder).toBe("failed");
+  });
+
+  it("fails a provider that isn't signed in, and a template that can't be reached", async () => {
+    const signedOut = service({
+      setupStatus: async () => ({ checks: [check("alpha", false), check("beta", true)] }),
+    });
+    expect((await status(signedOut.verify(form()))).provider).toBe("failed");
+    const gone = service({ template: { ...fixture.source, url: join(dir, "nowhere") } });
+    const result = await gone.verify(form());
+    expect(result.template).toBeNull();
+    expect(result.checks[2]).toMatchObject({ id: "template", status: "failed" });
+    expect(result.checks[2]?.fix).toContain("check again");
+  });
+
+  it("fails a picked module the template doesn't have, and each part of a deploy that is wrong", async () => {
+    const pick = form({ shell: "pick", modules: ["blog", "nope"] });
+    expect((await status(service().verify(pick))).template).toBe("failed");
+    const ok = form({ deploy: { repository: "my-site" } });
+    expect((await status(service().verify(ok))).fields).toBe("passed");
+    const bad = form({ deploy: { owner: "../x", repository: "a b", vercelScope: "--prod" } });
+    const result = await service().verify(bad);
+    expect(result.checks[0]?.status).toBe("failed");
+    expect(result.checks[0]?.message).toContain("repository owner");
+    expect(result.checks[0]?.message).toContain("Vercel scope");
+  });
+
+  it("is refused when the build has no template", async () => {
+    expect((await failure(service({ template: null }).verify(form()))).code).toBe(
+      "secure_foundation_off",
+    );
+  });
+
+  it("doesn't stand in for create's own checks: a create that skips it is still refused", async () => {
+    const dest = join(projectsDir, "my-site");
+    mkdirSync(dest, { recursive: true });
+    writeFileSync(join(dest, "keep.txt"), "mine\n");
+    expect((await failure(service().create(request()))).code).toBe("destination_exists");
+    expect(
+      (await failure(service().create(request({ name: "Other", commit: "a".repeat(40) })))).code,
+    ).toBe("template_moved");
+    expect(started).toEqual([]);
+    expect(readdirSync(projectsDir)).toEqual(["my-site"]);
+  });
+});
+
+describe("the default app shell", () => {
+  const INSTALL = "node scripts/modules.mjs install blog pricing --apply-edits";
+
+  it("is every module, with the same install command All modules always gave", async () => {
+    // A request that names no shell gets the default.
+    await service().create(request());
+    const byDefault = started[0]?.input?.text ?? "";
+    expect(byDefault).toContain(INSTALL);
+    expect(byDefault).toContain("- Content modules to install: blog pricing");
+    expect(byDefault).toContain("- Content modules skipped: none");
+    // Asking for "all" by name gives the same brief, commands and flags.
+    started = [];
+    await service({ projectsDir: join(dir, "other") }).create(request({ shell: "all" }));
+    expect(started[0]?.input?.text).toBe(byDefault);
+  });
+
+  it("still installs none when Minimal is chosen", async () => {
+    await service().create(request({ shell: "minimal" }));
+    expect(started[0]?.input?.text).not.toContain("scripts/modules.mjs install");
+    expect(started[0]?.input?.text).toContain("none (minimal shell)");
   });
 });
 

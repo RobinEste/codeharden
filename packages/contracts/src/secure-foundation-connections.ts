@@ -3,7 +3,7 @@ import { Id } from "./common";
 import type { SecureFoundationSecrets } from "./secure-foundation";
 
 /**
- * The Connections step of the Secure Foundation form: for each service the chosen options
+ * The sign-in checks of the Secure Foundation form (the service rows of its verification view): for each service the chosen options
  * need, whether this computer is signed in, and a way to start that service's own CLI login.
  * Routes: `/api/secure-foundation/connections`, this computer only. CodeHarden reads and stores
  * no token: each CLI keeps its own sign-in, and "signed in" is what the CLI answers.
@@ -14,7 +14,7 @@ export const SecureFoundationService = z.enum(["convex", "doppler", "github", "v
 export type SecureFoundationService = z.infer<typeof SecureFoundationService>;
 
 /**
- * The npm packages run with `npx` for the Connections step, pinned to a version (never
+ * The npm packages run with `npx` for the sign-in checks, pinned to a version (never
  * "latest", never from the template or the form). Convex's is the version the template locks.
  */
 export const SECURE_FOUNDATION_NPX_PACKAGES = {

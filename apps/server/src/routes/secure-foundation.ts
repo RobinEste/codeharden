@@ -9,6 +9,8 @@ import {
   type SecureFoundationPrefill,
   SecureFoundationService,
   type SecureFoundationTemplate,
+  VerifySecureFoundationRequest,
+  type VerifySecureFoundationResponse,
 } from "@codeden/contracts";
 import { type Context, Hono } from "hono";
 import { isRemoteRequest } from "../security";
@@ -22,6 +24,8 @@ import { jsonBody, queryOf } from "./validate";
  * as every other route. What is personal (the suggested email, the Clerk claim link) is only
  * answered on this computer: another device gets nulls, never an error. The Connections routes
  * (sign-in state, starting and cancelling a login) are refused to another device altogether.
+ * `/verify` is what "Go" checks first (fields, folder, template commit, provider); the sign-in
+ * checks are not part of it and stay the Connections routes.
  */
 /** Sign-ins read and change this computer's own state and start processes on it. */
 function requireLocal(c: Context): void {
@@ -61,6 +65,9 @@ export function secureFoundationRoutes(s: AppServices) {
       ),
     )
     .post("/template", async (c) => c.json<SecureFoundationTemplate>(await sf.template()))
+    .post("/verify", jsonBody(VerifySecureFoundationRequest), async (c) =>
+      c.json<VerifySecureFoundationResponse>(await sf.verify(c.req.valid("json"))),
+    )
     .post("/projects", jsonBody(CreateSecureFoundationRequest), async (c) =>
       c.json<CreateSecureFoundationResponse>(await sf.create(c.req.valid("json")), 201),
     )
