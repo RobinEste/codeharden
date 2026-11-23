@@ -62,6 +62,8 @@ The package is `codeharden`. The repository's `apps/cli/package.json` keeps upst
 
 ## Good to know
 
+- **If npm says it published but the version isn't there:** `npm view codeharden versions` showing only `0.0.0-stage` means npm staged the release instead of publishing it. Approve it on npmjs.com under account settings > **Staged Packages** (it asks for your second factor); the version appears once approved.
+
 - **A version can't be published twice**, and npm restricts unpublishing after 72 hours. If a release is wrong, publish a newer one and mark the bad one: `npm deprecate codeharden@<version> "<reason>"`.
 - **The registry is always named** (`https://registry.npmjs.org`), so an npm config pointing elsewhere can't redirect a publish. `--registry` exists for tests.
 - **Nothing is published from CI.** The Release workflow stays disabled, no npm token is stored anywhere, and there is no Trusted Publishing or provenance: every publish is you, signed in, at your machine.
