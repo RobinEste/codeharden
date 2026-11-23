@@ -2,7 +2,7 @@
 // The manual npm release of CodeHarden. A person runs it; nothing here runs in CI.
 //
 //   node scripts/harden/npm-release.mjs pack      build, stage, pack and check the tarball
-//   node scripts/harden/npm-release.mjs login     sign in to npm (prints the URL to open)
+//   node scripts/harden/npm-release.mjs login     sign in to npm in the browser (prints the URL to open)
 //   node scripts/harden/npm-release.mjs publish   publish the packed tarball (asks npm, prints its URL)
 //   node scripts/harden/npm-release.mjs status    what is packed, who is signed in, what is published
 //
@@ -30,9 +30,18 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { DEFAULT_HARDEN_BRANCH, readHardenChannel } from "./channel-define.mjs";
+import {
+  loginCommand,
+  loginIntro,
+  NPM_REGISTRY,
+  notSignedInMessage,
+  publishFailureMessage,
+  signedInMessage,
+} from "./npm-release-messages.mjs";
 import { readHardenVersion } from "./version-define.mjs";
 
-export const NPM_REGISTRY = "https://registry.npmjs.org";
+export { NPM_REGISTRY };
+
 const ROOT = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const CLI = join(ROOT, "apps", "cli");
 const OUT = join(ROOT, "dist", "npm");
@@ -303,13 +312,14 @@ function whoami(registry) {
 
 function login(flags) {
   const registry = registryOf(flags);
-  console.log(
-    `Signing in to ${registry}. npm prints a URL: open it in your browser and approve.\n`,
-  );
-  // `--auth-type=web` makes npm print the sign-in URL instead of asking for a password here.
+  console.log(`${loginIntro(registry)}\n`);
+  // `--auth-type=web` makes npm print the sign-in URL instead of asking for a password here. npm
+  // falls back to asking for a user name and password when the registry has no web sign-in.
   const code = attached(npm, ["login", "--auth-type=web", "--registry", registry], { shell });
-  if (code !== 0) fail("npm login did not finish");
-  console.log(`\nSigned in as ${whoami(registry) ?? "(unknown)"}.`);
+  if (code !== 0) fail("npm login did not finish: nobody was signed in");
+  const user = whoami(registry);
+  if (!user) fail("npm login finished, but npm whoami still shows nobody. Don't publish.");
+  console.log(`\n${signedInMessage(user, registry)}`);
 }
 
 function publishedVersions(name, registry) {
@@ -327,9 +337,7 @@ function status(flags) {
   console.log(`VERSION:    ${rel.hardenVersion} (npm ${rel.version}, tag ${rel.tag})`);
   console.log(`Tarball:    ${existsSync(rel.tarball) ? rel.tarball : "not packed yet"}`);
   console.log(`Registry:   ${registry}`);
-  console.log(
-    `Signed in:  ${whoami(registry) ?? "no (run: node scripts/harden/npm-release.mjs login)"}`,
-  );
+  console.log(`Signed in:  ${whoami(registry) ?? `no (sign in: ${loginCommand(registry)})`}`);
   console.log(
     `Published:  ${published.length === 0 ? "nothing yet" : published.slice(-5).join(", ")}`,
   );
@@ -366,7 +374,7 @@ function publish(flags) {
   }
   if (!dry) {
     const user = whoami(registry);
-    if (!user) fail("not signed in to npm. Run: node scripts/harden/npm-release.mjs login");
+    if (!user) fail(notSignedInMessage(registry));
     console.log(
       `\nPublishing ${rel.channel.packageName}@${rel.version} to ${registry} as ${user}.`,
     );
@@ -384,8 +392,19 @@ function publish(flags) {
     "--ignore-scripts",
   ];
   if (dry) args.push("--dry-run");
-  if (attached(npm, args, { cwd: OUT, shell }) !== 0)
-    fail(dry ? "the dry run failed" : "npm publish failed");
+  if (attached(npm, args, { cwd: OUT, shell }) !== 0) {
+    if (dry) fail("the dry run failed");
+    // The sign-in may have expired since the check above, or have no rights on the package.
+    fail(
+      publishFailureMessage({
+        packageName: rel.channel.packageName,
+        version: rel.version,
+        registry,
+        user: whoami(registry),
+        published: publishedVersions(rel.channel.packageName, registry).includes(rel.version),
+      }),
+    );
+  }
   if (dry) {
     console.log("\nDry run only: nothing was published.");
     return;
@@ -403,7 +422,7 @@ const USAGE = `Usage: node scripts/harden/npm-release.mjs <pack|login|publish|st
   pack      --skip-build       pack the existing apps/cli/dist
             --allow-dirty      rehearse with uncommitted changes
             --allow-untagged   rehearse when HEAD is not the release tag
-  login                        sign in to npm in the browser
+  login                        sign in to npm in the browser (npm login --auth-type=web)
   publish   --dry-run          show what npm would publish, publish nothing
             --confirm <ver>    required to publish for real
   status                       what is packed, who is signed in, what is published
