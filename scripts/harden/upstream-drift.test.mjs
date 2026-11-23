@@ -118,7 +118,6 @@ const WHY = {
   mock: "sample data of the in-memory mock client (development only; builds always use the real server)",
   brand:
     "brand text the fork left as CodeDen: a label people read, not the app's identity on the machine",
-  page: "the web page's own title stays CodeDen; the desktop window puts the version line in its place (`harden-display.ts`)",
   upstreamPack:
     "upstream's own manifest and publish step, kept as they are; the fork's release writes the name, links and README in a staging copy (`scripts/harden/npm-release.mjs`)",
   sandbox:
@@ -184,12 +183,6 @@ const ALLOWED = [
   ["apps/cli/package.json", /"name": "codeden"|"codeden": "\.\/dist\/cli\.js"|github\.com\/leonvanzyl\/codeden(?:\.git|\/issues)"/, WHY.upstreamPack],
   ["apps/cli/scripts/copy-readme.mjs", /(?:REPO|RAW) = "https:\/\/(?:github\.com|raw\.githubusercontent\.com)\/leonvanzyl\/codeden(?:\/main)?"/, WHY.upstreamPack],
   // --- brand text
-  ["apps/desktop/src/main/harden-display.ts", /PAGE_NAME = "CodeDen"/, WHY.page],
-  ["apps/web/index.html", /<title>CodeDen<\/title>|apple-mobile-web-app-title" content="CodeDen"/, WHY.page],
-  ["apps/web/public/manifest.webmanifest", /"(?:short_)?name": "CodeDen"/, WHY.page],
-  ["apps/web/src/lib/attention/title.ts", /APP_TITLE = "CodeDen"/, WHY.page],
-  ["apps/web/src/lib/platform.ts", /document\.title : "CodeDen"/, WHY.page],
-  [/^apps\/server\/src\/(?:routes\/static|security)\.ts$/, /<title>CodeDen<\/title>/, WHY.page],
   ["apps/web/src/components/shell/live-effects.tsx", /\?\? "CodeDen",/, WHY.brand],
   ["apps/web/src/components/thread/sender-message.tsx", /codeden: (?:\{ label: )?"CodeDen"/, WHY.brand],
   ["apps/web/src/components/agents/mcp-servers.tsx", /codeden: "CodeDen"/, WHY.brand],
@@ -295,12 +288,12 @@ const CALL_SITES = [
   // --- every bundle gets both build-time defines
   ["apps/cli/tsdown.config.ts", "injects the version and the channel into the CLI bundle", bothDefinesInEveryBundle],
   ["apps/desktop/tsdown.config.ts", "injects the version and the channel into the desktop bundles", bothDefinesInEveryBundle],
-  ["apps/web/vite.config.ts", "injects the version and the channel into the web app", bothDefinesInEveryBundle],
+  ["apps/web/vite.config.ts", "injects the version and the channel into the web app", bothDefinesInEveryBundle, /hardenWebIdentity\(\)/],
   // --- home, port, projects folder, keychain
   ["apps/server/src/paths.ts", "the default home folder", /join\(homedir\(\), HARDEN_HOME_DIRNAME\)/],
   ["apps/server/src/services/container.ts", "the default folder for clones", /join\(userHome, HARDEN_PROJECTS_DIRNAME\)/],
   ["apps/server/src/services/secrets.ts", "the keychain service secrets are kept under", /service = HARDEN_KEYCHAIN_SERVICE/],
-  ["apps/server/src/security.ts", "the command the locked page tells people to run", "HARDEN_NPX_COMMAND"],
+  ["apps/server/src/security.ts", "the command the locked page tells people to run, and that page's title", "HARDEN_NPX_COMMAND", /<title>\$\{HARDEN_PRODUCT_NAME\}<\/title>/],
   ["apps/server/src/routes/api.ts", "the versions the server reports", "HARDEN_VERSION", "UPSTREAM_VERSION"],
   ["apps/cli/src/args.ts", "the CLI's default port, home and command in the help", /DEFAULT_PORT = HARDEN_DEFAULT_PORT/, "HARDEN_HOME_DISPLAY", "HARDEN_COMMAND", "formatHardenVersion"],
   ["apps/cli/src/network-command.ts", "the network command's port comes from the CLI's default", /import \{ DEFAULT_PORT \} from "\.\/args"/],
@@ -323,7 +316,7 @@ const CALL_SITES = [
   ["apps/desktop/scripts/check-mac-signature.sh", "finds the app by its own name", "app_in", "CFBundleExecutable"],
   ["apps/desktop/src/main/args.ts", "the desktop app's default port and home", /DEFAULT_PORT = HARDEN_DEFAULT_PORT/, /join\(home, HARDEN_HOME_DIRNAME\)/],
   ["apps/desktop/src/main/main.ts", "the app's name, About panel and Windows app id", /app\.setName\(HARDEN_PRODUCT_NAME\)/, /setAppUserModelId\(HARDEN_APP_ID\)/, "hardenAboutPanel"],
-  ["apps/desktop/src/main/harden-display.ts", "the window title and About panel", "hardenWindowTitle", "hardenAboutPanel", "HARDEN_PRODUCT_NAME"],
+  ["apps/desktop/src/main/harden-display.ts", "the window title (the page name it replaces is the product name) and About panel", "hardenWindowTitle", "hardenAboutPanel", /PAGE_NAME = HARDEN_PRODUCT_NAME/],
   ["apps/desktop/src/main/window.ts", "the window title", "hardenWindowTitle"],
   ["apps/desktop/src/main/desktop-app.ts", "the app's name, version line and docs links", "HARDEN_PRODUCT_NAME", "formatHardenVersion", "hardenDocsUrl", "hardenVersionOf"],
   ["apps/desktop/src/main/menu.ts", "the app's name in the menu", "HARDEN_PRODUCT_NAME"],
@@ -331,6 +324,10 @@ const CALL_SITES = [
   ["apps/desktop/src/main/tray-view.ts", "the app's name and version in the tray menu", "HARDEN_PRODUCT_NAME", "hardenVersionOf"],
   ["apps/desktop/src/server/serve.ts", "the name and version line of the server the app hosts", "HARDEN_PRODUCT_NAME", "formatHardenVersion"],
   // --- web UI
+  ["scripts/harden/web-identity.mjs", "the build step that names the page and the web manifest after the product", /readHardenChannel\(env, options\)/, "productName", "titledHtml", "namedManifest"],
+  ["apps/web/src/lib/attention/title.ts", "the tab title, bare, counted and waiting", /APP_TITLE = HARDEN_PRODUCT_NAME/, /Waiting on you · \$\{APP_TITLE\}/],
+  ["apps/web/src/lib/platform.ts", "the tab title the badge falls back to", /document\.title : HARDEN_PRODUCT_NAME/],
+  ["apps/server/src/routes/static.ts", "the title of the page served when the web UI is not built", /<title>\$\{HARDEN_PRODUCT_NAME\}<\/title>/],
   ["apps/web/src/components/shell/unauthorized.tsx", "the command the locked page tells people to run", "HARDEN_NPX_COMMAND"],
   ["apps/web/src/lib/api/updates-api.ts", "release links", "hardenReleaseUrl"],
   ["apps/web/src/lib/factory-guide.ts", "docs links", "hardenDocsUrl"],
@@ -455,6 +452,11 @@ describe("upstream's identity does not come back into product code", () => {
     ["upstream's releases page", "apps/server/src/services/updates/desktop.ts", 'export const DESKTOP_RELEASES_URL = "https://github.com/leonvanzyl/codeden/releases/latest";', "repository"],
     ["the projects folder", "apps/server/src/services/container.ts", '    projectsDir: opts.projectsDir ?? join(userHome, "codeden-projects"),', "projects-folder"],
     ["the keychain service", "apps/server/src/services/secrets.ts", '    private readonly service = "codeden",', "bare-name"],
+    ["the page title in the web app's index.html", "apps/web/index.html", "    <title>CodeDen</title>", "app-name"],
+    ["the home-screen title in index.html", "apps/web/index.html", '    <meta name="apple-mobile-web-app-title" content="CodeDen" />', "app-name"],
+    ["the installed web app's name in the manifest", "apps/web/public/manifest.webmanifest", '  "short_name": "CodeDen",', "app-name"],
+    ["the tab title constant", "apps/web/src/lib/attention/title.ts", 'export const APP_TITLE = "CodeDen";', "app-name"],
+    ["the title of a page the server writes", "apps/server/src/security.ts", "const PAGE = `<!doctype html><title>CodeDen</title>`;", "app-name"],
     ["the link scheme", "packages/contracts/src/desktop.ts", 'export const DEEP_LINK_SCHEME = "codeden";', "bare-name"],
     ["a link built by hand", "apps/web/src/lib/new-links.ts", `const link = ${TICK}codeden://session/${D}{id}${TICK};`, "link-scheme"],
     ["the home folder in a file that also names the project folder", "apps/server/src/services/automations/sources.ts", 'const dir = join(homedir(), ".codeden", "automations");', "home-folder"],

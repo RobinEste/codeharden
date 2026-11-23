@@ -143,13 +143,13 @@ test("an approval chimes, badges the favicon and keeps a sticky toast until reso
       document.hasFocus = () => false;
       window.dispatchEvent(new Event("blur"));
     });
-    await expect(page).toHaveTitle(/^\(\d+\) ⏳ Waiting on you · CodeDen$/);
-    await expect(page).toHaveTitle(/^\(\d+\) CodeDen$/);
+    await expect(page).toHaveTitle(/^\(\d+\) ⏳ Waiting on you · CodeHarden$/);
+    await expect(page).toHaveTitle(/^\(\d+\) CodeHarden$/);
     await page.evaluate(() => {
       document.hasFocus = () => true;
       window.dispatchEvent(new Event("focus"));
     });
-    await expect(page).toHaveTitle(/^\(\d+\) CodeDen$/);
+    await expect(page).toHaveTitle(/^\(\d+\) CodeHarden$/);
   });
 
   await test.step("resolving it elsewhere dismisses the toast and restores the favicon", async () => {

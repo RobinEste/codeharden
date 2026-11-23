@@ -1,7 +1,10 @@
 import { formatHardenVersion, HARDEN_PRODUCT_NAME } from "@codeden/contracts";
 
-/** The page's own title: the web app shows it bare or behind a waiting count, `(2) CodeDen`. */
-const PAGE_NAME = "CodeDen";
+/**
+ * The page's own name, which its title ends with: bare, behind a waiting count
+ * (`(2) CodeHarden`) or after the waiting cue. The web app takes it from the same constant.
+ */
+const PAGE_NAME = HARDEN_PRODUCT_NAME;
 
 /**
  * The window title for a page title: the version line takes the place of the page's name, and
