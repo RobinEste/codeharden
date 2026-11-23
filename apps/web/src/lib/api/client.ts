@@ -77,6 +77,7 @@ import type {
 } from "./feature-apis";
 import type { AuthApi, NetworkApi } from "./network-api";
 import type { QueueApi } from "./queue-api";
+import type { SecureFoundationApi } from "./secure-foundation-api";
 import type { MentionCandidate, OpenTerminalOptions, TerminalChannel } from "./types";
 import type { UpdatesApi } from "./updates-api";
 
@@ -275,6 +276,8 @@ export interface CodeDenClient {
   getUpdates(opts?: { refresh?: boolean }): Promise<UpdateStatus>;
   /** One-click self-update: install, restart, roll back, release notes (§16). */
   readonly updates: UpdatesApi;
+  /** The "Secure Foundation" add-project option. */
+  readonly secureFoundation: SecureFoundationApi;
   loginCommand(tool: LoginToolId): Promise<LoginCommandResponse>;
   /** Ask a provider for its models again (a model was released, the CLI was updated). */
   refreshModels(providerId: string): Promise<RefreshModelsResponse>;
