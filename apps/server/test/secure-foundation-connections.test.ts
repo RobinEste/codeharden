@@ -280,6 +280,17 @@ describe.runIf(posix)("GitHub and Vercel, for the deploy option", () => {
     expect(fakes.seen("npx")?.args).toBe("--yes vercel@66.6.0 login");
   });
 
+  it("starts one login when two requests arrive together", async () => {
+    fakes.setMode("login_hang");
+    const [a, b] = await Promise.all([
+      connections.startLogin("github"),
+      connections.startLogin("github"),
+    ]);
+    expect(a.id).toBe(b.id);
+    await waiting(a.id);
+    expect(fakes.calls().filter((c) => c.startsWith("gh auth login"))).toHaveLength(1);
+  });
+
   it("says gh is missing with the install command, and starts nothing", async () => {
     const noGh = makeFakeClis(["npx"]);
     const s = service({ fakes: noGh });

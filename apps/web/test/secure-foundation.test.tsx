@@ -191,6 +191,11 @@ describe("the confirm step", () => {
     expect(text).toContain("A Doppler token is stored in the new repository");
     expect(text).toContain("The deployed one stays up; the local one only works while");
     expect(text).not.toContain("no GitHub repository");
+    expect(text).toContain("one first commit and none of the template's history");
+    // In the other repository mode it doesn't promise a fresh history.
+    const clone = consentStatements({ ...input, deploy, repositoryMode: "clone" }).join("\n");
+    expect(clone).toContain("as a clone of the template, with its history");
+    expect(clone).not.toContain("none of the template's history");
   });
 
   it("lists what is created in the person's accounts and starts nothing until confirmed", () => {

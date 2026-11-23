@@ -182,8 +182,9 @@ export function ConnectionsStep({
     connections.some(
       (c) => c.cli === "missing" || c.signedIn === false || c.missingScopes.length > 0,
     ) ||
-    // With the deploy on, its owner, name and scope have to be settled here.
-    (connections.length > 0 && deployOf(answers) === null);
+    // With the deploy on, its owner, name and scope have to be settled here, whatever the
+    // checks answered: a ticked deploy is never dropped on the way to the confirm step.
+    deployOf(answers) === null;
   const of = (service: SecureFoundationService) => connections.find((c) => c.service === service);
 
   return (
@@ -204,8 +205,10 @@ export function ConnectionsStep({
       )}
       {state.error && (
         <p className="text-xs text-muted-foreground" role="alert">
-          The sign-ins can't be checked from here ({state.error.message}). You can go on: the setup
-          session checks them on the computer it runs on and asks you there.
+          The sign-ins can't be checked from here ({state.error.message}).{" "}
+          {answers.deploy
+            ? "The deploy needs its GitHub and Vercel sign-ins checked on the computer running the app: go back and untick Deploy to go on without it."
+            : "You can go on: the setup session checks them on the computer it runs on and asks you there."}
         </p>
       )}
       <ul className="space-y-2">

@@ -49,8 +49,9 @@ export function consentStatements(input: ConsentInput): string[] {
   const product = HARDEN_PRODUCT_NAME;
   const doppler = input.secrets === "doppler";
   const { deploy } = input;
+  const fresh = input.repositoryMode === "fresh";
   const repositoryLine = deploy
-    ? `The project is created in ${projectPath(input)} as a new git repository with one first commit and none of the template's history. It is then pushed to a new private GitHub repository, ${deploy.owner}/${deploy.repository}.`
+    ? `The project is created in ${projectPath(input)} ${fresh ? "as a new git repository with one first commit and none of the template's history" : "as a clone of the template, with its history"}. It is then pushed to a new private GitHub repository, ${deploy.owner}/${deploy.repository}.`
     : null;
   return [
     repositoryLine

@@ -300,7 +300,7 @@ export function secureFoundationCreates(answers: {
     created.push(
       {
         service: "GitHub",
-        item: `a private repository ${deploy.owner}/${deploy.repository}, with this project's code pushed to it (its own commits only, none of the template's history)${doppler ? ", and a Doppler token stored as its Actions secret DOPPLER_TOKEN" : ""}`,
+        item: `a private repository ${deploy.owner}/${deploy.repository}, with this project's code pushed to it${doppler ? ", and a Doppler token stored as its Actions secret DOPPLER_TOKEN" : ""}`,
         removeAt: "the repository's settings on GitHub (Danger Zone)",
       },
       {

@@ -53,6 +53,8 @@ export class ConnectionsService {
   private readonly logins = new Map<string, Running>();
   private scratch: string | null = null;
   private hooked = false;
+  /** Logins being started, by service: a second request joins the first instead of racing it. */
+  private readonly starting = new Map<SecureFoundationService, Promise<SecureFoundationLogin>>();
 
   constructor(private readonly deps: ConnectionsDeps = {}) {}
 
@@ -134,8 +136,16 @@ export class ConnectionsService {
     };
   }
 
-  /** Start a service's login, or return the one already running for it. */
-  async startLogin(service: SecureFoundationService): Promise<SecureFoundationLogin> {
+  /** Start a service's login, or join the one that is starting or running for it. */
+  startLogin(service: SecureFoundationService): Promise<SecureFoundationLogin> {
+    const starting = this.starting.get(service);
+    if (starting) return starting;
+    const started = this.begin(service).finally(() => this.starting.delete(service));
+    this.starting.set(service, started);
+    return started;
+  }
+
+  private async begin(service: SecureFoundationService): Promise<SecureFoundationLogin> {
     this.forget();
     for (const running of this.logins.values()) {
       if (running.login.service === service && isLoginRunning(running.login)) return running.login;

@@ -216,6 +216,19 @@ describe("the Connections step", () => {
       expect(review().disabled).toBe(true);
     });
 
+    it("never lets a ticked deploy through when the sign-ins can't be checked", async () => {
+      renderWithClient(
+        <Step start={on} />,
+        clientWith({
+          connections: async () => {
+            throw new Error("Sign-ins can only be checked on the computer running the app.");
+          },
+        }),
+      );
+      expect((await screen.findByRole("alert")).textContent).toContain("untick Deploy");
+      expect(review().disabled).toBe(true);
+    });
+
     it("says so when Vercel lists no team, and holds Review", async () => {
       renderWithClient(
         <Step start={on} />,

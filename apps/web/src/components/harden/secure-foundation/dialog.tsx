@@ -68,8 +68,11 @@ export function SecureFoundationDialog({
   }, [suggested]);
 
   const create = useMutation({
-    mutationFn: () =>
-      client.secureFoundation.create(
+    mutationFn: () => {
+      // A ticked deploy without its owner, name and scope is an error, never a local project.
+      if (deployOf(answers) === null)
+        throw new Error("The deploy's repository and scope are not set.");
+      return client.secureFoundation.create(
         CreateSecureFoundationRequest.parse({
           name: answers.name,
           adminEmail: answers.adminEmail,
@@ -81,7 +84,8 @@ export function SecureFoundationDialog({
           convexTeam: answers.convexTeam,
           deploy: deployOf(answers) ?? undefined,
         }),
-      ),
+      );
+    },
     onSuccess: ({ project, sessionId }) => {
       queryClient.setQueryData<Snapshot>(snapshotKey, (s) =>
         s ? withCreatedProject(s, project) : s,
