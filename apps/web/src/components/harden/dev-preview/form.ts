@@ -38,10 +38,7 @@ export function settingsOf(
   const parsed = DevPreviewSettings.safeParse({
     command: form.command,
     prepareCommand: form.prepareCommand.trim() ? form.prepareCommand : null,
-    portVars: form.portVars
-      .split(/[\s,]+/)
-      .map((name) => name.trim())
-      .filter(Boolean),
+    portVars: portVarsOf(form.portVars),
     urlFrom: form.urlFrom,
     urlPattern: form.urlFrom === "output" && form.urlPattern.trim() ? form.urlPattern : null,
     pmEnabled: form.pmEnabled,
@@ -57,7 +54,32 @@ export function formHolds(form: PreviewForm, settings: DevPreviewSettings): bool
   return !formChanged({ ...form, pmEnabled: settings.pmEnabled }, settings);
 }
 
-/** Does the form differ from what is stored? */
+/** The port variable names in the field, as they would be stored. */
+const portVarsOf = (typed: string): string[] =>
+  typed
+    .split(/[\s,]+/)
+    .map((name) => name.trim())
+    .filter(Boolean);
+
+/**
+ * The form with everything dropped that storing it drops too: the space around a command or a
+ * pattern, how the port variables are separated, and a pattern the link doesn't use.
+ */
+function normalised(form: PreviewForm): string {
+  return JSON.stringify({
+    command: form.command.trim(),
+    prepareCommand: form.prepareCommand.trim(),
+    portVars: portVarsOf(form.portVars),
+    urlFrom: form.urlFrom,
+    urlPattern: form.urlFrom === "output" ? form.urlPattern.trim() : "",
+    pmEnabled: form.pmEnabled,
+  });
+}
+
+/**
+ * Would saving the form change what is stored (for null: is anything in it at all)? Compared as
+ * it would be stored, so a space after a command is no change and a real edit always is one.
+ */
 export function formChanged(form: PreviewForm, config: DevPreviewSettings | null): boolean {
-  return JSON.stringify(form) !== JSON.stringify(formOf(config));
+  return normalised(form) !== normalised(formOf(config));
 }
