@@ -5,6 +5,7 @@ import {
   SECURE_FOUNDATION_DEFAULT_SECRETS,
   SECURE_FOUNDATION_DEFAULT_SHELL,
   SECURE_FOUNDATION_NO_DEV_PREVIEW,
+  SECURE_FOUNDATION_NO_REPO_SECRETS,
   SECURE_FOUNDATION_REPOSITORY_MODE,
   SECURE_FOUNDATION_SETUP_AUTONOMY,
   SecureFoundationConnections,
@@ -14,6 +15,7 @@ import {
   SecureFoundationOptions,
   SecureFoundationPrefill,
   SecureFoundationQuiet,
+  SecureFoundationRepoSecrets,
   type SecureFoundationService,
   SecureFoundationTemplate,
   type VerifySecureFoundationRequestInit,
@@ -42,6 +44,13 @@ export interface SecureFoundationApi {
    * A suggestion only: storing it is the form's own Save and confirmation.
    */
   devPreview(projectId: string): Promise<SecureFoundationDevPreview>;
+  /**
+   * The repository secrets and variables the project's workflows use, and which of them its
+   * GitHub repository has. Names only; nothing here sets one.
+   */
+  repositorySecrets(projectId: string): Promise<SecureFoundationRepoSecrets>;
+  /** The same, read and asked again now (this computer only). */
+  checkRepositorySecrets(projectId: string): Promise<SecureFoundationRepoSecrets>;
   /** Whether this computer is signed in to each service (this computer only). */
   connections(services: SecureFoundationService[]): Promise<SecureFoundationConnections>;
   /** Start a service's own login, or join the one running. */
@@ -73,6 +82,16 @@ export function httpSecureFoundationApi(http: Fetcher): SecureFoundationApi {
     devPreview: (projectId) =>
       http.get(`${base}/projects/${encodeURIComponent(projectId)}/dev-preview`, (v) =>
         SecureFoundationDevPreview.parse(v),
+      ),
+    repositorySecrets: (projectId) =>
+      http.get(`${base}/projects/${encodeURIComponent(projectId)}/repository-secrets`, (v) =>
+        SecureFoundationRepoSecrets.parse(v),
+      ),
+    checkRepositorySecrets: (projectId) =>
+      http.post(
+        `${base}/projects/${encodeURIComponent(projectId)}/repository-secrets/check`,
+        {},
+        (v) => SecureFoundationRepoSecrets.parse(v),
       ),
     connections: (services) =>
       http.get(`${base}/connections?services=${services.join(",")}`, (v) =>
@@ -116,6 +135,8 @@ export function mockSecureFoundationApi(): SecureFoundationApi {
     finish: async () => ({ clerkClaimUrl: null, deployedUrl: null }),
     quiet: async () => ({ quiet: false }),
     devPreview: async () => SECURE_FOUNDATION_NO_DEV_PREVIEW,
+    repositorySecrets: async () => SECURE_FOUNDATION_NO_REPO_SECRETS,
+    checkRepositorySecrets: async () => SECURE_FOUNDATION_NO_REPO_SECRETS,
     connections: async () => ({ connections: [] }),
     startLogin: off,
     login: off,
