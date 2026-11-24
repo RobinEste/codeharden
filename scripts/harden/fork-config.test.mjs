@@ -1,7 +1,8 @@
 // The fork's configuration, as the shell scripts and the sync workflow resolve it: the same
 // defaults, the same refusals. The workflow's rules are cut out of the workflow file and run
 // with bash, beside scripts/harden/fork-config.sh.
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -217,18 +218,39 @@ describe("a fork's releases", () => {
     repo.commit("upstream-2.txt", "fix: upstream two");
     repo.git("checkout", "--quiet", "harden");
     repo.git("merge", "--quiet", "--no-ff", "up", "-m", "Merge upstream");
+    // Stand-ins for the fork on GitHub (its release tags) and for the upstream it follows
+    // (whose branch is `harden`): the release reads both, and nothing reaches the network.
+    const bare = (name) => {
+      const dir = mkdtempSync(join(tmpdir(), `codeharden-config-${name}-`));
+      sh(dir, "git", ["init", "--quiet", "--bare"]);
+      return dir;
+    };
+    const origin = bare("origin");
+    const upstream = bare("upstream");
+    repo.git("push", "--quiet", origin, "harden", "v2026.1122.2006");
+    repo.git("push", "--quiet", upstream, "up:refs/heads/harden");
     const run = (tools) =>
       sh(repo.dir, "bash", [RELEASE, "--upstream-ref", "up", "--dry-run"], {
         RELEASE_NOW: "2026.1123.0905 2026-11-23 09:05",
+        GIT_STUB_REMOTES: `origin=${origin} https://github.com/harperaa/codeharden=${upstream}`,
         ...tools.env,
       });
     const unset = run(stubTools());
     expect(unset.code).toBe(1);
     expect(unset.err).toContain("release: UPSTREAM_REPO is not set");
 
-    const set = run(stubTools({ vars: FORK_VARS }));
+    const tools = stubTools({ vars: FORK_VARS });
+    const set = run(tools);
     expect(set.err).toBe("");
     expect(set.out).toContain("### upstream (harperaa/codeharden)\n- fix: upstream two");
     expect(set.out).toContain("### example-harden\n- feat: the fork's own change");
+    // It asks the fork's own repository what was merged, and its upstream where its branch is.
+    expect(
+      tools.ghCalls().some((call) => call.includes("repos/example/example-harden/pulls")),
+    ).toBe(true);
+    expect(tools.gitCalls()).toContain(
+      "ls-remote https://github.com/harperaa/codeharden refs/heads/harden",
+    );
+    expect(set.out).toContain("which is not the merge of a pull request into harden");
   });
 });

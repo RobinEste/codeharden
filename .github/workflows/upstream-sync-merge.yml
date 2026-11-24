@@ -47,8 +47,9 @@ name: Upstream sync merge
 #      bring upstream code plus the reviewer's conflict-resolution merge; a label alone can't
 #      get an arbitrary branch merged.
 #   6. Its changes against harden touch none of the paths in PROTECTED_PATHS (this fork's own
-#      release scripts, and what builds the desktop installers). One that does gets the label `sync-needs-review` and is left for a
-#      manual merge.
+#      release scripts and cooldown workflows, what builds the desktop installers, and the
+#      three files a release writes). One that does gets the label `sync-needs-review` and is
+#      left for a manual merge.
 #   7. Every check on the head commit has finished and passed (at least one check must
 #      exist), and GitHub reports the pull request as mergeable.
 # Anything else is skipped, and the log says why.
@@ -64,9 +65,10 @@ name: Upstream sync merge
 # The commit is tagged `v<version>`. If that tag already exists the job fails; it never
 # overwrites a tag. A run that merges nothing makes no release. The app's own version number
 # (apps/cli, apps/desktop, SOURCE_VERSION) stays upstream's and is never touched.
-# The release script asks the cooldown rule again, about what was merged: a sync that was
-# merged by hand before its 48 hours were over is not released, by this job or by anyone
-# running the script, until the owner waives it. The job then fails and says so.
+# The release script asks the cooldown rule again, about everything that was merged since
+# the last release: a sync that was merged by hand before its 48 hours were over, with a
+# merge commit, squashed or rebased, is not released, by this job or by anyone running the
+# script, until the owner waives it. The job then fails and says so.
 #
 # The cooldown on every path (docs/codeharden-sync-cooldown.md)
 #   - On the pull request: the commit status "Sync cooldown", written by the "Sync cooldown
@@ -132,7 +134,10 @@ env:
   # that starts them are written in the first one, and nowhere in this file.
   COOLDOWN_SCRIPTS: scripts/harden/sync-cooldown.sh scripts/harden/sync-cooldown-report.sh scripts/harden/sync-cooldown-release.sh
   # Paths a sync pull request may not change and still merge by itself (space separated).
-  PROTECTED_PATHS: scripts/harden/ .github/workflows/harden-desktop.yml .github/workflows/sync-cooldown.yml .github/workflows/sync-waiver.yml apps/desktop/scripts/ apps/desktop/electron-builder.config.mjs
+  # The last three are what a release writes: where the last release was and which upstream
+  # commit it contained are read from them, so a sync never changes them by itself. (The
+  # release job's own commit is a push, not a sync pull request: this rule is not about it.)
+  PROTECTED_PATHS: scripts/harden/ .github/workflows/harden-desktop.yml .github/workflows/sync-cooldown.yml .github/workflows/sync-waiver.yml apps/desktop/scripts/ apps/desktop/electron-builder.config.mjs VERSION CODEHARDEN-CHANGELOG.md state/
   REVIEW_LABEL: sync-needs-review
   RELEASE_TZ: America/New_York
 
@@ -287,7 +292,7 @@ jobs:
     name: Merge approved sync pull requests
     needs: config
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     permissions:
       contents: write
       pull-requests: write
@@ -304,6 +309,7 @@ jobs:
       # checked by the job "config", and no lookup of repository variables.
       HARDEN_BRANCH: ${{ needs.config.outputs.target_branch }}
       FORK_CONFIG_NO_GH: "1"
+      SYNC_WAIVER_APPROVERS: ${{ vars.SYNC_WAIVER_APPROVERS }}
       SYNC_COOLDOWN_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     outputs:
       merged: ${{ steps.merge.outputs.merged }}
@@ -450,7 +456,9 @@ jobs:
               skip "not every check has passed: $(tr '\n' ';' <<< "$bad")"; continue
             fi
             mergeable="null"; state=""
-            for attempt in 1 2 3 4; do
+            # Up to two minutes: GitHub works mergeability out after it is asked, and takes
+            # a while to count a status that was just written.
+            for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13; do
               detail=$(gh api "repos/${repo}/pulls/${number}")
               mergeable=$(jq -r '.mergeable' <<< "$detail")
               state=$(jq -r '.mergeable_state' <<< "$detail")
@@ -458,7 +466,7 @@ jobs:
               # "unstable" is a status on the head that is not green; the cooldown's own
               # status may have been written a moment ago, so that one is asked again too.
               [ "$mergeable" != "null" ] && [ "$state" != "unstable" ] && break
-              sleep 5
+              sleep 10
             done
             if [ "$current_sha" != "$head_sha" ]; then
               skip "its head changed during this run."; continue
@@ -504,6 +512,7 @@ jobs:
       UPSTREAM_BRANCH: ${{ needs.config.outputs.upstream_branch }}
       TARGET_BRANCH: ${{ needs.config.outputs.target_branch }}
       HARDEN_BRANCH: ${{ needs.config.outputs.target_branch }}
+      SYNC_WAIVER_APPROVERS: ${{ vars.SYNC_WAIVER_APPROVERS }}
     steps:
       - name: Write VERSION and the changelog, commit, tag and push
         shell: bash
@@ -516,7 +525,6 @@ jobs:
           cd "$RUNNER_TEMP/release"
           git remote add origin "$fork_url"
           git fetch --quiet --no-tags origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
-          git fetch --quiet --no-tags "https://github.com/${UPSTREAM_REPO}" "refs/heads/${UPSTREAM_BRANCH}:refs/sync/upstream"
           # Only the three release files, the release script and the scripts it runs or
           # sources (the configuration and the cooldown rule) reach the working tree. The
           # scripts are the ones a maintainer runs by hand after merging our own changes.
@@ -534,12 +542,16 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')
           echo "::add-mask::$auth"
-          # The credential lives in this checkout's config only while the script runs.
-          trap 'git config --unset-all "http.https://github.com/.extraheader" || true' EXIT
-          git config "http.https://github.com/.extraheader" "AUTHORIZATION: basic $auth"
+          # The credential lives in this checkout's config only while the script runs, and is
+          # sent to this repository only: the script also fetches upstream's branch, which
+          # needs none and gets none.
+          trap 'git config --unset-all "http.${fork_url}.extraheader" || true' EXIT
+          git config "http.${fork_url}.extraheader" "AUTHORIZATION: basic $auth"
           # Writes VERSION, the changelog entry and the upstream base, commits, tags and pushes
           # both in one atomic push, never forced. It fails if the tag already exists, and
           # when a sync in this release was merged before its cooldown was over and the
           # owner has not waived it: then nothing is written and the job says which sync.
-          bash "$RELEASE_SCRIPT" --upstream-ref refs/sync/upstream --push
+          # The script fetches upstream's branch itself, and finds the last release from the
+          # release tags of this repository.
+          bash "$RELEASE_SCRIPT" --push
           echo "::notice::Released CodeHarden $(cat VERSION) on ${TARGET_BRANCH}."

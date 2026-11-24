@@ -22,16 +22,17 @@ import {
 /** The two inputs, as the workflow's `run-name` reads them. */
 const UPSTREAM_INPUT = `${D}{{ inputs.upstream }}`;
 const PULL_REQUEST_INPUT = `${D}{{ inputs.pull-request || 'none' }}`;
+const COMMIT_INPUT = `${D}{{ inputs.commit }}`;
 
 const SYNC = "sync/2026-11-23";
-/** The environment as the owner sets it up: one reviewer, only the working branch, no bypass. */
+/** The environment as the owner sets it up: the owner reviews, only the working branch, no bypass. */
 const GATE = {
   protection_rules: [
     { type: "branch_policy" },
     {
       type: "required_reviewers",
       prevent_self_review: false,
-      reviewers: [{ type: "User", reviewer: { login: "owner" } }],
+      reviewers: [{ type: "User", reviewer: { login: "example" } }],
     },
   ],
   deployment_branch_policy: { protected_branches: false, custom_branch_policies: true },
@@ -50,7 +51,6 @@ function request({ branch = "harden" } = {}) {
   gh.pushes(SYNC, [[at(24, "08:00"), head, "branch_creation"]]);
   gh.environment(GATE, ONLY(branch));
   const files = mkdtempSync(join(tmpdir(), "codeharden-waiver-test-"));
-  writeFileSync(join(files, "output"), "");
   writeFileSync(join(files, "summary"), "");
   const run = (mode, args, env = {}) =>
     repo.run("sync-waiver.sh", [mode, ...args, "--upstream-ref", "up", "--target-ref", branch], {
@@ -58,41 +58,61 @@ function request({ branch = "harden" } = {}) {
       SYNC_COOLDOWN_NOW: at(24, "10:00"),
       HARDEN_BRANCH: branch,
       GITHUB_REF: `refs/heads/${branch}`,
-      GITHUB_OUTPUT: join(files, "output"),
       GITHUB_STEP_SUMMARY: join(files, "summary"),
       ...env,
     });
-  const check = (args = ["--upstream", upstream, "--pull-request", "7"], env) =>
-    run("check", args, env);
+  const forPull = ["--upstream", upstream, "--pull-request", "7", "--commit", head];
+  const check = (args = forPull, env) => run("check", args, env);
   const confirm = (args, env) => run("confirm", args, env);
   const read = (name) => readFileSync(join(files, name), "utf8");
-  return { repo, gh, upstream, head, check, confirm, read };
+  return { repo, gh, upstream, head, check, confirm, read, forPull };
 }
 
 describe("a waiver request, before anyone is asked", () => {
-  it("passes for the upstream commit an open pull request brings, and says what approving would waive", () => {
+  it("passes for the upstream commit an open pull request brings at its head, and says what approving would waive", () => {
     const { check, read, upstream, head } = request();
     const result = check();
     expect(result.err).toBe("");
     expect(result.code).toBe(0);
-    expect(read("output")).toBe(`head=${head}\n`);
     const summary = read("summary");
     expect(summary).toContain(
-      `lets **upstream commit ${upstream}, brought by pull request #7** ship before its 48 hours are over`,
+      `lets **upstream commit ${upstream}, brought by pull request #7 at its head ${head}** ship before its 48 hours are over`,
     );
-    expect(summary).toContain(`Pull request #7 (\`${SYNC}\`), head \`${head}\``);
+    expect(summary).toContain("The waiver is for that head only");
     expect(summary).toContain(
       "Without the waiver: sync-approved was applied 2026-11-24 09:00 UTC. The 48 hours end 2026-11-26 09:00 UTC",
     );
+    expect(summary).toContain("Only an approval by the repository's owner (example) counts.");
     expect(result.out).toContain("### Waive the 48-hour sync cooldown");
   });
 
-  it("passes without a pull request, for upstream commits that came in without one", () => {
-    const { check, read, upstream } = request();
-    const result = check(["--upstream", upstream, "--pull-request", ""]);
+  it("is for the pull request's head as it is now, and for no other commit", () => {
+    const { check, repo, upstream, head } = request();
+    const other = repo.git("rev-parse", "harden");
+    const result = check(["--upstream", upstream, "--pull-request", "7", "--commit", other]);
+    expect(result.code).toBe(1);
+    expect(result.out).toContain(`Pull request #7's head is ${head}, not ${other}.`);
+  });
+
+  it("passes without a pull request for the commit of the branch that brought the upstream commit in", () => {
+    const { check, repo, read, upstream } = request();
+    repo.git("merge", "--quiet", "--no-ff", "up", "-m", "Merge upstream by hand");
+    const landing = repo.git("rev-parse", "HEAD");
+    const result = check(["--upstream", upstream, "--pull-request", "", "--commit", landing]);
+    expect(result.err).toBe("");
     expect(result.code).toBe(0);
-    expect(read("output")).toBe("head=none\n");
-    expect(read("summary")).toContain("No pull request is named");
+    expect(read("summary")).toContain(
+      `No pull request: the waiver is for the upstream commits that the commit \`${landing.slice(0, 8)}\` brought into \`harden\`, and for nothing else.`,
+    );
+    // Not for a commit that is not on the branch, or that brings another upstream commit.
+    const elsewhere = repo.git("rev-parse", SYNC);
+    expect(
+      check(["--upstream", upstream, "--pull-request", "", "--commit", elsewhere]).out,
+    ).toContain(`${elsewhere} is not a commit of harden.`);
+    const before = repo.git("rev-parse", "harden~1");
+    expect(check(["--upstream", upstream, "--pull-request", "", "--commit", before]).out).toContain(
+      `The commit ${before} brings upstream up to`,
+    );
   });
 
   it("passes for a pull request that was merged before its hours were over", () => {
@@ -102,13 +122,12 @@ describe("a waiver request, before anyone is asked", () => {
   });
 
   it("refuses when the environment is not a gate", () => {
-    const refusal = (environment, policies) => {
-      const { check, gh, read } = request();
+    const refusal = (environment, policies, env) => {
+      const { check, gh } = request();
       if (environment === null) gh.fail("environments/sync-waiver$");
       else gh.environment(environment, policies);
-      const result = check();
+      const result = check(undefined, env);
       expect(result.code).toBe(1);
-      expect(read("output")).toBe("");
       expect(result.out).toContain('::error::The environment "sync-waiver" is not a gate:');
       expect(result.out).toContain("Nothing is recorded.");
       return result.out;
@@ -153,6 +172,30 @@ describe("a waiver request, before anyone is asked", () => {
     ).toMatch(/no required reviewers.*; it lets every branch use it.*; it lets administrators/);
   });
 
+  it("refuses when none of the environment's reviewers may waive", () => {
+    const { check, gh } = request();
+    const others = {
+      ...GATE,
+      protection_rules: [
+        {
+          type: "required_reviewers",
+          reviewers: [
+            { type: "User", reviewer: { login: "a-maintainer" } },
+            { type: "Team", reviewer: { slug: "everyone" } },
+          ],
+        },
+      ],
+    };
+    gh.environment(others, ONLY("harden"));
+    const result = check();
+    expect(result.code).toBe(1);
+    expect(result.out).toContain(
+      "none of its reviewers (a-maintainer) may waive: that is the repository's owner (example)",
+    );
+    // A repository of an organization names who may.
+    expect(check(undefined, { SYNC_WAIVER_APPROVERS: "A-Maintainer" }).code).toBe(0);
+  });
+
   it("refuses a run that was not started on the working branch", () => {
     const { check } = request();
     const result = check(undefined, { GITHUB_REF: "refs/heads/some-branch" });
@@ -164,7 +207,7 @@ describe("a waiver request, before anyone is asked", () => {
   });
 
   it("refuses a malformed request before it asks anything", () => {
-    const { check, gh, upstream } = request();
+    const { check, gh, upstream, head } = request();
     for (const bad of [
       upstream.slice(0, 12),
       upstream.toUpperCase(),
@@ -172,28 +215,35 @@ describe("a waiver request, before anyone is asked", () => {
       "",
       `${upstream}, pull request 7`,
     ]) {
-      expect(check(["--upstream", bad, "--pull-request", "7"]).out).toContain(
+      expect(check(["--upstream", bad, "--pull-request", "7", "--commit", head]).out).toContain(
         "The upstream commit must be its full id",
       );
     }
-    for (const bad of ["seven", "0", "7 8", "-1", "#7"]) {
-      expect(check(["--upstream", upstream, "--pull-request", bad]).out).toContain(
-        "The pull request must be its number",
+    for (const bad of [head.slice(0, 12), "", `${head}, commit ${head}`]) {
+      expect(check(["--upstream", upstream, "--pull-request", "7", "--commit", bad]).out).toContain(
+        "The commit must be its full id",
       );
+    }
+    for (const bad of ["seven", "0", "7 8", "-1", "#7"]) {
+      expect(
+        check(["--upstream", upstream, "--pull-request", bad, "--commit", head]).out,
+      ).toContain("The pull request must be its number");
     }
     expect(gh.calls()).toEqual([]);
   });
 
-  it("refuses a commit that is not upstream's, and a pull request that brings another one", () => {
-    const { check, repo, upstream } = request();
+  it("refuses an upstream commit that is not upstream's, and a pull request that brings another one", () => {
+    const { check, repo, upstream, head } = request();
     const ours = repo.git("rev-parse", "harden");
-    const notUpstream = check(["--upstream", ours, "--pull-request", ""]);
+    const notUpstream = check(["--upstream", ours, "--pull-request", "7", "--commit", head]);
     expect(notUpstream.code).toBe(1);
     expect(notUpstream.out).toContain(`${ours} is not a commit of leonvanzyl/codeden's main`);
-    expect(check(["--upstream", "e".repeat(40), "--pull-request", ""]).code).toBe(1);
+    expect(
+      check(["--upstream", "e".repeat(40), "--pull-request", "7", "--commit", head]).code,
+    ).toBe(1);
 
     const older = repo.git("rev-parse", "up~1");
-    const other = check(["--upstream", older, "--pull-request", "7"]);
+    const other = check(["--upstream", older, "--pull-request", "7", "--commit", head]);
     expect(other.code).toBe(1);
     expect(other.out).toContain(
       `Pull request #7 brings upstream up to ${upstream}, not to ${older}.`,
@@ -241,25 +291,22 @@ describe("a waiver, after the approval", () => {
     const id = all.gh.waiverRun({
       upstream: all.upstream,
       pullRequest: 7,
+      commit: all.head,
       started: at(24, "10:00"),
       ...run,
     });
-    const confirm = (head = all.head, env = {}) =>
-      all.confirm(["--upstream", all.upstream, "--pull-request", "7", "--head", head], {
-        GITHUB_RUN_ID: String(id),
-        ...env,
-      });
+    const confirm = (env = {}) => all.confirm(all.forPull, { GITHUB_RUN_ID: String(id), ...env });
     return { ...all, confirm };
   }
 
   it("says who approved it", () => {
-    const { confirm, read, upstream } = approved({ approvedBy: "the-owner" });
+    const { confirm, read, upstream, head } = approved();
     const result = confirm();
     expect(result.err).toBe("");
     expect(result.code).toBe(0);
     expect(read("summary")).toContain("### Sync cooldown waived by the owner");
     expect(read("summary")).toContain(
-      `Approved by **the-owner**: upstream commit ${upstream}, brought by pull request #7 may ship`,
+      `Approved by **example**: upstream commit ${upstream}, brought by pull request #7 at its head ${head} may ship`,
     );
   });
 
@@ -282,6 +329,16 @@ describe("a waiver, after the approval", () => {
     expect(result.out).toContain("This run's review history couldn't be read");
   });
 
+  it("fails when the one who approved may not waive", () => {
+    const { confirm } = approved({ approvedBy: "someone-else" });
+    const result = confirm();
+    expect(result.code).toBe(1);
+    expect(result.out).toContain(
+      "This run was approved by someone-else, and only the repository's owner (example) may waive, so it is not a waiver.",
+    );
+    expect(confirm({ SYNC_WAIVER_APPROVERS: "someone-else" }).code).toBe(0);
+  });
+
   it("fails when the pull request's head moved while the run waited", () => {
     const { confirm, gh, head } = approved();
     gh.pull(7, { head: "a".repeat(40), ref: SYNC, labels: ["sync-approved"] });
@@ -292,25 +349,27 @@ describe("a waiver, after the approval", () => {
     );
   });
 
-  it("fails outside a workflow run, and without the head the check step found", () => {
+  it("fails outside a workflow run", () => {
     const { confirm } = approved();
-    expect(confirm(undefined, { GITHUB_RUN_ID: "" }).out).toContain(
-      "This step runs in the workflow only.",
-    );
-    expect(confirm("").out).toContain("The check step passed no head commit.");
+    expect(confirm({ GITHUB_RUN_ID: "" }).out).toContain("This step runs in the workflow only.");
   });
 
   it("needs no pull request for a waiver that names none", () => {
     const all = request();
-    const id = all.gh.waiverRun({ upstream: all.upstream, started: at(24, "10:00") });
+    const landing = all.repo.git("rev-parse", "harden");
+    const id = all.gh.waiverRun({
+      upstream: all.upstream,
+      commit: landing,
+      started: at(24, "10:00"),
+    });
     const result = all.confirm(
-      ["--upstream", all.upstream, "--pull-request", "", "--head", "none"],
-      {
-        GITHUB_RUN_ID: String(id),
-      },
+      ["--upstream", all.upstream, "--pull-request", "", "--commit", landing],
+      { GITHUB_RUN_ID: String(id) },
     );
     expect(result.code).toBe(0);
-    expect(result.out).toContain(`Approved by **owner**: upstream commit ${all.upstream} may ship`);
+    expect(result.out).toContain(
+      `Approved by **example**: upstream commit ${all.upstream}, brought by the commit ${landing} may ship`,
+    );
   });
 });
 
@@ -350,32 +409,48 @@ describe("the waiver workflow file", () => {
 
   it("passes its inputs to the script as data, never inside a script", () => {
     expect(runBlocks(workflow)).not.toContain("${{");
-    expect(all.check).toContain(expression("UPSTREAM", "inputs.upstream"));
-    expect(all.check).toContain('check --upstream "$UPSTREAM" --pull-request "$PULL_REQUEST"');
-    expect(all.waive).toContain(
-      'confirm --upstream "$UPSTREAM" --pull-request "$PULL_REQUEST" --head "$CHECKED_HEAD"',
+    for (const job of [all.check, all.waive]) {
+      expect(job).toContain(expression("UPSTREAM", "inputs.upstream"));
+      expect(job).toContain(expression("PULL_REQUEST", "inputs.pull-request"));
+      expect(job).toContain(expression("COMMIT", "inputs.commit"));
+    }
+    expect(all.check).toContain(
+      'check --upstream "$UPSTREAM" --pull-request "$PULL_REQUEST" --commit "$COMMIT"',
     );
-    expect(all.waive).toContain(expression("CHECKED_HEAD", "needs.check.outputs.head"));
+    expect(all.waive).toContain(
+      'confirm --upstream "$UPSTREAM" --pull-request "$PULL_REQUEST" --commit "$COMMIT"',
+    );
+    // Who may waive comes from the repository's own variable, never from an input.
+    expect(workflow).toContain(expression("  SYNC_WAIVER_APPROVERS", "vars.SYNC_WAIVER_APPROVERS"));
+    expect(workflow).not.toMatch(/inputs\.(approver|approvers|by)/);
   });
 
   it("titles its run with exactly the text the rule looks for", () => {
     const title = /^run-name: "(.*)"$/m.exec(workflow)?.[1];
     expect(title).toBe(
-      `Waive sync cooldown: upstream ${UPSTREAM_INPUT}, pull request ${PULL_REQUEST_INPUT}`,
+      `Waive sync cooldown: upstream ${UPSTREAM_INPUT}, pull request ${PULL_REQUEST_INPUT}, commit ${COMMIT_INPUT}`,
     );
     const upstream = "a".repeat(40);
+    const commit = "b".repeat(40);
     const fill = (pullRequest) =>
-      title.replace(UPSTREAM_INPUT, upstream).replace(PULL_REQUEST_INPUT, pullRequest || "none");
+      title
+        .replace(UPSTREAM_INPUT, upstream)
+        .replace(PULL_REQUEST_INPUT, pullRequest || "none")
+        .replace(COMMIT_INPUT, commit);
     const wanted = (pullRequest) =>
       sh(process.cwd(), "bash", [
         "-c",
-        `. "${script("sync-cooldown.sh")}"; cd_waiver_title "$1" "$2"`,
+        `. "${script("sync-cooldown.sh")}"; cd_waiver_title "$1" "$2" "$3"`,
         "bash",
         upstream,
         pullRequest,
+        commit,
       ]).out;
     expect(fill("7")).toBe(wanted("7"));
     expect(fill("")).toBe(wanted(""));
+    expect(fill("")).toBe(
+      `Waive sync cooldown: upstream ${upstream}, pull request none, commit ${commit}`,
+    );
     // The rule finds the runs by this file's name and tells them by this workflow's name.
     expect(/^name: (.*)$/m.exec(workflow)?.[1]).toBe(constant("WAIVER_WORKFLOW_NAME"));
     expect(constant("WAIVER_WORKFLOW")).toBe("sync-waiver.yml");

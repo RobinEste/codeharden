@@ -171,7 +171,13 @@ describe("the sync workflow and the cooldown", () => {
     expect(release).toContain(
       `for script in $RELEASE_SCRIPT $FORK_CONFIG_SCRIPT $COOLDOWN_SCRIPTS; do paths+=("/${SCRIPT}"); done`,
     );
-    expect(release).toContain('bash "$RELEASE_SCRIPT" --upstream-ref refs/sync/upstream --push');
+    // The script fetches upstream and finds the last release itself: nothing is handed to it.
+    expect(release).toMatch(/^ +bash "\$RELEASE_SCRIPT" --push$/m);
+    // The token is given to this repository's URL only, not to upstream's.
+    expect(release).toContain(
+      `git config "http.${D}{fork_url}.extraheader" "AUTHORIZATION: basic $auth"`,
+    );
+    expect(release).not.toContain("http.https://github.com/.extraheader");
     expect(release).toContain(expression("GH_TOKEN", "github.token"));
   });
 
@@ -194,11 +200,33 @@ describe("the sync workflow and the cooldown", () => {
     expect(workflow).not.toMatch(/^\s*(- )?uses:/m);
   });
 
-  it("never lets a sync change the cooldown's own workflows by itself", () => {
+  it("never lets a sync change the cooldown's own workflows, or what a release writes, by itself", () => {
     const paths = protectedPaths.split(" ");
     expect(paths).toContain(".github/workflows/sync-cooldown.yml");
     expect(paths).toContain(".github/workflows/sync-waiver.yml");
     expect(paths).toContain(".github/workflows/harden-desktop.yml");
+    // Where the last release was and what it contained are read from these.
+    expect(paths).toContain("VERSION");
+    expect(paths).toContain(env("CHANGELOG_FILE"));
+    expect(paths).toContain(`${env("BASE_FILE").split("/")[0]}/`);
+  });
+
+  it("names a sync that changes a release's files, as the function the merge job calls", () => {
+    const repo = scratch();
+    repo.git("checkout", "--quiet", "up");
+    repo.commit("VERSION", "2099.0101.0000\n");
+    const upstream = repo.commit("state/upstream-base", "moved\n");
+    expect(repo.touched(upstream)).toBe("VERSION\nstate/upstream-base");
+  });
+
+  it("waits up to two minutes for GitHub to count a status that was just written", () => {
+    const merge = all.merge;
+    const attempts = /for attempt in ([0-9 ]+); do/.exec(merge)?.[1].trim().split(" ") ?? [];
+    const pause = Number(/\n +sleep (\d+)\n +done/.exec(merge)?.[1]);
+    expect((attempts.length - 1) * pause).toBe(120);
+    expect(merge).toContain('[ "$mergeable" != "null" ] && [ "$state" != "unstable" ] && break');
+    // The status is written by the rule's call, which comes before this wait.
+    expect(merge.indexOf("sync-cooldown-report.sh")).toBeLessThan(merge.indexOf("for attempt in"));
   });
 });
 
@@ -250,7 +278,15 @@ describe("the cooldown report workflow", () => {
     }
   });
 
-  it("does not fail on a label event when GitHub can't be asked, and does on the hourly run", () => {
+  it("never fails the job on a label event, whatever its step does", () => {
+    expect(all.report).toContain(
+      `continue-on-error: ${D}{{ github.event_name == 'pull_request_target' }}`,
+    );
+    // One step, so that this covers all of it.
+    expect(all.report.match(/^ {6}- name:/gm)).toHaveLength(1);
+  });
+
+  it("answers a label event without failing when GitHub can't be asked, and looks at all on the hourly run", () => {
     const run = runBlocks(report);
     expect(run).toContain('bash "$RUNNER_TEMP/harden/sync-cooldown-report.sh" all\n');
     expect(run).toContain(

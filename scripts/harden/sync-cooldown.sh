@@ -23,11 +23,13 @@
 # and they may once the rule holds. (The merge job leaves such a pull request alone.)
 #
 # Or the owner waived it. A waiver is a successful run of the "Waive sync cooldown" workflow
-# on the working branch whose job in the environment `sync-waiver` a required reviewer
-# approved (GitHub's own record: the run's review history). Its title names the upstream
-# commit and, optionally, one pull request. It covers a pull request that brings exactly that
-# upstream commit when the head branch's newest push is from before the run started; for a
-# merged pull request, a waiver given after the merge covers it too.
+# on the working branch whose job in the environment `sync-waiver` was approved by someone
+# who may waive (GitHub's own record: the run's review history). Who may: the repository's
+# owner, or the logins in SYNC_WAIVER_APPROVERS (the repository variable of that name, for a
+# repository an organization owns). Its title names the upstream commit, the pull request and
+# one commit: the pull request's head or, for upstream commits that arrived without a pull
+# request, the commit that brought them in. It covers exactly that: another head, or the
+# same upstream commit arriving another way, is not waived.
 #
 #   sync-cooldown.sh pull-request <number> --upstream-ref <ref> --target-ref <ref> --branch <name> [--head <sha>]
 #
@@ -55,6 +57,8 @@ COOLDOWN_DOCS="docs/codeharden-sync-cooldown.md"
 
 cd_init() {
   CD_REPO="${SYNC_COOLDOWN_REPO:-${GITHUB_REPOSITORY:-}}"
+  # Who may waive, lower case, between spaces.
+  CD_APPROVERS=" $(cd_lower "${SYNC_WAIVER_APPROVERS:-${CD_REPO%%/*}}") "
   CD_TMP=$(mktemp -d)
   trap 'rm -rf "$CD_TMP"' EXIT
 }
@@ -193,30 +197,40 @@ cd_last_push() {
   done <<< "$rows"
 }
 
-# The title of the run that waives upstream commit $1, for pull request $2 (or for none).
-cd_waiver_title() { printf '%s: upstream %s, pull request %s' "$WAIVER_WORKFLOW_NAME" "$1" "${2:-none}"; }
+# The title of the run that waives upstream commit $1 for pull request $2 (or for none) at
+# commit $3.
+cd_waiver_title() {
+  printf '%s: upstream %s, pull request %s, commit %s' "$WAIVER_WORKFLOW_NAME" "$1" "${2:-none}" "$3"
+}
 
-# The owner's newest waiver for upstream commit $1 that names pull request $2 or none (with
-# $2 empty: only one that names none). Sets CD_WAIVER_AT (when the run started), CD_WAIVER_BY
-# (the reviewer who approved it) and CD_WAIVER_URL; returns 1 when there is none. A waiver
-# that can't be read is no waiver.
+# Whether one of the logins in $1 (one per line) may waive: prints the first that may.
+cd_may_waive() {
+  local login
+  while read -r login; do
+    [ -n "$login" ] || continue
+    case "$CD_APPROVERS" in *" $(cd_lower "$login") "*) printf '%s\n' "$login"; return 0 ;; esac
+  done <<< "$1"
+  return 1
+}
+
+# The owner's waiver for upstream commit $1 brought by pull request $2 (empty: by none) at
+# commit $3. Sets CD_WAIVER_AT (when the run started), CD_WAIVER_BY (who approved it) and
+# CD_WAIVER_URL; returns 1 when there is none. A waiver that can't be read is no waiver.
 cd_find_waiver() {
-  local upstream="$1" number="$2" runs id started branch url title by
+  local wanted runs id started branch url title by
   CD_WAIVER_AT="" CD_WAIVER_BY="" CD_WAIVER_URL=""
+  wanted=$(cd_waiver_title "$1" "$2" "$3")
   runs=$(cd_gh api --paginate --method GET "repos/${CD_REPO}/actions/workflows/${WAIVER_WORKFLOW}/runs" \
     -f event=workflow_dispatch -f status=success -f per_page=100 --jq \
     '.workflow_runs[] | select(.conclusion == "success") | "\(.id) \(.run_started_at) \(.head_branch) \(.html_url) \(.display_title)"') || return 1
   while read -r id started branch url title; do
     [ -n "$id" ] || continue
-    [ "$branch" = "$CD_BRANCH" ] || continue
-    if [ "$title" != "$(cd_waiver_title "$upstream" "")" ]; then
-      [ -n "$number" ] && [ "$title" = "$(cd_waiver_title "$upstream" "$number")" ] || continue
-    fi
+    [ "$branch" = "$CD_BRANCH" ] && [ "$title" = "$wanted" ] || continue
     [[ "$id" =~ ^[0-9]+$ ]] || continue
-    # The proof: a required reviewer approved this run's job in the waiver environment.
+    # The proof: someone who may waive approved this run's job in the waiver environment.
     by=$(cd_gh api "repos/${CD_REPO}/actions/runs/${id}/approvals" --jq \
-      "[.[] | select(.state == \"approved\" and any(.environments[]; .name == \"${WAIVER_ENVIRONMENT}\")) | .user.login] | first // empty") || continue
-    [ -n "$by" ] || continue
+      ".[] | select(.state == \"approved\" and any(.environments[]; .name == \"${WAIVER_ENVIRONMENT}\")) | .user.login") || continue
+    by=$(cd_may_waive "$by") || continue
     CD_WAIVER_AT=$(cd_epoch "$started") || continue
     CD_WAIVER_BY="$by" CD_WAIVER_URL="$url"
     return 0
@@ -271,17 +285,9 @@ cd_evaluate() {
     CD_STATE="satisfied"
   fi
 
-  # The only way around: the owner's waiver for this upstream commit, when the newest push is
-  # from before it (a push in the same second is not), or when it was given for what is
-  # already merged.
-  if [ "$CD_STATE" != "satisfied" ] && [ -n "$upstream" ] && cd_find_waiver "$upstream" "$PR_NUMBER"; then
-    if { [ "$merged" = 1 ] && [ "$CD_WAIVER_AT" -ge "$CD_AT" ]; } \
-      || { [ "$settled" = 1 ] && [ "$CD_PUSH_AT" -lt "$CD_WAIVER_AT" ]; }; then
-      CD_STATE="waived"
-    else
-      # Something was pushed since it started: it covers an earlier head, not this one.
-      CD_WAIVER_AT="" CD_WAIVER_BY="" CD_WAIVER_URL=""
-    fi
+  # The only way around: the owner's waiver for this upstream commit at exactly this head.
+  if [ "$CD_STATE" != "satisfied" ] && [ -n "$upstream" ] && cd_find_waiver "$upstream" "$PR_NUMBER" "$PR_HEAD"; then
+    CD_STATE="waived"
   fi
 }
 
@@ -289,6 +295,8 @@ cd_evaluate() {
 # CD_SHORT (the status line, 140 characters at most) and CD_DETAIL.
 cd_describe() {
   local h="$COOLDOWN_HOURS" approved="" ready="" pushed="" waived="" ends="end" after="after"
+  # Said on every status that is not green: it is a clock, and nobody is to wait for it.
+  local hint="Not a CI check."
   [ -z "${CD_APPROVED_AT:-}" ] || approved=$(cd_time "$CD_APPROVED_AT")
   [ -z "${CD_READY_AT:-}" ] || ready=$(cd_time "$CD_READY_AT")
   [ -z "${CD_PUSH_AT:-}" ] || pushed=$(cd_time "$CD_PUSH_AT")
@@ -303,17 +311,17 @@ cd_describe() {
       CD_DETAIL="This pull request brings no upstream commit that ${CD_BRANCH} doesn't already have, so the ${h}-hour cooldown does not apply to it." ;;
     satisfied)
       CD_STATUS="success"
-      CD_SHORT="Approved ${approved}; ${h} hours have passed and nothing was pushed since."
+      CD_SHORT="Cooldown over: approved ${approved}, ${h} hours passed, nothing pushed since."
       CD_DETAIL="${APPROVED_LABEL} was applied ${approved}, ${h} hours have passed and the head branch was not pushed to since. The cooldown is over." ;;
     waived)
       CD_STATUS="success"
       CD_SHORT="Cooldown waived by the owner (approved by ${CD_WAIVER_BY}, ${waived})."
-      CD_DETAIL="The ${h}-hour cooldown was waived by the owner for upstream ${CD_UPSTREAM:0:8}: ${CD_WAIVER_BY} approved the run that started ${waived} (${CD_WAIVER_URL}), and nothing was pushed since." ;;
+      CD_DETAIL="The ${h}-hour cooldown was waived by the owner for upstream ${CD_UPSTREAM:0:8} at this head: ${CD_WAIVER_BY} approved the run that started ${waived} (${CD_WAIVER_URL})." ;;
     waiting)
-      CD_SHORT="Approved ${approved}. Green after ${ready}."
+      CD_SHORT="Cooling down until ${ready} (approved ${approved}). Expected. ${hint}"
       CD_DETAIL="${APPROVED_LABEL} was applied ${approved}. The ${h} hours end ${ready}; this turns green by itself within the hour after that, unless something is pushed or ${HOLD_LABEL} is added." ;;
     not-approved)
-      CD_SHORT="Not approved yet. Green ${h} hours after the label ${APPROVED_LABEL} is applied."
+      CD_SHORT="Not approved yet: the ${h} hours start when ${APPROVED_LABEL} is applied. ${hint}"
       CD_DETAIL="This pull request brings upstream commits and does not have the label ${APPROVED_LABEL}. The ${h} hours start when the label is applied." ;;
     held)
       CD_SHORT="On hold (label ${HOLD_LABEL})."
@@ -321,17 +329,18 @@ cd_describe() {
       if [ -n "$ready" ]; then
         CD_SHORT="${CD_SHORT} The ${h} hours since the approval ${ends} ${ready}."
         CD_DETAIL="${CD_DETAIL} ${APPROVED_LABEL} was applied ${approved}; the ${h} hours ${ends} ${ready} and keep running while it is on hold."
-      fi ;;
+      fi
+      CD_SHORT="${CD_SHORT} ${hint}" ;;
     head-moved)
       CD_STATUS="failure"
-      CD_SHORT="Pushed ${pushed}, ${after} the approval (${approved}). Re-apply ${APPROVED_LABEL} to restart."
+      CD_SHORT="Pushed ${pushed}, ${after} the approval (${approved}). Re-apply ${APPROVED_LABEL}. ${hint}"
       CD_DETAIL="The head branch was pushed ${pushed}, ${after} ${APPROVED_LABEL} was applied (${approved}): the approval covers the commit that was reviewed, not a later one. Review it again and re-apply the label; the ${h} hours start over." ;;
     unsettled)
-      CD_SHORT="GitHub's record of the head branch's pushes is not at this head yet. Looked at again within the hour."
+      CD_SHORT="GitHub's push record is not at this head yet; looked at again within the hour. ${hint}"
       CD_DETAIL="The newest push GitHub has recorded for ${PR_HEAD_REF} (${CD_PUSH_SHA:-none}) is not this pull request's head (${PR_HEAD}), so it can't be shown that nothing was pushed after the approval. It is looked at again on the next run." ;;
     foreign)
       CD_STATUS="failure"
-      CD_SHORT="The head branch is in another repository; its pushes can't be read. A person decides this one."
+      CD_SHORT="The head branch is in another repository; its pushes can't be read. A person decides. ${hint}"
       CD_DETAIL="The head branch is in ${PR_HEAD_REPO}, not in ${CD_REPO}, so its pushes can't be read and the cooldown can't be shown to hold." ;;
   esac
   CD_SHORT="${CD_SHORT:0:140}"

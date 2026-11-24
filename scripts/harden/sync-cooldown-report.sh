@@ -4,9 +4,18 @@
 # status "Sync cooldown". Only a pull request that brings upstream commits gets one; any other
 # is left alone.
 #
+# A `sync/...` pull request gets its first status when its clock is running: once it is
+# approved ("Cooling down until ..."), over, or waived. Before that it has none. The review
+# that has to approve it reads the head's checks, and a status that can't be green before
+# the approval must not be among them. A head that already has the status keeps being told
+# the truth (on hold, pushed after the approval, the label taken off). Any other branch that
+# carries upstream commits gets the status at once: nobody reviews that one as a sync.
+#
 #   sync-cooldown-report.sh all [--upstream-ref <ref>] [--target-ref <ref>]
-#       every open pull request into the working branch. Exits 0 unless one could not be
-#       evaluated or reported (2).
+#       every open pull request into the working branch. A pull request that can't be
+#       evaluated or reported is a warning (`::warning::`), not a failure: it is looked at
+#       again on the next run. Exits 2 only when the pull requests can't be listed or
+#       upstream can't be fetched, which is the workflow itself being broken.
 #   sync-cooldown-report.sh pull-request <number> [--head <sha>] [--upstream-ref <ref>] [--target-ref <ref>]
 #       one pull request. Prints the verdict's lines and exits like sync-cooldown.sh does:
 #       0 the cooldown is over, waived or does not apply, 1 it is not, 2 it could not be told.
@@ -39,7 +48,7 @@ target_ref="refs/sync/target"
 case "$mode" in
   all) shift ;;
   pull-request) number="${2:-}"; shift 2 || true ;;
-  *) sed -n '2,27p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *) sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -71,12 +80,14 @@ if [ -z "$upstream_ref" ]; then
   fi
 fi
 
-# Writes the status on commit $1 unless the newest one already says the same.
+# Writes the status on commit $1 unless the newest one already says the same. With $5 = update
+# it writes only over a status that is already there.
 report_status() {
-  local sha="$1" state="$2" description="$3" url="$4" current
+  local sha="$1" state="$2" description="$3" url="$4" only="${5:-}" current
   current=$(cd_gh api --method GET "repos/${CD_REPO}/commits/${sha}/statuses" -f per_page=100 --jq \
     "[.[] | select(.context == \"${STATUS_CONTEXT}\")] | first | if . == null then \"\" else \"\(.state) \(.description)\" end") || return 2
   [ "$current" != "${state} ${description}" ] || return 0
+  if [ "$only" = "update" ] && [ -z "$current" ]; then return 0; fi
   if [ -n "$url" ]; then
     cd_gh api --method POST "repos/${CD_REPO}/statuses/${sha}" -f "state=${state}" -f "context=${STATUS_CONTEXT}" \
       -f "description=${description}" -f "target_url=${url}" > /dev/null || return 2
@@ -94,7 +105,7 @@ summary() {
 # status that could not be written sets not_reported instead.
 not_reported=0
 report_one() {
-  local pr="$1" expected="${2:-}" url
+  local pr="$1" expected="${2:-}" url only=""
   # Its head commit, as data. Already here in a clone that has it (and in the tests).
   if ! cd_read_pull_request "$pr"; then return 2; fi
   if ! git cat-file -e "${PR_HEAD}^{commit}" 2> /dev/null; then
@@ -106,12 +117,17 @@ report_one() {
   # The status links to the run that wrote it; a waived one to the approved waiver run.
   url="${CD_WAIVER_URL:-}"
   if [ "$CD_STATE" != "waived" ] || [ -z "$url" ]; then url="${SYNC_COOLDOWN_RUN_URL:-}"; fi
-  if ! report_status "$PR_HEAD" "$CD_STATUS" "$CD_SHORT" "$url"; then
+  # A sync branch's first status waits for its clock (see the top of this file).
+  case "$PR_HEAD_REF" in
+    "${SYNC_HEAD_PREFIX}"*)
+      case "$CD_STATE" in waiting | satisfied | waived) ;; *) only="update" ;; esac ;;
+  esac
+  if ! report_status "$PR_HEAD" "$CD_STATUS" "$CD_SHORT" "$url" "$only"; then
     # The verdict stands; only showing it failed.
     not_reported=1
     echo "sync-cooldown-report: the status of #${PR_NUMBER} couldn't be written: $(cd_problem_text)" >&2
   fi
-  summary "- #${PR_NUMBER} \`${PR_HEAD_REF}\` (upstream \`${CD_UPSTREAM:0:8}\`): **${CD_STATUS}**. ${CD_DETAIL}"
+  summary "- #${PR_NUMBER} \`${PR_HEAD_REF}\`: **${CD_STATUS}**. ${CD_DETAIL} (Upstream commit \`${CD_UPSTREAM}\`, head \`${PR_HEAD}\`.)"
 }
 
 if [ "$mode" = "pull-request" ]; then
@@ -131,7 +147,6 @@ if ! open=$(cd_gh api --paginate "repos/${CD_REPO}/pulls?state=open&base=${HARDE
 fi
 summary "### ${STATUS_CONTEXT}"
 summary ""
-failed=0
 count=0
 for pr in $open; do
   [[ "$pr" =~ ^[0-9]+$ ]] || continue
@@ -141,13 +156,15 @@ for pr in $open; do
       echo "#${pr} ${PR_HEAD_REF} @ ${PR_HEAD}: ${CD_STATE} (${CD_STATUS}). ${CD_DETAIL}"
     fi
   else
-    failed=1
-    echo "#${pr}: could not be evaluated or reported: $(cd_problem_text)" >&2
-    summary "- #${pr}: could not be evaluated or reported: $(cd_problem_text)"
+    count=$((count + 1))
+    echo "::warning::The cooldown of pull request #${pr} could not be evaluated: $(cd_problem_text). It is looked at again on the next run."
+    summary "- #${pr}: could not be evaluated: $(cd_problem_text)"
   fi
 done
-if [ "$count" = 0 ] && [ "$failed" = 0 ]; then
+if [ "$not_reported" = 1 ]; then
+  echo "::warning::A \"${STATUS_CONTEXT}\" status could not be written (see above). It is tried again on the next run."
+fi
+if [ "$count" = 0 ]; then
   echo "No open pull request into ${HARDEN_BRANCH} brings upstream commits."
   summary "No open pull request into \`${HARDEN_BRANCH}\` brings upstream commits."
 fi
-if [ "$failed" = 1 ] || [ "$not_reported" = 1 ]; then exit 2; fi

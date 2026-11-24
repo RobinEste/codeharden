@@ -7,11 +7,18 @@ name: Sync cooldown report
 # waited 48 hours. For every open pull request into the working branch that brings upstream
 # commits (a `sync/...` branch, or any other branch that carries upstream commits the working
 # branch lacks) this workflow writes the commit status "Sync cooldown" on the head commit:
-#   pending  not approved yet, or approved and waiting; the text says from when it is green
-#            ("Approved 2026-01-05 14:55 UTC. Green after 2026-01-07 14:55 UTC."), or on hold
+#   pending  approved and waiting; the text says until when ("Cooling down until 2026-01-07
+#            14:55 UTC (approved 2026-01-05 14:55 UTC). Expected. Not a CI check."), or on hold
 #   failure  something was pushed after the approval: review again and re-apply the label
 #   success  the 48 hours are over and nothing was pushed since, or "waived by the owner"
 # A pull request that brings no upstream commits gets no status and is not touched.
+#
+# A `sync/...` pull request gets its first status when it is approved, not before. The second
+# review approves a sync only when every check on its head has finished and passed; a status
+# that can't be green before the approval would keep that review from ever approving. Once a
+# head has the status it is kept true (on hold, pushed after the approval, label taken off).
+# The status is a clock, not a CI check: nobody waits for it or tries to turn it green
+# (AGENTS.md, "The sync cooldown").
 #
 # It decides nothing itself. The rule is scripts/harden/sync-cooldown.sh, the same one the
 # sync workflow's merge job asks before it merges and scripts/harden/release.sh asks before it
@@ -38,10 +45,12 @@ name: Sync cooldown report
 #   - The only value taken from a pull request is its number, which reaches the script through
 #     an environment variable and is checked to be a number. The repository variables arrive
 #     through `env:` as well, and scripts/harden/fork-config.sh checks their shape.
-#   - On a label event the job does not fail when GitHub can't be asked: it warns and leaves
-#     the status as it was (the hourly run tries again, and that one does fail). A failed
-#     check of this workflow on a sync pull request's head would otherwise stop the merge
-#     job, which requires every check on the head to have passed.
+#   - On a label event the job never fails, whatever goes wrong in its step: it warns and
+#     leaves the status as it was, and the hourly run tries again. A failed check of this
+#     workflow on a sync pull request's head would otherwise stop the merge job, which
+#     requires every check on the head to have passed. The hourly run fails only when the
+#     workflow itself is broken (the scripts or upstream can't be fetched, the pull requests
+#     can't be listed); a pull request it can't evaluate is a warning.
 on:
   pull_request_target:
     types: [labeled, unlabeled]
@@ -81,9 +90,12 @@ jobs:
       UPSTREAM_BRANCH: ${{ vars.UPSTREAM_BRANCH }}
       HARDEN_BRANCH: ${{ vars.HARDEN_BRANCH }}
       FORK_CONFIG_NO_GH: "1"
+      SYNC_WAIVER_APPROVERS: ${{ vars.SYNC_WAIVER_APPROVERS }}
       SYNC_COOLDOWN_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     steps:
       - name: Evaluate the pull requests that bring upstream commits and write the status
+        # A label event's run never fails the job (see the top of this file).
+        continue-on-error: ${{ github.event_name == 'pull_request_target' }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

@@ -23,8 +23,18 @@ export const script = (name) => fileURLToPath(new URL(`../${name}`, import.meta.
 /** `2026-11-23T14:55:00Z` for a day of November 2026 and a time of day, as GitHub writes it. */
 export const at = (day, time = "12:00") => `2026-11-${String(day).padStart(2, "0")}T${time}:00Z`;
 
+/** The stub answers with `jq`, as `gh --jq` does with its own. */
+function needsJq() {
+  if (sh(tmpdir(), "/bin/sh", ["-c", "command -v jq"]).code !== 0) {
+    throw new Error(
+      "The cooldown tests need `jq` on PATH: their stand-in for `gh` applies each call's --jq filter with it. Install jq (GitHub's runners and macOS 15 and later have it).",
+    );
+  }
+}
+
 /** The answers of a GitHub repository, and a PATH that has `gh` (the stub) first. */
 export function github() {
+  needsJq();
   const state = mkdtempSync(join(tmpdir(), "codeharden-cooldown-gh-"));
   const bin = mkdtempSync(join(tmpdir(), "codeharden-cooldown-bin-"));
   copyFileSync(STUB, join(bin, "gh"));
@@ -64,10 +74,13 @@ export function github() {
       put(`pulls/${number}.json`, pr);
       return pr;
     },
-    /** The label events of a pull request: `[time, "labeled" | "unlabeled", label]`, oldest first. */
-    labelEvents(number, events) {
+    /**
+     * The label events of a pull request: `[time, "labeled" | "unlabeled", label]`, oldest
+     * first, after as many `committed` events as the pull request has commits.
+     */
+    labelEvents(number, events, commits = 1) {
       put(`timeline/${number}.json`, [
-        { event: "committed", sha: "0".repeat(40) },
+        ...Array.from({ length: commits }, () => ({ event: "committed", sha: "0".repeat(40) })),
         ...events.map(([created_at, event, name]) => ({ event, created_at, label: { name } })),
         { event: "commented", created_at: at(1) },
       ]);
@@ -97,11 +110,12 @@ export function github() {
      */
     waiverRun({
       upstream,
+      commit,
       pullRequest = "none",
       started,
       conclusion = "success",
       branch = "harden",
-      approvedBy = "owner",
+      approvedBy = "example",
       environment = "sync-waiver",
       approval = "approved",
       title,
@@ -114,7 +128,8 @@ export function github() {
         conclusion,
         html_url: `https://github.example/runs/${id}`,
         display_title:
-          title ?? `Waive sync cooldown: upstream ${upstream}, pull request ${pullRequest}`,
+          title ??
+          `Waive sync cooldown: upstream ${upstream}, pull request ${pullRequest}, commit ${commit}`,
       });
       put("waiver-runs.json", { total_count: runs.length, workflow_runs: runs });
       put(

@@ -6,15 +6,16 @@
 # approved it. The record of a waiver is that approved, successful run itself, which
 # scripts/harden/sync-cooldown.sh reads back from GitHub; this script writes nothing anywhere.
 #
-#   sync-waiver.sh check --upstream <sha> [--pull-request <number>] [--upstream-ref <ref>] [--target-ref <ref>]
+#   sync-waiver.sh check --upstream <sha> --commit <sha> [--pull-request <number>] [--upstream-ref <ref>] [--target-ref <ref>]
 #       Before anyone is asked: the request is well formed, the run was started on the working
-#       branch, the environment really is a gate (it exists, has required reviewers, admits
-#       only the working branch and lets no administrator skip the review), the commit is on
-#       upstream's branch, and the pull request (when one is named) brings exactly that commit
-#       and has not already waited. Prints what approving would waive.
-#   sync-waiver.sh confirm --upstream <sha> [--pull-request <number>] --head <sha>
-#       After the approval: GitHub recorded a reviewer's approval for this run, and the pull
-#       request's head is still the one that was checked. When either is not so the run
+#       branch, the environment really is a gate (it exists, has required reviewers of whom
+#       one may waive, admits only the working branch and lets no administrator skip the
+#       review), the upstream commit is on upstream's branch, and the commit is the pull
+#       request's head as it is now and brings exactly that upstream commit (without a pull
+#       request: a commit of the working branch that does). Prints what approving would waive.
+#   sync-waiver.sh confirm --upstream <sha> --commit <sha> [--pull-request <number>]
+#       After the approval: GitHub recorded the approval of someone who may waive for this
+#       run, and the pull request's head is still that commit. When either is not so the run
 #       fails, and a failed run is no waiver.
 #
 # Runs inside a git repository whose `origin` is this repository on GitHub and that has the
@@ -29,18 +30,18 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 mode="${1:-}"
 case "$mode" in
   check | confirm) shift ;;
-  *) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+  *) sed -n '2,23p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
 esac
 upstream=""
 number=""
-head=""
+commit=""
 upstream_ref=""
 target_ref="refs/sync/target"
 while [ $# -gt 0 ]; do
   case "$1" in
     --upstream) upstream="${2:-}"; shift ;;
     --pull-request) number="${2:-}"; shift ;;
-    --head) head="${2:-}"; shift ;;
+    --commit) commit="${2:-}"; shift ;;
     --upstream-ref) upstream_ref="${2:-}"; shift ;;
     --target-ref) target_ref="${2:-}"; shift ;;
     *) echo "sync-waiver: unknown option $1" >&2; exit 2 ;;
@@ -58,6 +59,7 @@ summary() {
 }
 
 [[ "$upstream" =~ ^[0-9a-f]{40}$ ]] || stop "The upstream commit must be its full id: 40 characters, 0-9 and a-f."
+[[ "$commit" =~ ^[0-9a-f]{40}$ ]] || stop "The commit must be its full id: 40 characters, 0-9 and a-f."
 [ -z "$number" ] || [[ "$number" =~ ^[1-9][0-9]*$ ]] || stop "The pull request must be its number, or left empty."
 
 FORK_CONFIG_WHO="sync-waiver"
@@ -68,15 +70,17 @@ fork_config_resolve UPSTREAM_REPO UPSTREAM_BRANCH HARDEN_BRANCH
 SYNC_COOLDOWN_REPO="${FORK_REPO:-${SYNC_COOLDOWN_REPO:-}}"
 cd_init
 CD_BRANCH="$HARDEN_BRANCH"
-what="upstream commit ${upstream}"
-[ -z "$number" ] || what="${what}, brought by pull request #${number}"
+what="upstream commit ${upstream}, brought by the commit ${commit}"
+[ -z "$number" ] || what="upstream commit ${upstream}, brought by pull request #${number} at its head ${commit}"
+may="the repository's owner (${CD_REPO%%/*})"
+[ -z "${SYNC_WAIVER_APPROVERS:-}" ] || may="one of: ${SYNC_WAIVER_APPROVERS} (the repository variable SYNC_WAIVER_APPROVERS)"
 
 # The gate is the environment's doing, not this script's: GitHub holds the job until a
 # required reviewer approved. What is checked here is that the gate is there, because GitHub
 # creates an environment that a workflow names and that does not exist, with no rules at all.
 # Prints one line for each thing that is wrong.
 gate_problems() {
-  local rules reviewers branches bypass allowed
+  local rules reviewers branches bypass allowed logins
   if ! rules=$(cd_gh api "repos/${CD_REPO}/environments/${WAIVER_ENVIRONMENT}" --jq \
     '"\([.protection_rules[]? | (.reviewers // []) | length] | add // 0) \(.deployment_branch_policy | if . == null then "any" elif .custom_branch_policies == true then "selected" elif .protected_branches == true then "protected" else "any" end) \(.can_admins_bypass != false)"'); then
     echo "it does not exist, or can't be read"
@@ -84,6 +88,12 @@ gate_problems() {
   fi
   read -r reviewers branches bypass <<< "$rules"
   [ "$reviewers" != "0" ] || echo "it has no required reviewers, so nothing would wait for an approval"
+  # An approval counts only from someone who may waive: one of them must be able to give it.
+  logins=$(cd_gh api "repos/${CD_REPO}/environments/${WAIVER_ENVIRONMENT}" --jq \
+    '.protection_rules[]? | (.reviewers // [])[] | select(.type == "User") | .reviewer.login') || logins=""
+  if [ "$reviewers" != "0" ] && ! cd_may_waive "$logins" > /dev/null; then
+    echo "none of its reviewers ($(printf '%s' "$logins" | tr '\n' ' ')) may waive: that is ${may}"
+  fi
   case "$branches" in
     selected)
       if ! allowed=$(cd_gh api "repos/${CD_REPO}/environments/${WAIVER_ENVIRONMENT}/deployment-branch-policies?per_page=100" --jq \
@@ -122,13 +132,13 @@ if [ "$mode" = "check" ]; then
     stop "${upstream} is not a commit of ${UPSTREAM_REPO}'s ${UPSTREAM_BRANCH}. A waiver names the upstream commit a sync brings: the newest upstream commit its head contains."
   fi
 
-  head="none"
   if [ -n "$number" ]; then
     cd_read_pull_request "$number" || stop "Pull request #${number} couldn't be read: $(cd_problem_text)."
     [ "$PR_BASE" = "$HARDEN_BRANCH" ] || stop "Pull request #${number} is into ${PR_BASE}, not into ${HARDEN_BRANCH}."
     if [ "$PR_STATE" != "open" ] && [ "$PR_MERGED_AT" = "-" ]; then
       stop "Pull request #${number} was closed without being merged."
     fi
+    [ "$PR_HEAD" = "$commit" ] || stop "Pull request #${number}'s head is ${PR_HEAD}, not ${commit}. A waiver is for the head as it is now: check what changed, then enter the new one."
     fetch_head
     brings=$(git merge-base "$PR_HEAD" "$upstream_ref" 2> /dev/null) || brings=""
     if [ "$brings" != "$upstream" ]; then
@@ -139,16 +149,23 @@ if [ "$mode" = "check" ]; then
     if [ "$CD_STATE" = "satisfied" ]; then
       stop "Pull request #${number} has waited out its cooldown (approved $(cd_time "$CD_APPROVED_AT")). There is nothing to waive."
     fi
-    head="$PR_HEAD"
+  else
+    # Upstream commits that arrived without a pull request: the commit that brought them in.
+    if ! git merge-base --is-ancestor "$commit" "$target_ref" 2> /dev/null; then
+      stop "${commit} is not a commit of ${HARDEN_BRANCH}. Without a pull request, a waiver names the commit of ${HARDEN_BRANCH} that brought the upstream commit in; a release that is refused prints it."
+    fi
+    brings=$(git merge-base "$commit" "$upstream_ref" 2> /dev/null) || brings=""
+    if [ "$brings" != "$upstream" ]; then
+      stop "The commit ${commit} brings upstream up to ${brings:-nothing}, not to ${upstream}."
+    fi
   fi
-  [ -z "${GITHUB_OUTPUT:-}" ] || echo "head=${head}" >> "$GITHUB_OUTPUT"
 
   summary "### Waive the ${COOLDOWN_HOURS}-hour sync cooldown"
   summary ""
   summary "Approving this run lets **${what}** ship before its ${COOLDOWN_HOURS} hours are over."
   summary ""
   if [ -n "$number" ]; then
-    summary "- Pull request #${number} (\`${PR_HEAD_REF}\`), head \`${PR_HEAD}\`. A push to that branch after this run started voids the waiver."
+    summary "- Pull request #${number} (\`${PR_HEAD_REF}\`). The waiver is for that head only: after a push to the branch it no longer applies."
     if [ "$CD_STATE" != "waived" ]; then
       cd_describe
       summary "- Without the waiver: ${CD_DETAIL}"
@@ -156,24 +173,25 @@ if [ "$mode" = "check" ]; then
       summary "- It is already waived (${CD_WAIVER_URL})."
     fi
   else
-    summary "- No pull request is named: the waiver covers whichever merge brings this commit into \`${HARDEN_BRANCH}\`."
+    summary "- No pull request: the waiver is for the upstream commits that the commit \`${commit:0:8}\` brought into \`${HARDEN_BRANCH}\`, and for nothing else."
   fi
+  summary "- Only an approval by ${may} counts."
   summary "- Its other conditions stay: the sync workflow still merges only a pull request that is labelled \`${APPROVED_LABEL}\`, not on hold, limited to upstream code and green."
   summary "- The record is this run and its review history, which GitHub keeps for its retention period (90 days at most). A release that ships the commit writes the waiver into its changelog entry."
   exit 0
 fi
 
 # confirm: the environment's job, so a reviewer approved it. Unless GitHub says otherwise.
-[[ "$head" =~ ^([0-9a-f]{40}|none)$ ]] || stop "The check step passed no head commit."
 [[ "${GITHUB_RUN_ID:-}" =~ ^[0-9]+$ ]] || stop "This step runs in the workflow only."
-by=$(cd_gh api "repos/${CD_REPO}/actions/runs/${GITHUB_RUN_ID}/approvals" --jq \
-  "[.[] | select(.state == \"approved\" and any(.environments[]; .name == \"${WAIVER_ENVIRONMENT}\")) | .user.login] | join(\", \")") \
+approved=$(cd_gh api "repos/${CD_REPO}/actions/runs/${GITHUB_RUN_ID}/approvals" --jq \
+  ".[] | select(.state == \"approved\" and any(.environments[]; .name == \"${WAIVER_ENVIRONMENT}\")) | .user.login") \
   || stop "This run's review history couldn't be read: $(cd_problem_text). Nothing is recorded."
-[ -n "$by" ] || stop "GitHub has no record of a reviewer approving this run for the environment \"${WAIVER_ENVIRONMENT}\", so it is not a waiver. Check the environment's required reviewers (${COOLDOWN_DOCS})."
+[ -n "$approved" ] || stop "GitHub has no record of a reviewer approving this run for the environment \"${WAIVER_ENVIRONMENT}\", so it is not a waiver. Check the environment's required reviewers (${COOLDOWN_DOCS})."
+by=$(cd_may_waive "$approved") || stop "This run was approved by $(printf '%s' "$approved" | tr '\n' ' '), and only ${may} may waive, so it is not a waiver."
 if [ -n "$number" ]; then
   cd_read_pull_request "$number" || stop "Pull request #${number} couldn't be read: $(cd_problem_text). Nothing is recorded."
-  if [ "$PR_HEAD" != "$head" ]; then
-    stop "Pull request #${number}'s head moved while this run waited (${head} is now ${PR_HEAD}). Nothing is recorded: start the workflow again for the new head."
+  if [ "$PR_HEAD" != "$commit" ]; then
+    stop "Pull request #${number}'s head moved while this run waited (${commit} is now ${PR_HEAD}). Nothing is recorded: start the workflow again for the new head."
   fi
 fi
 summary "### Sync cooldown waived by the owner"

@@ -1,7 +1,7 @@
 name: Waive sync cooldown
 # The run's title is the waiver's text: scripts/harden/sync-cooldown.sh finds a waiver by
 # exactly this title (a test keeps the two the same). Don't reword it.
-run-name: "Waive sync cooldown: upstream ${{ inputs.upstream }}, pull request ${{ inputs.pull-request || 'none' }}"
+run-name: "Waive sync cooldown: upstream ${{ inputs.upstream }}, pull request ${{ inputs.pull-request || 'none' }}, commit ${{ inputs.commit }}"
 
 # Lets one upstream commit ship before its 48 hours are over (docs/codeharden-sync-cooldown.md).
 #
@@ -14,12 +14,15 @@ run-name: "Waive sync cooldown: upstream ${{ inputs.upstream }}, pull request ${
 # branch).
 #
 #   upstream      the upstream commit to waive, its full id: the newest upstream commit the
-#                 sync brings. The pull request's "Sync cooldown" status and a refused release
-#                 both print it.
-#   pull-request  the number of the pull request that brings it. Then the waiver covers that
-#                 pull request's head as it is now: a push to its branch afterwards voids it.
-#                 Empty only for upstream commits that reached the working branch without a
-#                 pull request.
+#                 sync brings.
+#   pull-request  the number of the pull request that brings it. Empty only for upstream
+#                 commits that reached the working branch without a pull request.
+#   commit        the pull request's head commit, its full id. The waiver is for exactly that
+#                 head: after a push to the branch it no longer applies. Without a pull
+#                 request: the commit of the working branch that brought the upstream commit
+#                 in.
+# A refused release prints all three; the report workflow's run summary names a pull
+# request's upstream commit, and its head is on the pull request's page.
 #
 # Approval. The job "waive" uses the GitHub environment `sync-waiver`, which the owner
 # protects with "Required reviewers" (Settings > Environments). GitHub starts that job only
@@ -29,10 +32,12 @@ run-name: "Waive sync cooldown: upstream ${{ inputs.upstream }}, pull request ${
 # The record. This workflow writes nothing: no tag, no file, no variable. Anything of that
 # kind could also be written by whoever can push to the repository. The waiver is the run
 # itself: a successful run of this file on the working branch whose review history
-# (GitHub's own record, `GET /repos/{owner}/{repo}/actions/runs/{run_id}/approvals`) shows a
-# reviewer's approval for the environment `sync-waiver`. That can be read by anyone who can
-# read the repository, without a secret, and it can be produced only by approving. It says who
-# approved; the run's times say when. GitHub keeps a run for the repository's retention period
+# (GitHub's own record, `GET /repos/{owner}/{repo}/actions/runs/{run_id}/approvals`) shows
+# an approval for the environment `sync-waiver` by someone who may waive: the repository's
+# owner, or in a repository an organization owns the logins in the repository variable
+# SYNC_WAIVER_APPROVERS. That can be read by anyone who can read the repository, without a
+# secret, and it can be produced only by approving. It says who approved; the run's times say
+# when. GitHub keeps a run for the repository's retention period
 # (90 days at most), which is longer than a waiver is needed: the release that ships the
 # commit writes the waiver into its changelog entry, where it stays.
 #
@@ -40,12 +45,14 @@ run-name: "Waive sync cooldown: upstream ${{ inputs.upstream }}, pull request ${
 #   check  holds no approval and no write permission. Refuses when the request is malformed,
 #          when the run was not started on the working branch, when the environment is not a
 #          gate (missing: GitHub would create it on first use, with no protection; without
-#          required reviewers; open to other branches; or with the administrators' bypass
-#          on), when the commit is not upstream's, or when the pull request does not bring
-#          exactly that commit or has already waited. Says what approving would waive.
+#          required reviewers, or with none who may waive; open to other branches; or with
+#          the administrators' bypass on), when the upstream commit is not upstream's, or
+#          when the commit is not the pull request's head, does not bring exactly that
+#          upstream commit, or has already waited. Says what approving would waive.
 #   waive  in the environment `sync-waiver`: waits for the approval. Then it checks that
-#          GitHub recorded the approval and that the pull request's head has not moved while
-#          the run waited. When it fails, the run failed, and a failed run is no waiver.
+#          GitHub recorded an approval by someone who may waive and that the pull request's
+#          head is still that commit. When it fails, the run failed, and a failed run is no
+#          waiver.
 #
 # Security of this workflow
 #   - Permissions are read-only in both jobs: contents (the pull request's head branch's
@@ -73,6 +80,10 @@ on:
         description: The number of the pull request that brings it (empty only when there is none)
         required: false
         type: string
+      commit:
+        description: The pull request's head commit (its full id); without a pull request, the commit that brought the upstream commit in
+        required: true
+        type: string
 
 # Nothing by default; each job asks for what it needs.
 permissions: {}
@@ -88,6 +99,8 @@ env:
   UPSTREAM_BRANCH: ${{ vars.UPSTREAM_BRANCH }}
   HARDEN_BRANCH: ${{ vars.HARDEN_BRANCH }}
   FORK_CONFIG_NO_GH: "1"
+  # Who may waive, when it is not the repository's owner (a repository of an organization).
+  SYNC_WAIVER_APPROVERS: ${{ vars.SYNC_WAIVER_APPROVERS }}
 
 jobs:
   check:
@@ -99,16 +112,14 @@ jobs:
       pull-requests: read
       # The environment's rules, and earlier waiver runs.
       actions: read
-    outputs:
-      head: ${{ steps.check.outputs.head }}
     steps:
       - name: Check the request and that the environment is a gate
-        id: check
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           UPSTREAM: ${{ inputs.upstream }}
           PULL_REQUEST: ${{ inputs.pull-request }}
+          COMMIT: ${{ inputs.commit }}
         run: |
           set -euo pipefail
           # harden-scripts:begin
@@ -127,7 +138,7 @@ jobs:
             git show "refs/sync/target:scripts/harden/${script}" > "$RUNNER_TEMP/harden/${script}"
           done
           # harden-scripts:end
-          bash "$RUNNER_TEMP/harden/sync-waiver.sh" check --upstream "$UPSTREAM" --pull-request "$PULL_REQUEST"
+          bash "$RUNNER_TEMP/harden/sync-waiver.sh" check --upstream "$UPSTREAM" --pull-request "$PULL_REQUEST" --commit "$COMMIT"
 
   # GitHub does not start this job until a required reviewer of the environment approved it.
   waive:
@@ -142,13 +153,13 @@ jobs:
       # This run's own review history.
       actions: read
     steps:
-      - name: Check the approval and that the pull request did not move
+      - name: Check who approved and that the pull request did not move
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           UPSTREAM: ${{ inputs.upstream }}
           PULL_REQUEST: ${{ inputs.pull-request }}
-          CHECKED_HEAD: ${{ needs.check.outputs.head }}
+          COMMIT: ${{ inputs.commit }}
         run: |
           set -euo pipefail
           # harden-scripts:begin
@@ -167,4 +178,4 @@ jobs:
             git show "refs/sync/target:scripts/harden/${script}" > "$RUNNER_TEMP/harden/${script}"
           done
           # harden-scripts:end
-          bash "$RUNNER_TEMP/harden/sync-waiver.sh" confirm --upstream "$UPSTREAM" --pull-request "$PULL_REQUEST" --head "$CHECKED_HEAD"
+          bash "$RUNNER_TEMP/harden/sync-waiver.sh" confirm --upstream "$UPSTREAM" --pull-request "$PULL_REQUEST" --commit "$COMMIT"

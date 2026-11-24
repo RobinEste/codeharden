@@ -28,7 +28,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --method) method="$2"; shift ;;
     --jq) shift ;;
-    --raw-field | --field) fields="${fields}$2
+    --raw-field | --field | -f) fields="${fields}$2
 "; shift ;;
     --paginate) ;;
     repos/*) path="$1" ;;
@@ -45,6 +45,8 @@ case "$method $rest" in
     printf '%s %s %s %s %s\n' "$(cat "$state/full_name")" "$(cat "$state/default_branch")" \
       "$(cat "$state/has_issues")" true true ;;
   "PATCH ") field default_branch > "$state/default_branch" ;;
+  # The release's question about what was merged: this repository has no pull requests.
+  "GET pulls" | "GET commits/"*/pulls) ;;
   "GET labels"*) cat "$state/labels" ;;
   "POST labels") field name >> "$state/labels" ;;
   "GET actions/permissions") cat "$state/actions_enabled" ;;

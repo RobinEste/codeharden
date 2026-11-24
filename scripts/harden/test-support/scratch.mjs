@@ -52,6 +52,11 @@ export function repository(prefix, initArgs = ["--initial-branch=harden"]) {
 /**
  * A folder to put first on PATH: the stub `gh`, and a `git` that writes each call to
  * `<state>/git-log` before running the real one. `state` holds the stub repository's settings.
+ *
+ * So that nothing reaches the network, GIT_STUB_REMOTES names stand-ins for remotes: pairs
+ * `<remote name or URL>=<local path>`, separated by spaces. The wrapper swaps them in for
+ * `ls-remote`, `fetch` and `push`; everything else (the remote's own URL, which says which
+ * repository this is) stays as it is.
  */
 export function stubTools(settings = {}) {
   const bin = mkdtempSync(join(tmpdir(), "codeharden-stub-bin-"));
@@ -79,7 +84,27 @@ export function stubTools(settings = {}) {
   const realGit = sh(tmpdir(), "/bin/sh", ["-c", "command -v git"]).out;
   writeFileSync(
     join(bin, "git"),
-    `#!/bin/sh\nprintf '%s\\n' "$*" >> "${state}/git-log"\nexec "${realGit}" "$@"\n`,
+    [
+      "#!/bin/sh",
+      `printf '%s\\n' "$*" >> "${state}/git-log"`,
+      'if [ -n "$GIT_STUB_REMOTES" ]; then',
+      '  case "$1" in ls-remote | fetch | push)',
+      "    n=$#",
+      '    while [ "$n" -gt 0 ]; do',
+      '      arg="$1"; shift',
+      "      for pair in $GIT_STUB_REMOTES; do",
+      // The part before the first "=" and the part after it.
+      '        from=$(printf "%s" "$pair" | cut -d= -f1)',
+      '        [ "$arg" != "$from" ] || arg=$(printf "%s" "$pair" | cut -d= -f2-)',
+      "      done",
+      '      set -- "$@" "$arg"',
+      "      n=$((n - 1))",
+      "    done ;;",
+      "  esac",
+      "fi",
+      `exec "${realGit}" "$@"`,
+      "",
+    ].join("\n"),
   );
   chmodSync(join(bin, "git"), 0o755);
   const read = (name) =>

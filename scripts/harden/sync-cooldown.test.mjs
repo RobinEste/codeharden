@@ -90,7 +90,9 @@ describe("the cooldown rule, for an open pull request", () => {
     expect(result.code).toBe(1);
     expect(result.state).toBe("waiting");
     expect(result.status).toBe("pending");
-    expect(result.short).toBe("Approved 2026-11-23 14:55 UTC. Green after 2026-11-25 14:55 UTC.");
+    expect(result.short).toBe(
+      "Cooling down until 2026-11-25 14:55 UTC (approved 2026-11-23 14:55 UTC). Expected. Not a CI check.",
+    );
     expect(result.ready).toBe("2026-11-25T14:55:00Z");
     expect(result.upstream).toBe(upstream);
     expect(result.head).toBe(head);
@@ -104,7 +106,9 @@ describe("the cooldown rule, for an open pull request", () => {
     expect(result.code).toBe(0);
     expect(result.state).toBe("satisfied");
     expect(result.status).toBe("success");
-    expect(result.short).toContain("48 hours have passed and nothing was pushed since");
+    expect(result.short).toBe(
+      "Cooldown over: approved 2026-11-23 14:55 UTC, 48 hours passed, nothing pushed since.",
+    );
     expect(result.ready).toBe("");
   });
 
@@ -119,7 +123,7 @@ describe("the cooldown rule, for an open pull request", () => {
     expect(result.state).toBe("head-moved");
     expect(result.status).toBe("failure");
     expect(result.short).toBe(
-      "Pushed 2026-11-24 09:00 UTC, after the approval (2026-11-23 14:55 UTC). Re-apply sync-approved to restart.",
+      "Pushed 2026-11-24 09:00 UTC, after the approval (2026-11-23 14:55 UTC). Re-apply sync-approved. Not a CI check.",
     );
   });
 
@@ -134,7 +138,7 @@ describe("the cooldown rule, for an open pull request", () => {
     expect(result.code).toBe(1);
     expect(result.state).toBe("head-moved");
     expect(result.short).toBe(
-      "Pushed 2026-11-23 14:55 UTC, in the same second as the approval (2026-11-23 14:55 UTC). Re-apply sync-approved to restart.",
+      "Pushed 2026-11-23 14:55 UTC, in the same second as the approval (2026-11-23 14:55 UTC). Re-apply sync-approved. Not a CI check.",
     );
     // One second earlier it is before the approval.
     gh.pushes(SYNC, [["2026-11-23T14:54:59Z", head]]);
@@ -167,7 +171,7 @@ describe("the cooldown rule, for an open pull request", () => {
     expect(removed.code).toBe(1);
     expect(removed.state).toBe("not-approved");
     expect(removed.short).toBe(
-      "Not approved yet. Green 48 hours after the label sync-approved is applied.",
+      "Not approved yet: the 48 hours start when sync-approved is applied. Not a CI check.",
     );
     // The timeline alone is not enough for an open pull request: the label must be on it now.
     gh.labelEvents(7, [[APPROVED, "labeled", "sync-approved"]]);
@@ -186,7 +190,7 @@ describe("the cooldown rule, for an open pull request", () => {
     expect(held.state).toBe("held");
     expect(held.status).toBe("pending");
     expect(held.short).toBe(
-      "On hold (label sync-hold). The 48 hours since the approval ended 2026-11-25 14:55 UTC.",
+      "On hold (label sync-hold). The 48 hours since the approval ended 2026-11-25 14:55 UTC. Not a CI check.",
     );
     gh.pull(7, { head, ref: SYNC, labels: ["sync-approved"] });
     gh.labelEvents(7, [
@@ -354,19 +358,14 @@ describe("the cooldown rule, when GitHub can't be asked", () => {
 
 describe("the owner's waiver", () => {
   it("makes the pull request green at once, and says who waived it", () => {
-    const { ask, gh, upstream } = approvedSync();
-    const id = gh.waiverRun({
-      upstream,
-      pullRequest: 7,
-      started: at(24, "09:00"),
-      approvedBy: "the-owner",
-    });
+    const { ask, gh, upstream, head } = approvedSync();
+    const id = gh.waiverRun({ upstream, pullRequest: 7, commit: head, started: at(24, "09:00") });
     const result = ask(at(24, "10:00"));
     expect(result.code).toBe(0);
     expect(result.state).toBe("waived");
     expect(result.status).toBe("success");
     expect(result.short).toBe(
-      "Cooldown waived by the owner (approved by the-owner, 2026-11-24 09:00 UTC).",
+      "Cooldown waived by the owner (approved by example, 2026-11-24 09:00 UTC).",
     );
     expect(result.url).toBe(`https://github.example/runs/${id}`);
   });
@@ -376,49 +375,44 @@ describe("the owner's waiver", () => {
     gh.pull(7, { head, ref: SYNC, labels: ["sync-hold"] });
     gh.labelEvents(7, [[at(23), "labeled", "sync-hold"]]);
     expect(ask(at(24, "10:00")).state).toBe("held");
-    gh.waiverRun({ upstream, started: at(24, "09:00") });
+    gh.waiverRun({ upstream, pullRequest: 7, commit: head, started: at(24, "09:00") });
     expect(ask(at(24, "10:00")).state).toBe("waived");
   });
 
-  it("is void once something is pushed after it", () => {
-    const { ask, gh, upstream, head } = approvedSync();
-    gh.waiverRun({ upstream, pullRequest: 7, started: at(24, "09:00") });
-    gh.pushes(SYNC, [[at(24, "09:30"), head]]);
+  it("is for one head: after a push the new head is not waived, whatever GitHub's push record says", () => {
+    const { ask, gh, repo, upstream, head } = approvedSync();
+    gh.waiverRun({ upstream, pullRequest: 7, commit: head, started: at(24, "09:00") });
+    expect(ask(at(24, "10:00")).state).toBe("waived");
+    // Something more is pushed to the sync branch.
+    repo.git("checkout", "--quiet", SYNC);
+    const moved = repo.commit("resolution.txt", "fix: another resolution");
+    repo.git("checkout", "--quiet", "harden");
+    gh.pull(7, { head: moved, ref: SYNC, labels: ["sync-approved"] });
+    // Even with a push record that still shows the old push only.
+    const stale = ask(at(24, "10:00"));
+    expect(stale.code).toBe(1);
+    expect(stale.state).toBe("unsettled");
+    gh.pushes(SYNC, [[at(24, "09:30"), moved]]);
     const result = ask(at(24, "10:00"));
-    expect(result.code).toBe(1);
     expect(result.state).toBe("head-moved");
-    // Nothing of the void waiver is left in the verdict, or linked from the status.
+    // Nothing of the waiver for the other head is left in the verdict.
     expect(result.url).toBe("");
   });
 
-  it("is void for a push in the same second as its run started", () => {
-    const { ask, gh, upstream, head } = approvedSync();
-    gh.waiverRun({ upstream, pullRequest: 7, started: at(24, "09:00") });
-    gh.labelEvents(7, [[at(24, "09:05"), "labeled", "sync-approved"]]);
-    gh.pushes(SYNC, [[at(24, "09:00"), head]]);
-    expect(ask(at(24, "10:00")).state).toBe("waiting");
-    gh.pushes(SYNC, [["2026-11-24T08:59:59Z", head]]);
-    expect(ask(at(24, "10:00")).state).toBe("waived");
-  });
-
-  it("reads all of the push record and of the waiver runs, not their first page", () => {
-    const { ask, gh, upstream } = approvedSync();
-    gh.waiverRun({ upstream, pullRequest: 7, started: at(24, "09:00") });
-    ask(at(24, "10:00"));
-    const calls = gh.calls();
-    for (const path of ["/activity", "/actions/workflows/sync-waiver.yml/runs", "/timeline"]) {
-      expect(calls.find((call) => call.includes(path))).toContain("--paginate");
-    }
-  });
-
   /** The state with one run of the waiver workflow that differs from a waiver as `run` says. */
-  const withRun = (run) => {
-    const { ask, gh, upstream } = approvedSync();
-    gh.waiverRun({ upstream, pullRequest: 7, started: at(24, "09:00"), ...run(upstream) });
-    return ask(at(24, "10:00")).state;
+  const withRun = (run, env) => {
+    const { ask, gh, upstream, head } = approvedSync();
+    gh.waiverRun({
+      upstream,
+      pullRequest: 7,
+      commit: head,
+      started: at(24, "09:00"),
+      ...run(upstream, head),
+    });
+    return ask(at(24, "10:00"), env).state;
   };
 
-  it("counts only a run that a reviewer approved in the waiver environment, that succeeded, on the working branch", () => {
+  it("counts only a run that was approved in the waiver environment, that succeeded, on the working branch", () => {
     expect(withRun(() => ({ approvedBy: null }))).toBe("waiting");
     expect(withRun(() => ({ approval: "rejected" }))).toBe("waiting");
     expect(withRun(() => ({ environment: "release" }))).toBe("waiting");
@@ -426,29 +420,85 @@ describe("the owner's waiver", () => {
     expect(withRun(() => ({ branch: "somewhere-else" }))).toBe("waiting");
   });
 
-  it("counts only a run whose title is exactly this upstream commit and this pull request", () => {
+  it("counts only an approval by the repository's owner, or by a login the repository names", () => {
+    expect(withRun(() => ({ approvedBy: "someone-else" }))).toBe("waiting");
+    const named = { SYNC_WAIVER_APPROVERS: "A-Maintainer someone-else" };
+    expect(withRun(() => ({ approvedBy: "someone-else" }), named)).toBe("waived");
+    expect(withRun(() => ({ approvedBy: "a-maintainer" }), named)).toBe("waived");
+    // With the variable set, the list is the whole of it.
+    expect(withRun(() => ({ approvedBy: "example" }), named)).toBe("waiting");
+    expect(withRun(() => ({ approvedBy: "Example" }))).toBe("waived");
+  });
+
+  it("counts only a run whose title is exactly this upstream commit, pull request and head", () => {
     const not = withRun;
     expect(not(() => ({ upstream: "e".repeat(40) }))).toBe("waiting");
     expect(not(() => ({ pullRequest: 8 }))).toBe("waiting");
+    expect(not(() => ({ pullRequest: "none" }))).toBe("waiting");
+    expect(not(() => ({ commit: "f".repeat(40) }))).toBe("waiting");
     // A title that only contains the right words is not the waiver's title.
     expect(
-      not((upstream) => ({
-        title: `Waive sync cooldown: upstream ${upstream}, pull request 7, pull request none`,
+      not((upstream, head) => ({
+        title: `Waive sync cooldown: upstream ${upstream}, pull request 7, commit ${head}, commit ${"f".repeat(40)}`,
       })),
     ).toBe("waiting");
     expect(
-      not((upstream) => ({ title: `waive sync cooldown: upstream ${upstream}, pull request 7` })),
+      not((upstream, head) => ({
+        title: `waive sync cooldown: upstream ${upstream}, pull request 7, commit ${head}`,
+      })),
     ).toBe("waiting");
     expect(not(() => ({}))).toBe("waived");
   });
 
   it("is no waiver when the waiver runs can't be read", () => {
-    const { ask, gh, upstream } = approvedSync();
-    gh.waiverRun({ upstream, pullRequest: 7, started: at(24, "09:00") });
+    const { ask, gh, upstream, head } = approvedSync();
+    gh.waiverRun({ upstream, pullRequest: 7, commit: head, started: at(24, "09:00") });
     gh.fail("approvals");
     expect(ask(at(24, "10:00")).state).toBe("waiting");
     gh.fail("actions/workflows");
     expect(ask(at(24, "10:00")).state).toBe("waiting");
+  });
+});
+
+describe("GitHub's lists, read to the end", () => {
+  it("finds the approval behind more than a page of other events", () => {
+    const { ask, gh } = approvedSync();
+    // A sync of 250 commits: the label events are on the third page of the timeline.
+    gh.labelEvents(7, [[APPROVED, "labeled", "sync-approved"]], 250);
+    expect(ask(at(24)).state).toBe("waiting");
+    expect(ask(at(26)).state).toBe("satisfied");
+  });
+
+  it("finds a merged pull request's last push behind more than a page of later ones", () => {
+    const { ask, gh, head } = approvedSync();
+    gh.pull(7, { head, ref: SYNC, labels: [], merged: at(26) });
+    // The branch name was used again afterwards, 150 times.
+    const later = Array.from({ length: 150 }, (_, i) => [
+      `2026-11-27T10:${String(Math.floor(i / 60)).padStart(2, "0")}:${String(i % 60).padStart(2, "0")}Z`,
+      "b".repeat(40),
+    ]).reverse();
+    gh.pushes(SYNC, [...later, [at(23, "14:50"), head, "branch_creation"]]);
+    const result = ask(at(28));
+    expect(result.code).toBe(0);
+    expect(result.state).toBe("satisfied");
+  });
+
+  it("finds a waiver behind more than a page of other runs, and asks for every page", () => {
+    const { ask, gh, upstream, head } = approvedSync();
+    gh.waiverRun({ upstream, pullRequest: 7, commit: head, started: at(24, "09:00") });
+    for (let i = 0; i < 120; i++) {
+      gh.waiverRun({
+        upstream: "e".repeat(40),
+        pullRequest: 7,
+        commit: head,
+        started: at(24, "09:30"),
+      });
+    }
+    expect(ask(at(24, "10:00")).state).toBe("waived");
+    const calls = gh.calls();
+    for (const path of ["/activity", "/actions/workflows/sync-waiver.yml/runs", "/timeline"]) {
+      expect(calls.find((call) => call.includes(path))).toContain("--paginate");
+    }
   });
 });
 
@@ -463,7 +513,8 @@ describe("the status on the pull request", () => {
         sha: head,
         state: "pending",
         context: "Sync cooldown",
-        description: "Approved 2026-11-23 14:55 UTC. Green after 2026-11-25 14:55 UTC.",
+        description:
+          "Cooling down until 2026-11-25 14:55 UTC (approved 2026-11-23 14:55 UTC). Expected. Not a CI check.",
         target_url: "",
       },
     ]);
@@ -482,15 +533,97 @@ describe("the status on the pull request", () => {
     });
   });
 
+  it("gives a sync branch no status before it is approved, so the review that approves it sees none", () => {
+    const { report, gh, head } = approvedSync();
+    gh.pull(7, { head, ref: SYNC, labels: [] });
+    gh.labelEvents(7, []);
+    const open = report(at(23, "15:00"));
+    expect(open.state).toBe("not-approved");
+    expect(gh.posted()).toEqual([]);
+    // Nor on hold, nor while GitHub's push record is behind.
+    gh.pull(7, { head, ref: SYNC, labels: ["sync-hold"] });
+    expect(report(at(23, "15:00")).state).toBe("held");
+    gh.pull(7, { head, ref: SYNC, labels: [] });
+    gh.pushes(SYNC, []);
+    expect(report(at(23, "15:00")).state).toBe("unsettled");
+    expect(gh.posted()).toEqual([]);
+  });
+
+  it("gives a moved head no status either, until it is approved again", () => {
+    const { report, gh, head } = approvedSync();
+    gh.pushes(SYNC, [[at(24, "09:00"), head]]);
+    expect(report(at(24, "10:00")).state).toBe("head-moved");
+    expect(gh.posted()).toEqual([]);
+    gh.labelEvents(7, [
+      [APPROVED, "labeled", "sync-approved"],
+      [at(24, "11:00"), "unlabeled", "sync-approved"],
+      [at(24, "11:01"), "labeled", "sync-approved"],
+    ]);
+    expect(report(at(24, "11:05")).state).toBe("waiting");
+    expect(gh.posted()).toHaveLength(1);
+    expect(gh.posted()[0].description).toContain("Cooling down until 2026-11-26 11:01 UTC");
+  });
+
+  it("keeps a head that has the status told the truth", () => {
+    const { report, gh, head } = approvedSync();
+    report(at(24, "10:00"));
+    // A hold.
+    gh.pull(7, { head, ref: SYNC, labels: ["sync-approved", "sync-hold"] });
+    report(at(24, "11:00"));
+    // The approval taken off.
+    gh.pull(7, { head, ref: SYNC, labels: [] });
+    report(at(24, "12:00"));
+    expect(gh.posted().map((status) => [status.state, status.description])).toEqual([
+      [
+        "pending",
+        "Cooling down until 2026-11-25 14:55 UTC (approved 2026-11-23 14:55 UTC). Expected. Not a CI check.",
+      ],
+      [
+        "pending",
+        "On hold (label sync-hold). The 48 hours since the approval end 2026-11-25 14:55 UTC. Not a CI check.",
+      ],
+      [
+        "pending",
+        "Not approved yet: the 48 hours start when sync-approved is applied. Not a CI check.",
+      ],
+    ]);
+  });
+
+  it("tells any other branch that carries upstream commits at once", () => {
+    const repo = fork();
+    const gh = github();
+    repo.upstreamCommit();
+    repo.git("checkout", "--quiet", "-b", "codeden/bring-upstream");
+    repo.git("merge", "--quiet", "--no-ff", "up", "-m", "Merge upstream");
+    const head = repo.git("rev-parse", "HEAD");
+    repo.git("checkout", "--quiet", "harden");
+    gh.pull(9, { head, ref: "codeden/bring-upstream" });
+    gh.pushes("codeden/bring-upstream", [[at(23), head]]);
+    const result = repo.run(
+      "sync-cooldown-report.sh",
+      ["pull-request", "9", "--upstream-ref", "up", "--target-ref", "harden"],
+      { ...gh.env, SYNC_COOLDOWN_NOW: at(24) },
+    );
+    expect(result.code).toBe(1);
+    expect(gh.posted()).toMatchObject([
+      {
+        sha: head,
+        state: "pending",
+        description:
+          "Not approved yet: the 48 hours start when sync-approved is applied. Not a CI check.",
+      },
+    ]);
+  });
+
   it("links a waived one to the approved run", () => {
-    const { report, gh, upstream } = approvedSync();
-    const id = gh.waiverRun({ upstream, pullRequest: 7, started: at(24, "09:00") });
+    const { report, gh, upstream, head } = approvedSync();
+    const id = gh.waiverRun({ upstream, pullRequest: 7, commit: head, started: at(24, "09:00") });
     report(at(24, "10:00"), ["pull-request", "7"], {
       SYNC_COOLDOWN_RUN_URL: "https://github.example/run/1",
     });
     expect(gh.posted()[0]).toMatchObject({
       state: "success",
-      description: "Cooldown waived by the owner (approved by owner, 2026-11-24 09:00 UTC).",
+      description: "Cooldown waived by the owner (approved by example, 2026-11-24 09:00 UTC).",
       target_url: `https://github.example/runs/${id}`,
     });
   });
@@ -518,18 +651,30 @@ describe("the status on the pull request", () => {
     expect(gh.posted()).toEqual([]);
   });
 
-  it("fails the run over all of them when one can't be evaluated or written, and still does the others", () => {
+  it("warns about a pull request it can't evaluate or report, does the others, and does not fail the hourly run", () => {
     const { report, gh, head } = approvedSync();
     gh.openPulls([{ number: 6 }, { number: 7 }]);
     const result = report(at(24, "10:00"), ["all"]);
-    expect(result.code).toBe(2);
-    expect(result.err).toContain("#6: could not be evaluated or reported");
+    expect(result.code).toBe(0);
+    expect(result.out).toContain(
+      "::warning::The cooldown of pull request #6 could not be evaluated",
+    );
     expect(gh.posted().map((status) => status.sha)).toEqual([head]);
 
     const second = approvedSync();
     second.gh.openPulls([{ number: 7 }]);
     second.gh.fail("POST repos/[^ ]+/statuses/");
-    expect(second.report(at(24, "10:00"), ["all"]).code).toBe(2);
+    const unwritten = second.report(at(24, "10:00"), ["all"]);
+    expect(unwritten.code).toBe(0);
+    expect(unwritten.out).toContain('::warning::A "Sync cooldown" status could not be written');
+  });
+
+  it("fails the hourly run when the pull requests can't be listed: then the workflow is broken", () => {
+    const { report, gh } = approvedSync();
+    gh.fail("pulls\\?state=open");
+    const result = report(at(24), ["all"]);
+    expect(result.code).toBe(2);
+    expect(result.err).toContain("the open pull requests couldn't be listed");
   });
 
   it("keeps the verdict for the merge job when only the status can't be written", () => {
