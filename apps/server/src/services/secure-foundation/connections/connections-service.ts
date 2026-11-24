@@ -9,8 +9,8 @@ import {
   type SecureFoundationService,
 } from "@codeden/contracts";
 import { conflict, notFound } from "../../errors";
-import { SERVICE_COMMANDS, type ServiceCommands } from "./commands";
-import { type CliProcess, minimalEnv, runCli, startCli } from "./process";
+import { type Command, SERVICE_COMMANDS, type ServiceCommands } from "./commands";
+import { type CliProcess, type CliResult, minimalEnv, runCli, startCli } from "./process";
 import { toolPath } from "./tool-path";
 
 export interface ConnectionsDeps {
@@ -134,6 +134,20 @@ export class ConnectionsService {
       message,
       install: null,
     };
+  }
+
+  /**
+   * Run another of the product's own fixed commands the way the checks above run theirs:
+   * without a shell, with the minimal environment and the person's PATH, in the scratch folder
+   * that isn't a project. For commands that only read (the names of a repository's secrets).
+   * Nothing it prints is logged or stored here.
+   */
+  async run(command: Command, timeoutMs: number): Promise<CliResult> {
+    return runCli(command.program, command.args, {
+      cwd: this.cwd(),
+      env: await this.env(),
+      timeoutMs,
+    });
   }
 
   /** Start a service's login, or join the one that is starting or running for it. */

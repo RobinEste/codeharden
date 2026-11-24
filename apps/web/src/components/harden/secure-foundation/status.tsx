@@ -21,6 +21,11 @@ import {
   secureFoundationRemovalUrl,
 } from "./copy";
 import { SecureFoundationDevPreviewLink } from "./dev-preview-offer";
+import {
+  awaitsRepoSecrets,
+  SecureFoundationRepoSecretsList,
+  useSecureFoundationRepoSecrets,
+} from "./repo-secrets";
 import { secureFoundationKey } from "./use-secure-foundation";
 
 const LABEL: Record<SecureFoundationPhase, string> = {
@@ -46,7 +51,10 @@ const HINT: Partial<Record<SecureFoundationPhase, string>> = {
  * it says that automatic work is off and opens the autonomy dialog to turn it on. The snapshot
  * drops a setup session some time after it is archived; the server still keeps such a project
  * quiet, so a project in the quiet mode without a setup session here is asked about, and the
- * notice stays, with the way to the dev preview's settings. Renders nothing for any other project.
+ * notice stays, with the way to the dev preview's settings. Once the setup is over it also lists
+ * the repository secrets the project's workflows use that its repository doesn't have, beside
+ * the Clerk claim. While one of them is still missing the card stays, whatever the project's
+ * mode and after the setup session is gone. Renders nothing for any other project.
  */
 export function SecureFoundationStatus({ projectId }: { projectId: string }) {
   const client = useClient();
@@ -69,9 +77,26 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
     queryFn: () => client.secureFoundation.quiet(projectId),
     enabled: Boolean(data) && inQuietMode && !session,
   });
+  const over = finished || status?.phase === "failed";
+  // Asked again when the setup moves on and when the project gets its GitHub repository.
+  const repository =
+    project?.kind === "github" ? `${project.github.owner}/${project.github.repo}` : "";
+  const secrets = useSecureFoundationRepoSecrets(
+    projectId,
+    Boolean(project) && (!session || over),
+    `${status?.phase ?? "none"} ${repository}`,
+  );
+  const secretsList = (
+    <SecureFoundationRepoSecretsList
+      projectId={projectId}
+      data={secrets.data}
+      queryKey={secrets.queryKey}
+    />
+  );
   if (!project) return null;
   if (!session || !status) {
-    if (!inQuietMode || !asked.data?.quiet) return null;
+    const quietNow = inQuietMode && asked.data?.quiet === true;
+    if (!quietNow && !awaitsRepoSecrets(secrets.data)) return null;
     return (
       <section
         className="rounded-xl border border-border p-3 text-xs"
@@ -82,9 +107,10 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
           <ShieldCheck className="size-4 text-muted-foreground" />
           <span className="font-medium">Secure Foundation setup</span>
         </div>
-        <QuietNotice project={project} />
+        {quietNow && <QuietNotice project={project} />}
         {/* The setup session is gone, so the setup is over: the way to the dev preview stays. */}
         <SecureFoundationDevPreviewLink projectId={projectId} />
+        {secretsList}
       </section>
     );
   }
@@ -157,7 +183,7 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
         </p>
       )}
       {finished && <SecureFoundationDevPreviewLink projectId={projectId} />}
-      {(finished || status.phase === "failed") && (
+      {over && (
         <p className="mt-2 text-2xs text-muted-foreground" data-testid="secure-foundation-created">
           The setup session's first message lists everything it was allowed to create in your
           accounts, with where to remove each item; when it ran to the end, its last message says
@@ -190,6 +216,7 @@ export function SecureFoundationStatus({ projectId }: { projectId: string }) {
           </span>
         </p>
       )}
+      {over && secretsList}
     </section>
   );
 }

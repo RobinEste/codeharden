@@ -10,6 +10,7 @@ import {
   type SecureFoundationOptions,
   type SecureFoundationPrefill,
   type SecureFoundationQuiet,
+  type SecureFoundationRepoSecrets,
   SecureFoundationService,
   type SecureFoundationTemplate,
   VerifySecureFoundationRequest,
@@ -35,12 +36,18 @@ import { jsonBody, queryOf } from "./validate";
  * for such a project. It is a suggestion, read-only: no route here takes a command, and the dev
  * preview's own settings are written only by its own route, after the person's confirmation.
  * Another device gets nothing to fill in, since commands can't be set from one.
+ * `/projects/:id/repository-secrets` lists the repository secrets and variables the project's
+ * workflows use and which of them its GitHub repository has: names only, and nothing here sets
+ * one or takes a value. On this computer it reads the project's workflow files and asks the
+ * person's own `gh`; another device gets the last result, read-only, or nothing.
+ * `…/repository-secrets/check` asks again and is refused to another device.
  */
 /** Sign-ins read and change this computer's own state and start processes on it. */
-function requireLocal(c: Context): void {
-  if (isRemoteRequest(c)) {
-    throw forbidden("Sign-ins can only be checked and started on the computer running the app.");
-  }
+function requireLocal(
+  c: Context,
+  message = "Sign-ins can only be checked and started on the computer running the app.",
+): void {
+  if (isRemoteRequest(c)) throw forbidden(message);
 }
 
 export function secureFoundationRoutes(s: AppServices) {
@@ -90,6 +97,25 @@ export function secureFoundationRoutes(s: AppServices) {
     .get("/projects/:id/quiet", (c) =>
       c.json<SecureFoundationQuiet>({ quiet: holdsPmWakes(s, c.req.param("id")) }),
     )
+    .get("/projects/:id/repository-secrets", async (c) => {
+      const id = c.req.param("id");
+      return c.json<SecureFoundationRepoSecrets>(
+        await sf.repoSecrets.view(id, {
+          local: !isRemoteRequest(c),
+          setUp: () => hasSetupSession(s, id),
+        }),
+      );
+    })
+    .post("/projects/:id/repository-secrets/check", async (c) => {
+      requireLocal(
+        c,
+        "Repository secrets can only be checked on the computer running the app: it asks that computer's own GitHub sign-in.",
+      );
+      const id = c.req.param("id");
+      return c.json<SecureFoundationRepoSecrets>(
+        await sf.repoSecrets.check(id, { setUp: () => hasSetupSession(s, id) }),
+      );
+    })
     .get("/projects/:id/dev-preview", (c) => {
       if (isRemoteRequest(c)) {
         return c.json<SecureFoundationDevPreview>(SECURE_FOUNDATION_NO_DEV_PREVIEW);

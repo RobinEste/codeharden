@@ -29,7 +29,7 @@ export function useSecureFoundationDevPreview(projectId: string) {
 }
 
 /** Text in which `backticks` mark a command, a name or a path. */
-function Coded({ text }: { text: string }) {
+export function Coded({ text }: { text: string }) {
   return (
     <>
       {text.split("`").map((part, i) =>

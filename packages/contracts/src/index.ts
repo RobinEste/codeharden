@@ -70,6 +70,7 @@ export * from "./search-text";
 export * from "./secure-foundation";
 export * from "./secure-foundation-connections";
 export * from "./secure-foundation-dev-preview";
+export * from "./secure-foundation-repo-secrets";
 export * from "./secure-foundation-verify";
 export * from "./session-files";
 export * from "./settings";

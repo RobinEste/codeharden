@@ -1,4 +1,9 @@
-import { SecureFoundationDevPreview, secureFoundationDevPreview } from "@codeden/contracts";
+import {
+  SECURE_FOUNDATION_NO_REPO_SECRETS,
+  SecureFoundationDevPreview,
+  SecureFoundationRepoSecrets,
+  secureFoundationDevPreview,
+} from "@codeden/contracts";
 import { Hono } from "hono";
 import { describe, expect, it } from "vitest";
 import { secureFoundationRoutes } from "../src/routes/secure-foundation";
@@ -31,8 +36,28 @@ const stub = {
       known,
     );
   },
+  repoSecrets: {
+    view: async (id: string, opts: { local: boolean; setUp: () => boolean }) => {
+      secretViews.push(`${id} ${opts.local ? "local" : "remote"}`);
+      return opts.local ? CHECKED : { ...CHECKED, canCheck: false };
+    },
+    check: async (id: string) => {
+      secretChecks.push(id);
+      return CHECKED;
+    },
+  },
 } as unknown as SecureFoundationService;
 const offered: string[] = [];
+const secretViews: string[] = [];
+const secretChecks: string[] = [];
+const CHECKED = {
+  ...SECURE_FOUNDATION_NO_REPO_SECRETS,
+  applies: true,
+  repository: "octo/my-site",
+  checkedAt: "2026-01-05T10:00:00.000Z",
+  github: "checked" as const,
+  canCheck: true,
+};
 
 const app = new Hono()
   .onError((e, c) => errorResponse(e, c))
@@ -105,6 +130,76 @@ describe("the values for the dev preview's settings form", () => {
         expect(res.status, `${method} ${path}`).toBe(404);
       }
     }
+  });
+});
+
+describe("the repository secrets a project's workflows need", () => {
+  const check = (address: string, body?: unknown) =>
+    app.request(
+      "/projects/p1/repository-secrets/check",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      },
+      from(address),
+    );
+
+  it("are read on this computer, and another device is told so the service runs nothing", async () => {
+    const local = SecureFoundationRepoSecrets.parse(
+      await get("/projects/p1/repository-secrets", "127.0.0.1"),
+    );
+    expect(local).toMatchObject({ repository: "octo/my-site", canCheck: true });
+    expect(secretViews.at(-1)).toBe("p1 local");
+    const remote = SecureFoundationRepoSecrets.parse(
+      await get("/projects/p1/repository-secrets", "192.168.1.20"),
+    );
+    expect(remote.canCheck).toBe(false);
+    expect(secretViews.at(-1)).toBe("p1 remote");
+  });
+
+  it("are checked again on this computer only", async () => {
+    const before = secretChecks.length;
+    for (const address of ["192.168.1.20", "100.101.102.103"]) {
+      const res = await check(address);
+      expect(res.status, address).toBe(403);
+      expect(JSON.stringify(await res.json())).toContain("on the computer running the app");
+    }
+    expect(secretChecks.length).toBe(before);
+    for (const address of ["127.0.0.1", "::1"]) {
+      const res = await check(address);
+      expect(res.status, address).toBe(200);
+      expect(SecureFoundationRepoSecrets.parse(await res.json()).github).toBe("checked");
+    }
+    expect(secretChecks.length).toBe(before + 2);
+  });
+
+  it("take no value: nothing in a request reaches the check, and no route sets a secret", async () => {
+    const before = secretChecks.length;
+    const res = await check("127.0.0.1", {
+      name: "CLAUDE_CODE_OAUTH_TOKEN",
+      value: "not-a-real-value",
+      repository: "someone/else",
+    });
+    expect(res.status).toBe(200);
+    // The check is called with the project's id and nothing of the body.
+    expect(secretChecks.slice(before)).toEqual(["p1"]);
+    for (const method of ["PUT", "PATCH", "DELETE"]) {
+      for (const path of [
+        "/projects/p1/repository-secrets",
+        "/projects/p1/repository-secrets/check",
+        "/projects/p1/repository-secrets/CLAUDE_CODE_OAUTH_TOKEN",
+      ]) {
+        const refused = await app.request(path, { method }, from("127.0.0.1"));
+        expect(refused.status, `${method} ${path}`).toBe(404);
+      }
+    }
+    const post = await app.request(
+      "/projects/p1/repository-secrets",
+      { method: "POST" },
+      from("127.0.0.1"),
+    );
+    expect(post.status).toBe(404);
   });
 });
 
