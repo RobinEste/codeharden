@@ -19,7 +19,7 @@ import { renderWithClient } from "./utils";
 
 /**
  * The dev preview of a project Secure Foundation set up: the settings form opens filled in,
- * and the same Save and the same confirmation still stand between those values and anything
+ * and the same button and the same confirmation still stand between those values and anything
  * being stored.
  */
 const toast = vi.hoisted(() =>
@@ -88,12 +88,17 @@ describe("the dev preview settings of a Secure Foundation project", () => {
     expect(confirmProject).not.toHaveBeenCalled();
     expect(screen.queryByTestId("dev-preview-confirm")).toBeNull();
     const notes = screen.getByTestId("secure-foundation-dev-preview-notes").textContent ?? "";
-    expect(notes).toContain("Nothing is stored or run until you save and confirm");
+    expect(notes).toContain("Nothing is stored or run until you confirm them");
     expect(notes).toContain("npm run convex:doppler");
     expect(notes).toContain("Convex runs separately");
 
-    // Save shows the exact commands and asks; still nothing stored.
-    fireEvent.click(screen.getByTestId("dev-preview-save"));
+    // The filled form's button is the green start, and it is enabled without an edit. It shows
+    // the exact commands and asks; still nothing stored.
+    const start = screen.getByTestId("dev-preview-save") as HTMLButtonElement;
+    expect(start.textContent).toBe("Start preview…");
+    expect(start.disabled).toBe(false);
+    expect(start.className).toContain("bg-status-done");
+    fireEvent.click(start);
     const dialog = await screen.findByTestId("dev-preview-confirm");
     expect(dialog.textContent).toContain("Run these commands on this computer?");
     expect(dialog.textContent).toContain(DOPPLER);
@@ -150,7 +155,8 @@ describe("the dev preview settings of a Secure Foundation project", () => {
     const fill = await screen.findByTestId("secure-foundation-dev-preview-fill");
     expect(field("dev-preview-command").value).toBe("npm run dev");
     expect(field("dev-preview-prepare").value).toBe("");
-    expect(screen.getByTestId("dev-preview-save")).toHaveProperty("disabled", true);
+    // Stored and unchanged: nothing to save.
+    expect(screen.queryByTestId("dev-preview-save")).toBeNull();
 
     fireEvent.click(fill);
     expect(field("dev-preview-command").value).toBe(DOPPLER);

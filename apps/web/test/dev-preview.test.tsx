@@ -312,7 +312,7 @@ describe("the project's dev preview settings", () => {
     expect(screen.queryByTestId("dev-preview-remove")).toBeNull();
   });
 
-  it("lets the same settings be saved again when the project's base branch changed", async () => {
+  it("lets the same settings be confirmed again when the project's base branch changed", async () => {
     const config = {
       command: "pnpm dev",
       prepareCommand: null,
@@ -332,10 +332,11 @@ describe("the project's dev preview settings", () => {
       }),
     );
     expect((await screen.findByTestId("dev-preview-branch-changed")).textContent).toMatch(
-      /now release.*saved for harden/,
+      /now release.*confirmed for harden/,
     );
     const save = screen.getByTestId("dev-preview-save");
     expect(save).toHaveProperty("disabled", false);
+    expect(save.textContent).toBe("Confirm again…");
     fireEvent.click(save);
     expect((await screen.findByTestId("dev-preview-confirm")).textContent).toContain("(release)");
     fireEvent.click(screen.getByTestId("dev-preview-confirm-run"));

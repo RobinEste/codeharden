@@ -18,10 +18,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { useClient } from "@/lib/api";
+import { DevPreviewActions } from "./actions";
 import { formChanged, formHolds, formOf, type PreviewForm, settingsOf } from "./form";
 import { devPreviewKey } from "./use-dev-preview";
 
@@ -29,12 +29,12 @@ const mono = "h-8 font-mono text-xs";
 
 /**
  * Project page > Settings > Dev preview: the commands the app may run for this project.
- * They are typed here and nowhere else, and Save asks before it stores them: nothing is ever
- * taken from the repository. On another device the form is read-only.
+ * They are typed here and nowhere else, and the form's button (`actions.tsx`) asks before it
+ * stores them: nothing is ever taken from the repository. On another device the form is read-only.
  *
  * For a project Secure Foundation set up, the empty form starts filled in with the values that
  * work for such a project (`secureFoundationDevPreview`). That changes the form only: the same
- * Save and the same confirmation stand between those values and anything being stored or run.
+ * button and the same confirmation stand between those values and anything being stored or run.
  */
 export function DevPreviewProjectSettings({ project }: { project: Project }) {
   const client = useClient();
@@ -81,9 +81,6 @@ export function DevPreviewProjectSettings({ project }: { project: Project }) {
 
   if (!view.data) return null;
   const { remote, suggestion, baseBranch } = view.data;
-  // The project's base branch is no longer the one these settings were saved for: saving
-  // them again, unchanged, is how the PM thread's preview is pointed at the new one.
-  const branchChanged = config !== null && config.baseBranch !== baseBranch;
   const set = (patch: Partial<PreviewForm>) => {
     setForm((current) => ({ ...current, ...patch }));
     setProblem(null);
@@ -223,54 +220,16 @@ export function DevPreviewProjectSettings({ project }: { project: Project }) {
             onCheckedChange={(pmEnabled) => set({ pmEnabled })}
           />
         </SettingRow>
-        <div className="flex flex-wrap items-center gap-2 px-4 py-3.5">
-          {remote ? (
-            <p className="text-2xs text-muted-foreground" data-testid="dev-preview-remote">
-              Set this up on the computer running the app.
-            </p>
-          ) : (
-            <>
-              <Button
-                size="sm"
-                onClick={ask}
-                disabled={save.isPending || !(formChanged(form, config) || branchChanged)}
-                data-testid="dev-preview-save"
-              >
-                {config ? "Save changes…" : "Save…"}
-              </Button>
-              {config && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={remove.isPending}
-                  onClick={() => remove.mutate()}
-                  data-testid="dev-preview-remove"
-                >
-                  Remove
-                </Button>
-              )}
-            </>
-          )}
-          {branchChanged && !remote && (
-            <span
-              className="text-2xs text-muted-foreground"
-              data-testid="dev-preview-branch-changed"
-            >
-              The base branch is now {baseBranch ?? "not set"}; these settings were saved for{" "}
-              {config?.baseBranch ?? "none"}. Save to follow it.
-            </span>
-          )}
-          {problem && (
-            <span className="text-2xs text-status-failed" role="alert">
-              {problem}
-            </span>
-          )}
-          <span className="ml-auto text-2xs text-muted-foreground">
-            {config
-              ? `Confirmed ${new Date(config.confirmedAt).toLocaleString()}`
-              : "Nothing runs until you save a command."}
-          </span>
-        </div>
+        <DevPreviewActions
+          projectId={project.id}
+          view={view.data}
+          form={form}
+          problem={problem}
+          saving={save.isPending}
+          removing={remove.isPending}
+          onAsk={ask}
+          onRemove={() => remove.mutate()}
+        />
       </SettingsSection>
       <AlertDialog open={asking !== null} onOpenChange={(open) => !open && setAsking(null)}>
         <AlertDialogContent data-testid="dev-preview-confirm">

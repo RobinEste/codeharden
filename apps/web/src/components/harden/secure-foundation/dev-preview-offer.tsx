@@ -43,7 +43,7 @@ function Coded({ text }: { text: string }) {
 /**
  * On the project page's Secure Foundation card: the way to the dev preview's settings, which
  * open with their fields filled in, and that Convex runs separately. It sets nothing up itself:
- * the commands are stored by the settings form's own Save and its confirmation.
+ * the commands are stored by the settings form's own button and its confirmation.
  */
 export function SecureFoundationDevPreviewLink({ projectId }: { projectId: string }) {
   const client = useClient();
@@ -119,8 +119,8 @@ export function SecureFoundationDevPreviewNotes({
         <span className="text-muted-foreground">
           {settings
             ? filled
-              ? "The fields below are filled in with the values that work for it. Nothing is stored or run until you save and confirm."
-              : "The fields below can be filled in with the values that work for it. Nothing is stored or run until you save and confirm."
+              ? "The fields below are filled in with the values that work for it. Nothing is stored or run until you confirm them."
+              : "The fields below can be filled in with the values that work for it. Nothing is stored or run until you confirm them."
             : "Nothing could be filled in for it:"}
         </span>{" "}
         {settings && !filled && onFill && (
