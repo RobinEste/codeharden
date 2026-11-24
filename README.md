@@ -3,16 +3,16 @@
 > and merged 48 hours after they are approved. CodeHarden versions are timestamps; the app's own
 > version number stays upstream's. It is its own app: its data is in `~/.codeharden`, it listens on
 > port 4417, and it installs and runs next to CodeDen ([how they stay apart](docs/desktop.md#next-to-codeden)).
-> Everything below is CodeDen's own README.
+> The README below is derived and adapted from the [CodeDen repository](https://github.com/leonvanzyl/codeden).
 > Want the same for your own changes? See [Make your own hardened fork](#make-your-own-hardened-fork).
 
 <div align="center">
 
-# CodeDen
+# CodeHarden
 
 **One home for all your coding agents.** Start with a single agent helping you code. Run several at once, across every provider and project. When you're ready, turn your backlog over to a software factory, or let a dark factory find the work and do it on its own.
 
-[![Website](https://img.shields.io/badge/website-codeden.app-e8a33d)](https://www.codeden.app)
+[![Website](https://img.shields.io/badge/website-codeharden.app-e8a33d)](https://codeharden.app)
 [![npm](https://img.shields.io/npm/v/codeharden?color=e8a33d&label=npm)](https://www.npmjs.com/package/codeharden)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Node 24+](https://img.shields.io/badge/node-%3E%3D24-339933)
@@ -20,21 +20,21 @@
 
 </div>
 
-![A CodeDen agent session: the conversation on the left, the changes the agent made on the right](docs/images/session.png)
+![An agent session: the conversation on the left, the changes the agent made on the right](docs/images/session.png)
 
 ```sh
 npx codeharden
 ```
 
-That's it. CodeDen opens in your browser and uses the coding agents you already have installed and signed in. There's no account to create, no license key, no cloud service and no tracking. Everything stays on your computer.
+That's it. CodeHarden opens in your browser and uses the coding agents you already have installed and signed in. There's no account to create, no license key, no cloud service and no tracking. Everything stays on your computer.
 
-Prefer an app? **[Download the desktop app](https://github.com/harperaa/codeharden/releases/latest)** for Windows, macOS or Linux. It's the same CodeDen in its own window, with notifications and automatic updates, and you don't need Node.js.
+Prefer an app? **[Download the desktop app](https://github.com/harperaa/codeharden/releases/latest)** for Windows, macOS or Linux. It's the same CodeHarden in its own window, with notifications and automatic updates, and you don't need Node.js.
 
 ---
 
 ## Contents
 
-- [What is CodeDen?](#what-is-codeden)
+- [What is CodeHarden?](#what-is-codeharden)
 - [It grows with you: four levels](#it-grows-with-you-four-levels)
 - [Works with the agents you already use](#works-with-the-agents-you-already-use)
 - [Everything you need in one place](#everything-you-need-in-one-place)
@@ -44,11 +44,11 @@ Prefer an app? **[Download the desktop app](https://github.com/harperaa/codehard
 - [Documentation](#documentation)
 - [Contributing](#contributing) · [License](#license)
 
-## What is CodeDen?
+## What is CodeHarden?
 
 Coding agents like Claude Code and Codex are powerful, but they live in separate terminal windows. It's hard to keep track of what each one is doing, what it changed and what it cost, and harder still to run several of them at once without them tripping over each other.
 
-CodeDen is the workspace around your agents. It gives every agent its own safe copy of your code and shows you what it's doing as it works. It collects every question, approval and finished pull request in one inbox. And it grows with you, from one agent to a factory that works through your issues while you do something else.
+CodeHarden is the workspace around your agents. It gives every agent its own safe copy of your code and shows you what it's doing as it works. It collects every question, approval and finished pull request in one inbox. And it grows with you, from one agent to a factory that works through your issues while you do something else.
 
 ## It grows with you: four levels
 
@@ -70,7 +70,7 @@ Run as many sessions as you like, side by side, with different agents on differe
 - **An orchestrator** you can talk to about all your projects at once ("what's going on?", "start a session to fix the login bug").
 - **A project manager for each project.** It sorts incoming issues, starts sessions, keeps an eye on them and comes to you when it's unsure.
 - **One inbox** for everything that needs you: questions, approvals, pull requests ready for review, failed runs and budget alerts.
-- **No duplicate work.** If you start something that's already running, CodeDen asks whether to wait, skip, join or start anyway.
+- **No duplicate work.** If you start something that's already running, CodeHarden asks whether to wait, skip, join or start anyway.
 - **Hand off between providers.** When one agent hits its usage limit, carry on in another with the same code and a summary of the work so far.
 
 ![Asking the orchestrator what's going on across projects](docs/images/orchestrator.png)
@@ -99,7 +99,7 @@ Both factory levels are **experimental**. Try them on a test repository first. R
 
 ## Works with the agents you already use
 
-CodeDen runs the coding agents you already have, with the logins you already have, including your subscriptions. You don't need API keys.
+CodeHarden runs the coding agents you already have, with the logins you already have, including your subscriptions. You don't need API keys.
 
 | Agent | What you need |
 |---|---|
@@ -113,14 +113,14 @@ Mix and match freely. Each session picks its own agent and model, and the factor
 
 ## Everything you need in one place
 
-- **Every change, visible.** See exactly what each turn changed, comment on lines and send your comments back to the agent, then commit and push from CodeDen.
-- **GitHub, built in.** Agents open pull requests that link the issue and include their evidence: screenshots and test output. Review and merge without leaving CodeDen.
+- **Every change, visible.** See exactly what each turn changed, comment on lines and send your comments back to the agent, then commit and push from CodeHarden.
+- **GitHub, built in.** Agents open pull requests that link the issue and include their evidence: screenshots and test output. Review and merge without leaving CodeHarden.
 - **Automations.** Switch on background jobs per project, like a security audit, dependency updates, a UI review or issue triage. They run on a schedule or when something happens. Write your own in a few lines of Markdown. Everything is off until you turn it on.
 - **Know what it costs.** A usage report shows tokens and cost across providers, models and projects, with daily charts, budgets and alerts. Subscription logins show what the same work would cost on the API.
 - **Your agents' setup, in one editor.** Edit memory files (`CLAUDE.md`, `AGENTS.md`), skills, subagents, MCP servers and hooks for each provider. Changes go into the provider's own files, so they work in the terminal too.
 - **Images for any agent.** Every agent can generate images, whatever its provider. A Claude agent building a landing page can make its own hero image.
 - **Talk instead of type.** Dictate with push-to-talk, and have an agent's reply read aloud when it's done.
-- **Next-step suggestions.** When an agent finishes, CodeDen suggests a few follow-up prompts you can send with one click.
+- **Next-step suggestions.** When an agent finishes, CodeHarden suggests a few follow-up prompts you can send with one click.
 - **From your phone.** Turn on network access, scan a QR code, and check on your agents from your phone or tablet.
 
 ![The inbox with a conflict, an approval and a pull request ready for review](docs/images/inbox.png)
@@ -129,10 +129,10 @@ Mix and match freely. Each session picks its own agent and model, and the factor
 
 ## Safe by default
 
-- **Private.** CodeDen runs on your computer. Your code and conversations stay there. No account, no cloud service, no tracking.
-- **Locked to your machine.** Only your own computer can reach CodeDen, and every request needs a secret key unique to your install. Phone access is opt-in and password protected.
+- **Private.** CodeHarden runs on your computer. Your code and conversations stay there. No account, no cloud service, no tracking.
+- **Locked to your machine.** Only your own computer can reach CodeHarden, and every request needs a secret key unique to your install. Phone access is opt-in and password protected.
 - **Risky actions ask first.** By default agents can edit and run ordinary commands in their own copy of the code. Anything risky comes to your inbox for approval first: changing files outside the project, force-pushing, deleting branches, installing software globally, or touching secrets.
-- **No stored logins.** CodeDen uses your agents' and GitHub's own sign-ins and never stores them. Optional API keys go in your operating system's keychain.
+- **No stored logins.** CodeHarden uses your agents' and GitHub's own sign-ins and never stores them. Optional API keys go in your operating system's keychain.
 
 Full details: [Security](docs/security.md). To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
@@ -162,18 +162,18 @@ Or install the **desktop app** from the [latest release](https://github.com/harp
 
 Something not working? Run `npx codeharden doctor` to check your setup from the terminal. For a full walkthrough, see [Getting started](docs/getting-started.md).
 
-CodeDen updates itself: when a new version is out, a banner offers **Update now**. Command-line options, settings files and update details are in the [Reference](docs/reference.md).
+CodeHarden updates itself: when a new version is out, a banner offers **Update now**. Command-line options, settings files and update details are in the [Reference](docs/reference.md).
 
 ## FAQ
 
 **Do I need API keys?**
-No. CodeDen uses your agents' own logins, including Claude, ChatGPT, Cursor and Google subscriptions. API keys are only an optional extra for some image and voice features. Check your provider's terms for how your plan may be used.
+No. CodeHarden uses your agents' own logins, including Claude, ChatGPT, Cursor and Google subscriptions. API keys are only an optional extra for some image and voice features. Check your provider's terms for how your plan may be used.
 
 **Where does my data go?**
 Nowhere. It stays on your computer, in `~/.codeharden/`. The only network traffic is your agents talking to their providers, GitHub (if you use it), and any optional image or voice services you turn on.
 
 **Is there telemetry?**
-No. CodeDen sends no usage data anywhere.
+No. CodeHarden sends no usage data anywhere.
 
 **Does it work without GitHub?**
 Yes. Sessions, the workbench and automations all work on local folders. Issues, pull requests and the factories need GitHub.
@@ -207,11 +207,11 @@ It's experimental. Start with the software factory on a test repository with aut
 | [Agent configuration](docs/agent-config.md) | Memory, skills, subagents, MCP servers and hooks |
 | [Voice and images](docs/voice-and-images.md) | Dictation, read-aloud and image generation |
 | [Usage and costs](docs/usage-and-costs.md) | Reports, budgets and rate limits |
-| [Phones, tablets and network access](docs/remote-access.md) | Using CodeDen from your phone |
+| [Phones, tablets and network access](docs/remote-access.md) | Using CodeHarden from your phone |
 | [Security](docs/security.md) | The security model in detail |
 | [Troubleshooting](docs/troubleshooting.md) | `doctor`, logs and common problems |
 | [Reference](docs/reference.md) | Settings, data folder, command-line options and updates |
-| [Architecture](docs/architecture.md) | How CodeDen is built |
+| [Architecture](docs/architecture.md) | How CodeHarden is built |
 
 ## Make your own hardened fork
 
@@ -247,21 +247,21 @@ git push origin FETCH_HEAD:refs/heads/sync/2026-01-05
 gh pr create --repo <you>/<your fork> --base harden --head sync/2026-01-05 --title "sync: upstream to 2026-01-05"
 ```
 
-Review it, then label it: `sync-approved` (the workflow merges it 48 hours later, if its checks pass and nothing was pushed since), `sync-needs-review` or `sync-hold` (it waits for you). The daily review can be a CodeDen automation that opens the pull request, reads the changes and sets the label, or you do it yourself; the workflow only looks at the labels. Three things to expect:
+Review it, then label it: `sync-approved` (the workflow merges it 48 hours later, if its checks pass and nothing was pushed since), `sync-needs-review` or `sync-hold` (it waits for you). The daily review can be a CodeHarden automation that opens the pull request, reads the changes and sets the label, or you do it yourself; the workflow only looks at the labels. Three things to expect:
 
-- If the pull request conflicts, merge `harden` into the sync branch and resolve there. `VERSION`, `CODEHARDEN-CHANGELOG.md` and `state/upstream-base` conflict once both sides have made a release: keep yours.
+- If the pull request conflicts, merge `harden` into the sync branch and resolve there. `VERSION`, `CODEHARDEN-CHANGELOG.md` and `state/upstream-base` conflict once both sides have made a release: keep yours. `README.md` conflicts often, because upstream edits its own: README conflicts resolve to the fork's wording; carry upstream's content changes over by hand.
 - A sync that changes `scripts/harden/` (the release and sync scripts themselves) is never merged for you: it gets `sync-needs-review`, and you merge it by hand with a merge commit.
 - A sync that changes a workflow file can't be merged, or mirrored, by the workflow's own token; its log says so and you do that one by hand.
 
 **Releases and npm, under your name.** After the workflow merges a sync it makes a release on `harden` (a commit, a tag `v<version>` and a changelog entry). After merging your own changes, make one yourself: `scripts/harden/release.sh --dry-run`, then `scripts/harden/release.sh --push`. To publish a release to npm, check its tag out and run `scripts/harden/publish.sh --dry-run`, then `scripts/harden/publish.sh`, signed in to npm as the package's owner: [Publishing to npm](docs/codeharden-npm-release.md) has every step. Desktop installers for a release are built and attached by the "Desktop installers" workflow, run by hand: [Publishing the desktop installers](docs/codeharden-desktop-release.md). A dry run works at once. A run that publishes waits for an approval and reads its signing secrets from a GitHub environment named `release`, which you create yourself (Settings › Environments: required reviewers, only your `harden` branch, the secrets as environment secrets); the script doesn't create it and never touches a secret. A fork without certificates or without reviewers says so in two variables instead: `SIGNED_INSTALLERS=none` (publish unsigned installers) and `RELEASE_APPROVAL=none` (publish without an approval). The scripts read your variables from GitHub with `gh` (or from the environment), and refuse to release or publish in a repository that is not CodeHarden's until they are set, so your users are never updated onto `codeharden` by a default. Your fork is also its own app next to CodeHarden and CodeDen: the home folder (`~/.example-harden` written as one word, `~/.exampleharden`), the link scheme, the keychain service, the app id (`com.exampleharden.app`) and the app's name all come from `PACKAGE_NAME`. Three optional build variables name them exactly: `PRODUCT_NAME` (for example `Example Harden`), `APP_ID` and `DEFAULT_PORT` (CodeHarden's is 4417; pick another so both run at once). `scripts/harden/channel-define.mjs` has the details. The "CodeDen" wording inside the UI is not changed by any of this.
 
-**Your changes survive the merges.** Your fork gets the same guard CodeHarden has: `scripts/harden/upstream-drift.test.mjs`, part of `pnpm test`, fails when a merge brings upstream CodeDen's own names back into the product (its npm package, repository, home folder, port, app id and the like), or drops a place where the product reads its identity from the build. It compares against upstream's values only; your own names come from your variables at build time, so the test needs no changes in your fork. CI runs `pnpm test` on every sync pull request, so check that its run is green before you approve it. See "Keeping the fork's changes through upstream merges" in [AGENTS.md](AGENTS.md).
+**Your changes survive the merges.** Your fork gets the same guard CodeHarden has: `scripts/harden/upstream-drift.test.mjs`, part of `pnpm test`, fails when a merge brings upstream CodeDen's own names back into the product (its npm package, repository, home folder, port, app id and the like), drops a place where the product reads its identity from the build, or puts upstream's wording back into this README. It compares against upstream's values only; your own names come from your variables at build time, so the test needs no changes in your fork. CI runs `pnpm test` on every sync pull request, so check that its run is green before you approve it. See "Keeping the fork's changes through upstream merges" in [AGENTS.md](AGENTS.md).
 
 Optional: `git config core.hooksPath scripts/harden/hooks` runs typecheck and lint on your machine before each push. The tests run in CI, on pull requests into your working branch (see "Checks before a push and in CI" in [AGENTS.md](AGENTS.md)). The script doesn't set the hook.
 
 ## Contributing
 
-Bug reports, ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) to get set up, and [CHANGELOG.md](CHANGELOG.md) for what's changed.
+Bug reports, ideas and pull requests are welcome, in [this repository](https://github.com/harperaa/codeharden/issues). See [CONTRIBUTING.md](CONTRIBUTING.md) to get set up, [CODEHARDEN-CHANGELOG.md](CODEHARDEN-CHANGELOG.md) for what changed in each CodeHarden release, and [CHANGELOG.md](CHANGELOG.md) for upstream CodeDen's own changes.
 
 ## License
 
