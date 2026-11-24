@@ -129,6 +129,8 @@ The setup session runs the template's own `.claude/commands/install.md` and, wit
 
 What the setup adds, without removing a template step: the checks that the repository and the Vercel project don't exist yet (the template's Step 5 would deploy into an existing Vercel project), the rules on secrets (no value printed, none on a command line), the folder and production limits, and starting the app at the end (the template's summary tells you to start it yourself).
 
+**A default chosen on purpose.** The template's App shell question recommends **Minimal shell**; the form preselects **All modules** (`SECURE_FOUNDATION_DEFAULT_SHELL`). That is the product owner's decision for this form, not a departure from a template step: the question is still asked, and whatever you pick is what the install gets.
+
 **What the template's two commands don't do, so the setup doesn't either:**
 
 - **`CLAUDE_CODE_OAUTH_TOKEN`.** Neither command sets it. The template's Claude review workflows (`claude-code-review.yml` on every pull request, `claude.yml` on @claude mentions) run on GitHub's servers and need it as a repository secret: you create the token with `claude setup-token` and add it yourself (see [Repository secrets the project's workflows need](#repository-secrets-the-projects-workflows-need)). Until then those checks fail. Reviews you run inside CodeHarden use your own subscription on this computer and need nothing.
