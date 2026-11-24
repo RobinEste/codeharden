@@ -353,6 +353,17 @@ describe("the setup brief", () => {
         `- ${created.service}: ${created.item}. Removed in: ${created.removeAt}.`,
       );
     }
+    // What configure couldn't finish reaches the summary and the last message.
+    expect(brief).toContain(
+      "If its `manualSteps` isn't empty, keep them for the summary's `--manual-steps` and your final message.",
+    );
+    expect(brief).toContain(
+      "Then anything left for later, the configure step's `manualSteps` included.",
+    );
+    // Without a repository, the CI token step goes to both as the template's own fallback.
+    expect(brief).toContain(
+      'Put the file\'s own fallback in `--manual-steps` and under "left for later": "Run node scripts/setup.mjs doppler-create-ci-token once the project has a GitHub repository"',
+    );
     expect(brief).toContain('under the heading "What was created"');
     expect(brief).toContain("removes none of them");
   });
