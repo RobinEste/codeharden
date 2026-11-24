@@ -85,6 +85,7 @@ With **Create a GitHub repository and deploy to Vercel** ticked, the setup also 
 - The Vercel project takes the repository's name and is connected to it, so later pushes to `main` redeploy.
 - The site is **public** on a `vercel.app` address and runs on the development Clerk and Convex, the same ones as on your computer. On Vercel this uses the project's production slot, as the template's dev route does; nothing is deployed with production keys, and `/deploy-to-prod` is never run.
 - With Doppler, a Doppler token is stored as the repository's Actions secret `DOPPLER_TOKEN` and as the only environment variable the setup adds to the Vercel project (Vercel or an integration of yours may add others of its own). Without Doppler, the app's environment variables, its development keys included, are copied to the Vercel project.
+- That is the only repository secret the setup stores. The template's workflows use others, which GitHub doesn't copy from a template: the project page lists the ones the new repository doesn't have, with the steps to add each (see [Repository secrets the project's workflows need](#repository-secrets-the-projects-workflows-need)).
 
 The verification view lists all of this by name. The setup session is given exactly those names and stops to ask if anything differs: another owner, a public repository, a production deploy. A repository or a Vercel project of that name that already exists is refused in the session's first part, before anything is created: nothing is pushed or deployed into it.
 
@@ -124,6 +125,43 @@ This applies to projects Secure Foundation set up; other projects are unchanged.
 ## Claim your Clerk app
 
 When the install is done, the project page shows **Claim your Clerk app**. On Clerk's page, click **Claim** only and sign in or create your Clerk account. Skip the setup checklist that page shows afterwards (API keys, environment variables, middleware, JWT template, webhook): the install already did all of it, and doing it again can overwrite a working configuration. The link is also in the project's `docs/INSTALL.md`.
+
+## Repository secrets the project's workflows need
+
+The template ships GitHub Actions workflows, and some of them read **repository secrets**: its two Claude review jobs, which run on every pull request, read `CLAUDE_CODE_OAUTH_TOKEN`, and its CI build reads `DOPPLER_TOKEN`. GitHub copies no secret from a template, so in a new repository a job like that fails, on every pull request, until the secret is there.
+
+Once the setup has finished (or stopped), the project's **Secure Foundation setup** card lists them under **Repository secrets**, beside the Clerk claim: every secret (`secrets.NAME`) and variable (`vars.NAME`) the project's own workflow files use, and for each one the repository doesn't have:
+
+- its name, and what it is for when CodeHarden knows the name;
+- which workflow files and jobs use it and when they run ("on every pull request", "only when someone mentions @claude");
+- what happens until it is set;
+- the steps to add it.
+
+What is already set is named in one line ("Already set: `DOPPLER_TOKEN`"). The setup session's last message points here too.
+
+**You add them; CodeHarden doesn't.** It never sets a secret, never asks you for a value, never puts one on a command line and never stores one, and there is no field to paste a token into. A value is typed on GitHub, or in your own terminal into `gh`'s prompt.
+
+### The names it knows
+
+| Name | What it is | How you add it |
+|---|---|---|
+| `CLAUDE_CODE_OAUTH_TOKEN` | The sign-in of the Claude workflows (`anthropics/claude-code-action`): a token for your own Claude subscription. Without it those jobs fail shortly after they start. | 1. In your own terminal run `claude setup-token` (a command of Claude Code; it needs a Claude subscription). It prints a token that is valid for one year and saves it nowhere: copy it. 2. Store it as the repository secret `CLAUDE_CODE_OAUTH_TOKEN`: the repository's **Settings › Secrets and variables › Actions › New repository secret**, or `gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo <owner>/<repo>` in your own terminal, pasting the token when it asks. 3. Install the [Claude GitHub App](https://github.com/apps/claude) on the repository if it isn't there yet. These are the manual setup steps of Claude Code's own guide, [Claude Code GitHub Actions](https://code.claude.com/docs/en/github-actions); `claude setup-token` is described on its [Authentication](https://code.claude.com/docs/en/authentication) page. |
+| `DOPPLER_TOKEN` | A read-only Doppler token for the `dev` config, so the CI build can read the app's settings from Doppler. **The deploy stores it for you** when you chose Doppler (it is the one secret the setup adds, through the template's own step), so it normally reads "set". With `.env.local` there is no Doppler token and it reads "not needed here": the template's CI builds without it. | Only when it is missing in a Doppler project: in a terminal in the project folder run `node scripts/setup.mjs doppler-create-ci-token`, the template's own step (its `.claude/commands/install.md`, "Doppler post-init"). It creates the token in Doppler and stores it as the secret itself. |
+
+**Any other name** (one the template adds later, or one of your own workflows) is listed the same way with the generic steps: **Settings › Secrets and variables › Actions › New repository secret** (for a variable: the **Variables** tab), or `gh secret set NAME --repo <owner>/<repo>` (`gh variable set …`) in your own terminal. What value it takes is for you to find out from the workflow that uses it: only its name is known.
+
+### How it is checked
+
+- **The workflow files are read as text,** in the project folder on this computer: `.github/workflows/*.yml` and `*.yaml`, at most 50 files of 256 KB each. Nothing of the project is run and no YAML is loaded. References are looked for where GitHub evaluates expressions (`${{ … }}` and `if:`), in the forms `secrets.NAME`, `secrets['NAME']` and `secrets["NAME"]`; comments are skipped, and so are `GITHUB_TOKEN` and every other `GITHUB_…` name, which GitHub provides itself. A job that hands all secrets to a workflow it calls (`secrets: inherit`) is reported as "Inherits all", since that workflow can use names that aren't listed.
+- **GitHub is asked for names only,** through your own `gh`, with two fixed commands: `gh secret list --repo <owner>/<repo> --json name` and, when a workflow uses a variable, `gh variable list --repo <owner>/<repo> --json name`. A secret's value can't be read from GitHub at all, and a variable's is never asked for. The repository is the one the project is connected to.
+- **When:** when you open the project's page once the setup is over, again when the project gets its GitHub repository, and whenever you press **Check again**. A result is shown again for five minutes before the page asks anew.
+- **If GitHub can't be asked** (`gh` isn't installed or signed in, or the call fails) the names are still listed, marked "couldn't check", with the reason and the steps.
+- **Without a GitHub repository** (Deploy off) the card says one line: which secrets the workflows use, and that they matter once the project has a repository. The steps appear when it has one.
+- **From a phone or another device** you see the last result, read-only. Checking works on the computer running CodeHarden only, because it asks that computer's GitHub sign-in.
+
+What it can't see: a secret your **organisation** shares with the repository or one held by a deployment **environment** (only the repository's own are listed, so such a name reads "not set"); a secret used only by a workflow that another workflow calls from a different repository; and workflow files on GitHub that differ from the ones in the project folder. A run that already failed stays failed after you add the secret: run it again on GitHub, or push again.
+
+**A project made by an earlier version** shows the same list the next time you open its page on this computer, as long as it is connected to its GitHub repository. Once the setup session is long gone, the card stays on the page only while one of the names is still not set.
 
 ## Stopping and restarting the app
 
@@ -169,5 +207,7 @@ Neither step removes anything from your accounts. Remove each there:
 ## For fork owners
 
 The template is part of the fork's configuration: the build variables `TEMPLATE_REPOSITORY` (a GitHub `owner/repo`, default `harperaa/secure-vibe-coding-OS`) and `TEMPLATE_BRANCH` (default `main`). `TEMPLATE_REPOSITORY=none` builds without the option. Only that repository is ever fetched: no request can name another. The other defaults are one constant each in `packages/contracts/src/secure-foundation.ts`: `SECURE_FOUNDATION_DEFAULT_SECRETS`, `SECURE_FOUNDATION_SETUP_AUTONOMY`, `SECURE_FOUNDATION_REPOSITORY_MODE`, `SECURE_FOUNDATION_DEFAULT_SHELL` (the preselected app shell, `all`) and `SECURE_FOUNDATION_DEFAULT_DEPLOY` (whether the deploy option starts ticked). `SECURE_FOUNDATION_PROJECT_MODE` (`manual`) is the autonomy mode a new project starts in; while a project Secure Foundation set up is in that mode, its project manager is not woken (`isSecureFoundationQuiet`, and `holdsPmWakes` in `apps/server/src/services/secure-foundation/quiet.ts`).
+
+The repository secrets with steps of their own are a table in `packages/contracts/src/secure-foundation-repo-secrets.ts` (`SECURE_FOUNDATION_KNOWN_REPO_SECRETS`): what each is for, what happens without it, the steps, and the page they come from. A template with other workflows needs no change to be listed, since every name is found by reading the workflow files; add an entry only to give a name steps of its own.
 
 The template must have what the setup session's brief names: `.claude/commands/install.md`, `scripts/setup.mjs` with the subcommands `init`, `convex-setup`, `configure`, `doppler-bootstrap`, `doppler-sync-env-local` and `write-install-summary`, `scripts/modules.mjs install`, for the deploy `.claude/commands/deploy-to-dev.md` and `scripts/deploy.mjs` (`github-setup`, `vercel-env-dev`, `vercel-deploy`, `write-summary`), and content modules under `templates/modules/<name>/module.json`.
