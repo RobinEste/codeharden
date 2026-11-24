@@ -8,7 +8,7 @@ A pull request that brings upstream commits has waited out its cooldown when all
 
 1. It has the label `sync-approved`. The approval's time is when that label was last applied, from the pull request's timeline, not when the pull request was opened.
 2. It does not have the label `sync-hold`.
-3. Nothing was pushed to its head branch after the approval. The approval covers the commit that was reviewed, not a later one. Re-apply the label to start again.
+3. Nothing was pushed to its head branch after the approval. The approval covers the commit that was reviewed, not a later one. Re-apply the label to start again. GitHub's times are whole seconds, so a push in the same second as the approval counts as after it.
 4. 48 hours have passed since the approval.
 
 `sync-needs-review` is not part of the rule. That label means a person merges the pull request instead of the workflow, and they may once the rule holds. A hold does not stop the clock: the 48 hours run from the approval, and the pull request is green again when the hold is taken off after them.
@@ -50,7 +50,7 @@ The sync workflow merges at 13:00 UTC. It asks the rule itself and writes the sa
 
 `scripts/harden/release.sh` looks at the upstream commits between `state/upstream-base` (what the last release contained) and what the branch contains now. When there are none, it asks nothing: a release of the fork's own commits needs neither `gh` nor a network.
 
-When there are some, it finds the merge that brought them into the branch and the pull request that merge belongs to, and asks the rule about that pull request at the moment it was merged. It refuses when the pull request had not waited, when the commits came in without a pull request, and when GitHub can't be asked (no `gh`, not signed in, an outage). `--dry-run` shows what the release would be, then the same verdict, with the same exit status.
+When there are some, it walks the branch's own line back to the last release and accounts for every step on which upstream commits arrived. A merge is traced to the pull request it belongs to, and the rule is asked about that pull request at the moment it was merged. It refuses when the pull request had not waited, when the commits came in without a pull request (a merge made by hand, a fast-forward, a direct push), and when GitHub can't be asked (no `gh`, not signed in, an outage). Two syncs in one release are judged each by itself. `--dry-run` shows what the release would be, then the same verdict, with the same exit status.
 
 ```text
 release: refused. This release would ship upstream changes that had not waited out the 48-hour cooldown when they were merged:
@@ -72,7 +72,7 @@ Only the repository owner waives, and only for one upstream commit at a time.
 4. The job "Record the waiver" waits. Press **Review deployments**, tick `sync-waiver`, approve.
 5. Within minutes the pull request's status reads "Cooldown waived by the owner". The sync workflow may merge it on its next run if its other conditions hold (labelled `sync-approved`, not on hold, upstream code only, checks green), and `release.sh` lets the release through.
 
-**What a waiver covers.** The pull request's head as it was when the run started. A push to the branch afterwards voids it, like an approval. A waiver that names no pull request covers whichever merge brings that upstream commit. A waiver given after the merge covers what was merged.
+**What a waiver covers.** The pull request's head as it was before the run started. A push to the branch in that second or afterwards voids it, like an approval. A waiver that names no pull request covers whichever merge brings that upstream commit. A waiver given after the merge covers what was merged.
 
 **Where the record is.** The workflow writes nothing: no tag, no file, no variable. Any of those could also be written by whoever can push to the repository. The waiver is the run itself: a successful run of `sync-waiver.yml` on the working branch whose review history shows a reviewer's approval for the environment `sync-waiver`. That is GitHub's own record. It can be read without a secret (`gh api repos/<owner>/<repo>/actions/runs/<run id>/approvals`), it names who approved, the run's times say when, and it comes into being only by approving. The run's title names the upstream commit and the pull request.
 

@@ -16,6 +16,8 @@
 #   2. It does not have the label `sync-hold` at T.
 #   3. The head branch was not pushed to after the approval, and the newest push GitHub has
 #      recorded for it is the pull request's head commit. Re-apply the label to start again.
+#      GitHub's times are whole seconds: a push in the same second as the approval can't be
+#      told from one after it, and counts as after it.
 #   4. T is COOLDOWN_HOURS or more after the approval.
 # `sync-needs-review` is not part of the rule: it says that a person merges the pull request,
 # and they may once the rule holds. (The merge job leaves such a pull request alone.)
@@ -24,7 +26,7 @@
 # on the working branch whose job in the environment `sync-waiver` a required reviewer
 # approved (GitHub's own record: the run's review history). Its title names the upstream
 # commit and, optionally, one pull request. It covers a pull request that brings exactly that
-# upstream commit when nothing was pushed to the head branch after the run started; for a
+# upstream commit when the head branch's newest push is from before the run started; for a
 # merged pull request, a waiver given after the merge covers it too.
 #
 #   sync-cooldown.sh pull-request <number> --upstream-ref <ref> --target-ref <ref> --branch <name> [--head <sha>]
@@ -175,7 +177,7 @@ cd_labels_at() {
 # forced push and a merge into it are pushes; deleting it is not.
 cd_last_push() {
   local rows when type after s
-  rows=$(cd_gh api --method GET "repos/${CD_REPO}/activity" -f "ref=refs/heads/$1" -f per_page=100 --jq \
+  rows=$(cd_gh api --paginate --method GET "repos/${CD_REPO}/activity" -f "ref=refs/heads/$1" -f per_page=100 --jq \
     '.[] | "\(.timestamp) \(.activity_type) \(.after)"') || return 2
   CD_PUSH_AT="" CD_PUSH_SHA=""
   while read -r when type after; do
@@ -201,7 +203,7 @@ cd_waiver_title() { printf '%s: upstream %s, pull request %s' "$WAIVER_WORKFLOW_
 cd_find_waiver() {
   local upstream="$1" number="$2" runs id started branch url title by
   CD_WAIVER_AT="" CD_WAIVER_BY="" CD_WAIVER_URL=""
-  runs=$(cd_gh api --method GET "repos/${CD_REPO}/actions/workflows/${WAIVER_WORKFLOW}/runs" \
+  runs=$(cd_gh api --paginate --method GET "repos/${CD_REPO}/actions/workflows/${WAIVER_WORKFLOW}/runs" \
     -f event=workflow_dispatch -f status=success -f per_page=100 --jq \
     '.workflow_runs[] | select(.conclusion == "success") | "\(.id) \(.run_started_at) \(.head_branch) \(.html_url) \(.display_title)"') || return 1
   while read -r id started branch url title; do
@@ -260,7 +262,8 @@ cd_evaluate() {
     CD_STATE="held"
   elif [ -z "$CD_APPROVED_AT" ]; then
     CD_STATE="not-approved"
-  elif [ "$CD_PUSH_AT" -gt "$CD_APPROVED_AT" ]; then
+  elif [ "$CD_PUSH_AT" -ge "$CD_APPROVED_AT" ]; then
+    # In the same second or later: the approval can't be shown to cover this head.
     CD_STATE="head-moved" CD_READY_AT=""
   elif [ "$CD_AT" -lt "$CD_READY_AT" ]; then
     CD_STATE="waiting"
@@ -268,14 +271,15 @@ cd_evaluate() {
     CD_STATE="satisfied"
   fi
 
-  # The only way around: the owner's waiver for this upstream commit, when nothing was pushed
-  # after it (or when it was given for what is already merged).
+  # The only way around: the owner's waiver for this upstream commit, when the newest push is
+  # from before it (a push in the same second is not), or when it was given for what is
+  # already merged.
   if [ "$CD_STATE" != "satisfied" ] && [ -n "$upstream" ] && cd_find_waiver "$upstream" "$PR_NUMBER"; then
     if { [ "$merged" = 1 ] && [ "$CD_WAIVER_AT" -ge "$CD_AT" ]; } \
-      || { [ "$settled" = 1 ] && [ "$CD_PUSH_AT" -le "$CD_WAIVER_AT" ]; }; then
+      || { [ "$settled" = 1 ] && [ "$CD_PUSH_AT" -lt "$CD_WAIVER_AT" ]; }; then
       CD_STATE="waived"
     else
-      # Something was pushed after it: it covers an earlier head, not this one.
+      # Something was pushed since it started: it covers an earlier head, not this one.
       CD_WAIVER_AT="" CD_WAIVER_BY="" CD_WAIVER_URL=""
     fi
   fi
@@ -284,12 +288,13 @@ cd_evaluate() {
 # What the status on an open pull request says: CD_STATUS (success, pending or failure),
 # CD_SHORT (the status line, 140 characters at most) and CD_DETAIL.
 cd_describe() {
-  local h="$COOLDOWN_HOURS" approved="" ready="" pushed="" waived="" ends="end"
+  local h="$COOLDOWN_HOURS" approved="" ready="" pushed="" waived="" ends="end" after="after"
   [ -z "${CD_APPROVED_AT:-}" ] || approved=$(cd_time "$CD_APPROVED_AT")
   [ -z "${CD_READY_AT:-}" ] || ready=$(cd_time "$CD_READY_AT")
   [ -z "${CD_PUSH_AT:-}" ] || pushed=$(cd_time "$CD_PUSH_AT")
   [ -z "${CD_WAIVER_AT:-}" ] || waived=$(cd_time "$CD_WAIVER_AT")
   if [ -n "${CD_READY_AT:-}" ] && [ "$CD_AT" -ge "$CD_READY_AT" ]; then ends="ended"; fi
+  if [ "${CD_PUSH_AT:-}" = "${CD_APPROVED_AT:-}" ]; then after="in the same second as"; fi
   CD_STATUS="pending"
   case "$CD_STATE" in
     not-a-sync)
@@ -319,8 +324,8 @@ cd_describe() {
       fi ;;
     head-moved)
       CD_STATUS="failure"
-      CD_SHORT="Pushed ${pushed}, after the approval (${approved}). Re-apply ${APPROVED_LABEL} to restart."
-      CD_DETAIL="The head branch was pushed ${pushed}, after ${APPROVED_LABEL} was applied (${approved}): the approval covers the commit that was reviewed, not a later one. Review it again and re-apply the label; the ${h} hours start over." ;;
+      CD_SHORT="Pushed ${pushed}, ${after} the approval (${approved}). Re-apply ${APPROVED_LABEL} to restart."
+      CD_DETAIL="The head branch was pushed ${pushed}, ${after} ${APPROVED_LABEL} was applied (${approved}): the approval covers the commit that was reviewed, not a later one. Review it again and re-apply the label; the ${h} hours start over." ;;
     unsettled)
       CD_SHORT="GitHub's record of the head branch's pushes is not at this head yet. Looked at again within the hour."
       CD_DETAIL="The newest push GitHub has recorded for ${PR_HEAD_REF} (${CD_PUSH_SHA:-none}) is not this pull request's head (${PR_HEAD}), so it can't be shown that nothing was pushed after the approval. It is looked at again on the next run." ;;

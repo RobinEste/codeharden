@@ -5,9 +5,12 @@
 #   sync-cooldown-release.sh --prev-base <sha> --new-base <sha> --upstream-ref <ref> --branch <name> [--notes <file>]
 #
 # `prev-base` is the upstream commit the last release contained (state/upstream-base),
-# `new-base` the one HEAD contains now. For the upstream commits between them it finds the
-# merges through which they entered the branch, the pull request that landed each, and asks
-# the rule about that pull request at the moment it was merged.
+# `new-base` the one HEAD contains now. It walks the branch's own line (first parents from
+# HEAD) back to where the last release's upstream base was all it had, and accounts for every
+# step on which new upstream commits arrived: a merge is traced to the pull request that
+# landed it, and the rule is asked about that pull request at the moment it was merged; an
+# upstream commit that sits on the line itself arrived by a fast-forward or a direct push,
+# with no pull request at all.
 #
 #   exit 0  every one had waited, or the owner waived it. Prints one line for each; a waived
 #           one is also written to the notes file, for the release's changelog entry.
@@ -22,13 +25,23 @@ set -euo pipefail
 # shellcheck source=scripts/harden/sync-cooldown.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/sync-cooldown.sh"
 
-# The commit of the branch's own line (first parents from HEAD) that brought commit $1 in.
-cr_landing() {
-  local commit landing=""
+# Where new upstream commits arrived on the branch's own line, newest first: `landing <commit>`
+# for a commit of this side that contains upstream commits its first parent lacks, and
+# `direct <commit>` for an upstream commit on the line itself. Every upstream commit after $1
+# arrived on exactly one of these steps, so none is left unaccounted for.
+cr_arrivals() {
+  local prev="$1" upstream_ref="$2" commit base parent_base
   while read -r commit; do
-    if git merge-base --is-ancestor "$1" "$commit" 2> /dev/null; then landing="$commit"; else break; fi
+    if git merge-base --is-ancestor "$commit" "$upstream_ref" 2> /dev/null; then
+      # From here down the line is upstream's own.
+      git merge-base --is-ancestor "$commit" "$prev" 2> /dev/null || echo "direct ${commit}"
+      break
+    fi
+    base=$(git merge-base "$commit" "$upstream_ref" 2> /dev/null) || break
+    if git merge-base --is-ancestor "$base" "$prev" 2> /dev/null; then break; fi
+    parent_base=$(git merge-base "${commit}^1" "$upstream_ref" 2> /dev/null) || parent_base=""
+    [ "$parent_base" = "$base" ] || echo "landing ${commit}"
   done < <(git rev-list --first-parent HEAD)
-  printf '%s\n' "$landing"
 }
 
 # The merged pull request into the branch whose merge is commit $1: sets CR_PULL_REQUEST
@@ -72,7 +85,7 @@ cr_why() {
 }
 
 cr_main() {
-  local prev="" new="" upstream_ref="" notes="" entries entry landing landings="" upstream short what refused="" passed="" waivers=""
+  local prev="" new="" upstream_ref="" notes="" kind landing upstream short what refused="" passed="" waivers="" found=0
   CD_BRANCH=""
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -96,29 +109,23 @@ cr_main() {
     exit 0
   fi
 
-  # Where the new upstream commits entered: merges on this side that have one as a parent.
-  git rev-list "${prev}..${new}" > "$CD_TMP/new-upstream"
-  entries=$(git rev-list --parents --min-parents=2 HEAD --not "$upstream_ref" \
-    | awk 'NR == FNR { new[$1] = 1; next } { for (i = 2; i <= NF; i++) if ($i in new) { print $1; break } }' "$CD_TMP/new-upstream" -)
-  # Oldest first, each landing commit once.
-  for entry in $(printf '%s\n' "$entries" | awk '{ line[NR] = $0 } END { for (i = NR; i > 0; i--) print line[i] }'); do
-    landing=$(cr_landing "$entry")
-    case " ${landings} " in *" ${landing} "*) ;; *) landings="${landings} ${landing}" ;; esac
-  done
-  if [ -z "${landings// /}" ]; then
-    echo "The upstream commits in this release (${prev:0:8}..${new:0:8}) can't be traced to a merge on ${CD_BRANCH}: upstream is expected to arrive by merge commits."
-    exit 2
-  fi
-
-  for landing in $landings; do
+  # Oldest first.
+  cr_arrivals "$prev" "$upstream_ref" | awk '{ line[NR] = $0 } END { for (i = NR; i > 0; i--) print line[i] }' > "$CD_TMP/arrivals"
+  while read -r kind landing; do
+    [ -n "$landing" ] || continue
+    found=1
     upstream=$(git merge-base "$landing" "$upstream_ref")
     short="${upstream:0:8}"
-    if ! cr_pull_request_of "$landing"; then
+    CR_PULL_REQUEST=""
+    if [ "$kind" = "landing" ] && ! cr_pull_request_of "$landing"; then
       echo "GitHub could not be asked which pull request brought upstream ${short} in: $(cd_problem_text)."
       exit 2
     fi
     if [ -z "$CR_PULL_REQUEST" ]; then
       what="upstream ${short} came in through the commit ${landing:0:8} (\"$(git log -1 --format=%s "$landing")\"), which is not the merge of a pull request into ${CD_BRANCH}"
+      if [ "$kind" = "direct" ]; then
+        what="upstream ${short} is on ${CD_BRANCH}'s own line: it arrived by a fast-forward or a direct push, not through a pull request"
+      fi
       if cd_find_waiver "$upstream" ""; then
         CD_STATE="waived"
       else
@@ -149,7 +156,11 @@ cr_main() {
     To waive: upstream commit ${upstream}, pull request ${PR_NUMBER}.
 " ;;
     esac
-  done
+  done < "$CD_TMP/arrivals"
+  if [ "$found" = 0 ]; then
+    echo "The upstream commits in this release (${prev:0:8}..${new:0:8}) can't be traced to a step on ${CD_BRANCH}'s own line."
+    exit 2
+  fi
 
   if [ -n "$refused" ]; then
     printf 'This release would ship upstream changes that had not waited out the %s-hour cooldown when they were merged:\n%s' "$COOLDOWN_HOURS" "$refused"

@@ -123,6 +123,24 @@ describe("the cooldown rule, for an open pull request", () => {
     );
   });
 
+  it("counts a push in the same second as the approval as after it", () => {
+    // GitHub's times are whole seconds, so the order inside one can't be known.
+    const { ask, gh, head } = approvedSync();
+    gh.pushes(SYNC, [
+      [APPROVED, head],
+      [at(23, "14:50"), "a".repeat(40), "branch_creation"],
+    ]);
+    const result = ask(at(28));
+    expect(result.code).toBe(1);
+    expect(result.state).toBe("head-moved");
+    expect(result.short).toBe(
+      "Pushed 2026-11-23 14:55 UTC, in the same second as the approval (2026-11-23 14:55 UTC). Re-apply sync-approved to restart.",
+    );
+    // One second earlier it is before the approval.
+    gh.pushes(SYNC, [["2026-11-23T14:54:59Z", head]]);
+    expect(ask(at(28)).state).toBe("satisfied");
+  });
+
   it("starts again when the label is re-applied, from the newest time it was applied", () => {
     const { ask, gh, head } = approvedSync();
     gh.pushes(SYNC, [[at(24, "09:00"), head]]);
@@ -371,6 +389,26 @@ describe("the owner's waiver", () => {
     expect(result.state).toBe("head-moved");
     // Nothing of the void waiver is left in the verdict, or linked from the status.
     expect(result.url).toBe("");
+  });
+
+  it("is void for a push in the same second as its run started", () => {
+    const { ask, gh, upstream, head } = approvedSync();
+    gh.waiverRun({ upstream, pullRequest: 7, started: at(24, "09:00") });
+    gh.labelEvents(7, [[at(24, "09:05"), "labeled", "sync-approved"]]);
+    gh.pushes(SYNC, [[at(24, "09:00"), head]]);
+    expect(ask(at(24, "10:00")).state).toBe("waiting");
+    gh.pushes(SYNC, [["2026-11-24T08:59:59Z", head]]);
+    expect(ask(at(24, "10:00")).state).toBe("waived");
+  });
+
+  it("reads all of the push record and of the waiver runs, not their first page", () => {
+    const { ask, gh, upstream } = approvedSync();
+    gh.waiverRun({ upstream, pullRequest: 7, started: at(24, "09:00") });
+    ask(at(24, "10:00"));
+    const calls = gh.calls();
+    for (const path of ["/activity", "/actions/workflows/sync-waiver.yml/runs", "/timeline"]) {
+      expect(calls.find((call) => call.includes(path))).toContain("--paginate");
+    }
   });
 
   /** The state with one run of the waiver workflow that differs from a waiver as `run` says. */

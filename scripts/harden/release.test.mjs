@@ -406,6 +406,67 @@ describe("release.sh and the cooldown", () => {
     expect(waived.out).toContain("Sync cooldown waived by the owner");
   });
 
+  it("accounts for every upstream commit: one that arrived by a fast-forward is not covered by a later sync", () => {
+    // Upstream took this fork's history in, and the branch was fast-forwarded onto it: no
+    // merge, no pull request. A later sync, properly approved and cooled, comes on top.
+    const repo = fork();
+    const gh = github();
+    repo.git("checkout", "--quiet", "up");
+    repo.git("merge", "--quiet", "--no-ff", "harden", "-m", "Merge the fork's history");
+    const forwarded = repo.git("rev-parse", "HEAD");
+    repo.git("checkout", "--quiet", "harden");
+    repo.git("merge", "--quiet", "--ff-only", "up");
+    const later = repo.upstreamCommit();
+    const mergeCommit = repo.merge("up", 7);
+    const pr = gh.pull(7, { head: later, ref: SYNC, merged: at(23, "13:00"), mergeCommit });
+    gh.labelEvents(7, [[at(21, "12:00"), "labeled", "sync-approved"]]);
+    gh.pushes(SYNC, [[at(21, "11:00"), later, "branch_creation"]]);
+    gh.pullsOfCommit(mergeCommit, [pr]);
+    const release = () =>
+      repo.run("release.sh", ["--upstream-ref", "up"], {
+        RELEASE_NOW: NOW,
+        ...gh.env,
+        GITHUB_REPOSITORY: REPO,
+      });
+    const refused = release();
+    expect(refused.code).toBe(1);
+    expect(refused.err).toContain(
+      `upstream ${forwarded.slice(0, 8)} is on harden's own line: it arrived by a fast-forward or a direct push, not through a pull request: nothing was approved`,
+    );
+    expect(refused.err).toContain(`To waive: upstream commit ${forwarded}, no pull request.`);
+    // The sync on top was in order, and is not what is refused.
+    expect(refused.err).not.toContain("pull request #7");
+    gh.waiverRun({ upstream: forwarded, started: at(23, "20:00") });
+    const released = release();
+    expect(released.err).toBe("");
+    expect(released.code).toBe(0);
+    expect(released.out).toContain(
+      `Sync cooldown waived by the owner: upstream ${forwarded.slice(0, 8)} is on harden's own line`,
+    );
+    expect(released.out).toContain(
+      `Sync cooldown: upstream ${later.slice(0, 8)} came in through pull request #7`,
+    );
+  });
+
+  it("refuses a branch that is itself an upstream commit", () => {
+    const repo = fork();
+    const gh = github();
+    repo.git("checkout", "--quiet", "up");
+    repo.git("merge", "--quiet", "--no-ff", "harden", "-m", "Merge the fork's history");
+    repo.git("checkout", "--quiet", "harden");
+    repo.git("merge", "--quiet", "--ff-only", "up");
+    const result = repo.run("release.sh", ["--upstream-ref", "up"], {
+      RELEASE_NOW: NOW,
+      ...gh.env,
+      GITHUB_REPOSITORY: REPO,
+    });
+    expect(result.code).toBe(1);
+    expect(result.err).toContain(
+      "it arrived by a fast-forward or a direct push, not through a pull request",
+    );
+    expect(gh.calls().some((call) => call.includes("/commits/"))).toBe(false);
+  });
+
   it("names the pull request that really landed the commits, also when it was not the sync's own", () => {
     // The sync branch was merged into a working branch, and that branch's pull request landed it.
     const repo = fork();
