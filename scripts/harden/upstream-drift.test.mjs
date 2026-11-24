@@ -458,7 +458,11 @@ const CALL_SITES = [
   [".codeden/VISION.md", "the fork's own vision (a conflict on this file is resolved to the fork's text)", /^CodeHarden is a hardened fork/],
 ];
 
-/** The credit on top of README.md: the first line and the sentence that says where the text comes from. */
+/**
+ * The credit on top of README.md: the first line and the sentence that says where the text comes
+ * from. Unlike the checks above, this one and README_ALLOWED hold this repository's own prose: a
+ * fork that rewrites its README for its own product changes both to match.
+ */
 const README_CREDIT = [
   "> **CodeHarden** is a hardened fork of [CodeDen](https://github.com/leonvanzyl/codeden)",
   "> The README below is derived and adapted from the [CodeDen repository](https://github.com/leonvanzyl/codeden).",
