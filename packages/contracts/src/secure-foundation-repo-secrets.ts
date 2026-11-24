@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { Timestamp } from "./common";
-import { HARDEN_TEMPLATE_BRANCH, HARDEN_TEMPLATE_REPOSITORY } from "./harden-channel";
+import {
+  HARDEN_PRODUCT_NAME,
+  HARDEN_TEMPLATE_BRANCH,
+  HARDEN_TEMPLATE_REPOSITORY,
+} from "./harden-channel";
 import type { SecureFoundationSecrets } from "./secure-foundation";
 
 /**
@@ -261,18 +265,20 @@ function addSecret(name: string, repository: string): string {
  * (`describeRepoSecret`), so a secret the template adds later is still listed. A fork with
  * another template changes this table.
  *
- * `CLAUDE_CODE_OAUTH_TOKEN`: the steps are Claude Code's own, from its "Claude Code GitHub
- * Actions" guide (manual setup) and its "Authentication" page (`claude setup-token`).
+ * `CLAUDE_CODE_OAUTH_TOKEN`: the template's Claude review workflows read it. The template's own
+ * install doesn't set it (its `.claude/commands/install.md` and `deploy-to-dev.md` never name
+ * it), so the setup doesn't either; it is the person's to add. The steps are Claude Code's own,
+ * from its "Claude Code GitHub Actions" guide (manual setup) and its "Authentication" page
+ * (`claude setup-token`).
  * `DOPPLER_TOKEN`: the template's own step (`scripts/setup.mjs doppler-create-ci-token`, in its
  * `.claude/commands/install.md`); the setup session runs it as part of the deploy, so after a
  * deploy with Doppler this secret is set.
  */
 export const SECURE_FOUNDATION_KNOWN_REPO_SECRETS: Record<string, KnownRepoSecret> = {
   CLAUDE_CODE_OAUTH_TOKEN: {
-    purpose:
-      "The sign-in of the project's Claude workflows (the `anthropics/claude-code-action` action): a token for your own Claude subscription.",
+    purpose: `The sign-in of the template's Claude review workflows (the \`anthropics/claude-code-action\` action). They run on GitHub's servers, not on this computer, so they need a token for your own Claude subscription stored in the repository. The template's install doesn't set it. Reviews you run inside ${HARDEN_PRODUCT_NAME} use your own subscription on this computer and don't need it.`,
     without:
-      "Without it the Claude action has no sign-in: these jobs fail shortly after they start, unless the workflow itself skips them.",
+      "Without it the template's Claude review checks have no sign-in and fail shortly after they start, each time they run (the review on every pull request), unless the workflow itself skips them.",
     steps: ({ repository }) => [
       "In your own terminal, run `claude setup-token` (a command of Claude Code; it needs a Claude subscription). It prints a token that is valid for one year and saves it nowhere: copy it.",
       addSecret("CLAUDE_CODE_OAUTH_TOKEN", repository),

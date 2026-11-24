@@ -10,7 +10,7 @@ import {
 import type { CodeDenClient } from "@/lib/api";
 import { ApiRequestError } from "@/lib/api/http";
 import { type FormAnswers, verifyRequestOf } from "./answers";
-import { deployOf } from "./deploy";
+import { deployOf, selectedOwner } from "./deploy";
 
 /**
  * What Go checks, in one pass, before it asks for anything to be created: the server's checks
@@ -181,8 +181,7 @@ function deployItem(
       fix: "Sign in to both, then check again.",
     };
   }
-  const owners = github.owners;
-  const owner = owners.includes(answers.deployOwner ?? "") ? answers.deployOwner : owners[0];
+  const owner = selectedOwner(github, answers.deployOwner);
   const scope = vercel.scopes.some((s) => s.slug === answers.deployScope)
     ? answers.deployScope
     : vercel.scopes[0]?.slug;

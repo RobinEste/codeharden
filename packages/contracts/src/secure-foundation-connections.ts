@@ -62,6 +62,11 @@ export const SecureFoundationConnection = z.object({
   account: z.string().nullable().default(null),
   /** GitHub: who can own the new repository: the account first, then its organisations. */
   owners: z.array(z.string()).default([]),
+  /**
+   * GitHub: the owner chosen for the last deploy this app set up, while it is still one of
+   * `owners`; the form preselects it. Null: none kept, so the account is preselected.
+   */
+  lastOwner: z.string().nullable().default(null),
   /** GitHub: permissions the deploy needs that the sign-in lacks. */
   missingScopes: z.array(z.string()).default([]),
   /** Vercel: the teams a project can be created in. */

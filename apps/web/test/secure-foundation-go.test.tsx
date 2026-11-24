@@ -1,5 +1,5 @@
 import type { SecureFoundationLogin } from "@codeden/contracts";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { CREATED_STAYS } from "@/components/harden/secure-foundation/consent";
 import { ApiRequestError } from "@/lib/api/http";
@@ -444,6 +444,23 @@ describe("with the deploy option", () => {
     expect(create.mock.calls[0]?.[0]).toMatchObject({
       deploy: { owner: "demo-person", repository: "my-site", vercelScope: "acme-team" },
     });
+  });
+
+  it("preselects the last deploy's owner, and says what an organisation's repository gets", async () => {
+    const { create } = await withDeploy([{ lastOwner: "acme-org" }, {}]);
+    fireEvent.click(goButton());
+    const fields = await screen.findByTestId("deploy-fields");
+    const owner = within(fields).getByLabelText("Repository owner") as HTMLSelectElement;
+    expect(owner.value).toBe("acme-org");
+    expect(owner.textContent).toContain("demo-person (your account)");
+    expect(owner.textContent).toContain("acme-org (used last time)");
+    expect(screen.getByTestId("deploy-owner-secrets").textContent).toContain(
+      "A repository in an organisation gets the secrets that organisation shares with its repositories",
+    );
+    expect(screen.getByTestId("check-deploy").textContent).toContain("acme-org/my-site");
+    fireEvent.click(goButton());
+    await waitFor(() => expect(create).toHaveBeenCalledTimes(1));
+    expect(create.mock.calls[0]?.[0]).toMatchObject({ deploy: { owner: "acme-org" } });
   });
 
   it("holds Go on a name that can't be a repository, a missing permission and no Vercel team", async () => {

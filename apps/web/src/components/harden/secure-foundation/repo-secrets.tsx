@@ -183,8 +183,10 @@ export function SecureFoundationRepoSecretsList({
       {open.length > 0 && (
         <>
           <p className="text-muted-foreground">
-            GitHub copies no secret from a template and the setup stores none of these, so you add
-            them yourself, on GitHub or in your own terminal. A value is never typed in here.
+            The project's GitHub workflows read these when they run on GitHub's servers; the app on
+            this computer doesn't need them. GitHub copies no secret from a template, so you add the
+            ones listed here yourself, on GitHub or in your own terminal. A value is never typed in
+            here.
           </p>
           <ul className="space-y-2">
             {open.map((item) => (

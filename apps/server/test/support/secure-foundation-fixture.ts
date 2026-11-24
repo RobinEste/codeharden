@@ -32,7 +32,14 @@ for (const arg of rest) {
 console.log(JSON.stringify({ success: true, command, args }));
 `;
 
-const DEPLOY = `const FLAGS = { "github-setup": ["repo-name", "owner"], "vercel-env-dev": [], "vercel-deploy": [] };
+const DEPLOY = `const FLAGS = {
+  "check-tools": [],
+  "gh-context": [],
+  "github-setup": ["repo-name", "owner"],
+  "vercel-env-dev": [],
+  "vercel-deploy": [],
+  "write-summary": ["deploy-type", "vercel-url", "dashboard-url", "repo-url", "convex-prod-url", "convex-site-url", "frontend-api-url", "site-name", "admin-email", "google-oauth", "webhook-url", "completed-steps", "skipped-steps"],
+};
 const [command, ...rest] = process.argv.slice(2);
 const allowed = FLAGS[command];
 if (!allowed) { console.error("unknown command " + command); process.exit(2); }

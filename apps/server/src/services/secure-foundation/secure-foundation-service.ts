@@ -16,6 +16,7 @@ import {
   SECURE_FOUNDATION_SETUP_AUTONOMY,
   SECURE_FOUNDATION_TEMPLATE_MOVED,
   SECURE_FOUNDATION_WORK_KEY,
+  type SecureFoundationConnection,
   type SecureFoundationDevPreview,
   SecureFoundationEmail,
   type SecureFoundationFinish,
@@ -24,6 +25,7 @@ import {
   type SecureFoundationPrefill,
   type SecureFoundationProvider,
   type SecureFoundationRepositoryMode,
+  type SecureFoundationService as SecureFoundationServiceName,
   type SecureFoundationTemplate,
   type SetupStatus,
   type StartSessionRequestInit,
@@ -134,6 +136,23 @@ export class SecureFoundationService {
         displayName: p.displayName,
         runsCommandFiles: p.capabilities.projectCommands === true,
       }));
+  }
+
+  /**
+   * The sign-in state of each service, for the form. GitHub's also says which owner the last
+   * deploy used (`lastOwner`), while the account can still create repositories there, so the
+   * form preselects it; the template's `/deploy-to-dev` asks for the owner every time.
+   */
+  async connectionStates(
+    services: SecureFoundationServiceName[],
+  ): Promise<SecureFoundationConnection[]> {
+    const states = await this.connections.states(services);
+    const last = this.deps.setups?.lastDeployOwner() ?? null;
+    return states.map((state) =>
+      state.service === "github" && last && state.owners.includes(last)
+        ? { ...state, lastOwner: last }
+        : state,
+    );
   }
 
   async options(): Promise<SecureFoundationOptions> {

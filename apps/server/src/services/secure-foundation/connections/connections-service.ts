@@ -100,6 +100,7 @@ export class ConnectionsService {
         teams: [],
         account: null,
         owners: [],
+        lastOwner: null,
         missingScopes: [],
         scopes: [],
       };
@@ -128,6 +129,7 @@ export class ConnectionsService {
       cli: "ready",
       account: null,
       owners: [],
+      lastOwner: null,
       missingScopes: [],
       scopes: [],
       ...reading,
