@@ -132,7 +132,7 @@ export function setupBrief(input: SetupBriefInput): string {
     "",
     "## Your final message (short)",
     `First line: the app's local URL.${deploy ? " Second line: the deployed URL the deploy returned (prefer its short vercel.app address), which stays up when this session stops." : ""}`,
-    'Then: the Clerk claim URL from `docs/INSTALL.md` with this warning: click Claim only and skip the setup checklist on that page, the install already did all of it. Then how to stop the app (stop this session, or ask here to stop the two processes) and how to start it again (send "start the app" here, or run the two commands in a terminal in this folder), and that the URL only works while those processes run. Then anything left for later.',
+    `Then: the Clerk claim URL from \`docs/INSTALL.md\` with this warning: click Claim only and skip the setup checklist on that page, the install already did all of it.${deploy ? ` Then this, as it is: "GitHub copies no secret from a template, so some of this project's workflows can fail until you add the repository secrets they use. The project page's Secure Foundation setup card lists the ones ${repo} doesn't have, with the steps for each."` : ""} Then how to stop the app (stop this session, or ask here to stop the two processes) and how to start it again (send "start the app" here, or run the two commands in a terminal in this folder), and that the URL only works while those processes run. Then anything left for later.`,
     'Last, under the heading "What was created": each item of the list above that now exists, by name, with where it is removed, and one line saying that archiving the project or deleting its folder removes none of them. If you stopped early, list only what was created before you stopped.',
   ];
   return lines.join("\n");
@@ -162,6 +162,7 @@ function deployPart(
           "- `node scripts/setup.mjs doppler-create-ci-token` (the step the install skipped: the repository now exists to hold the secret).",
         ]
       : []),
+    `- ${input.doppler ? "That is the only repository secret you store" : "Store no repository secret"}: set no other secret or variable, and never ask the person for a value. The ones this project's workflows use are the person's to add, and ${HARDEN_PRODUCT_NAME} lists them on the project page.`,
     "- Write `vercel.json` as the file says for this mode, commit and push to `origin main`.",
     `- \`npx vercel project add "${deploy.repository}" ${scope}\`, then \`npx vercel link --yes --project="${deploy.repository}" ${scope}\``,
     `- \`npx vercel git connect "$(git remote get-url origin)" --yes ${scope}\`, and check with \`npx vercel project inspect\` that it is connected to ${repo}.`,
