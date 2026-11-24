@@ -162,6 +162,24 @@ describe("the setup brief", () => {
       expect(commands(setupBrief(input({ doppler: true }))).join()).not.toContain("ci-token");
     });
 
+    it("leaves the repository secrets the workflows use to the person, and says where they are listed", () => {
+      const withDoppler = brief({ doppler: true });
+      expect(withDoppler).toContain("That is the only repository secret you store");
+      expect(withDoppler).toContain("never ask the person for a value");
+      expect(brief()).toContain("Store no repository secret: set no other secret or variable");
+      // The final message points at the list, right after the Clerk claim.
+      for (const text of [brief(), withDoppler]) {
+        expect(text).toMatch(
+          /the install already did all of it\. Then this, as it is: "GitHub copies no secret from a template/,
+        );
+        expect(text).toContain(
+          "The project page's Secure Foundation setup card lists the ones acme-org/my-site doesn't have, with the steps for each.",
+        );
+      }
+      // A project that stays local has no repository to hold a secret: nothing is said of it.
+      expect(setupBrief(input())).not.toContain("repository secret");
+    });
+
     it("reads the deploy file where the provider doesn't run command files", () => {
       expect(brief({ runsCommandFiles: false })).toContain(
         "Read `.claude/commands/deploy-to-dev.md` and follow it step by step.",

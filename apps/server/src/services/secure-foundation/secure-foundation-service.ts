@@ -38,6 +38,8 @@ import type { Exec } from "../exec";
 import { setupBrief } from "./brief";
 import { ConnectionsService } from "./connections/connections-service";
 import { claimLink, deployedLink, isOwnFolder, removeCreated } from "./folders";
+import { GH_TIMEOUT_MS } from "./repo-secrets/github";
+import { RepoSecretsService } from "./repo-secrets/repo-secrets-service";
 import { devPreviewOffer, type SecureFoundationSetups } from "./setups";
 import {
   fetchTemplate,
@@ -77,6 +79,8 @@ export interface SecureFoundationDeps {
   connections?: ConnectionsService;
   /** Where the answers a dev preview depends on are kept; without it nothing is kept. */
   setups?: SecureFoundationSetups;
+  /** The repository secrets a project's workflows need (tests script its `gh`). */
+  repoSecrets?: RepoSecretsService;
 }
 
 type Step = "fetch" | "files" | "project" | "session";
@@ -94,9 +98,18 @@ const STEP_LABEL: Record<Step, string> = {
 export class SecureFoundationService {
   /** Sign-in state and logins of the services' own CLIs. */
   readonly connections: ConnectionsService;
+  /** The repository secrets a project's workflows use, and which its repository has. */
+  readonly repoSecrets: RepoSecretsService;
 
   constructor(private readonly deps: SecureFoundationDeps) {
     this.connections = deps.connections ?? new ConnectionsService();
+    this.repoSecrets =
+      deps.repoSecrets ??
+      new RepoSecretsService({
+        projects: deps.projects,
+        kept: (projectId) => deps.setups?.get(projectId) ?? null,
+        gh: (args) => this.connections.run({ program: "gh", args }, GH_TIMEOUT_MS),
+      });
   }
 
   private get mode(): SecureFoundationRepositoryMode {

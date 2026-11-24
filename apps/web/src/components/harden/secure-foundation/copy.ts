@@ -12,5 +12,9 @@ export const secureFoundationDocsUrl = () => hardenDocsUrl("secure-foundation.md
 export const secureFoundationQuietUrl = () =>
   `${secureFoundationDocsUrl()}#automatic-work-starts-off`;
 
+/** The guide's section on the repository secrets the project's workflows need. */
+export const secureFoundationRepoSecretsUrl = () =>
+  `${secureFoundationDocsUrl()}#repository-secrets-the-projects-workflows-need`;
+
 /** The guide's section on removing the project and what stays in the person's accounts. */
 export const secureFoundationRemovalUrl = () => `${secureFoundationDocsUrl()}#removing-the-project`;
