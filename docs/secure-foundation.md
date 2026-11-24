@@ -133,7 +133,7 @@ The template ships GitHub Actions workflows, and some of them read **repository 
 Once the setup has finished (or stopped), the project's **Secure Foundation setup** card lists them under **Repository secrets**, beside the Clerk claim: every secret (`secrets.NAME`) and variable (`vars.NAME`) the project's own workflow files use, and for each one the repository doesn't have:
 
 - its name, and what it is for when CodeHarden knows the name;
-- which workflow files and jobs use it and when they run ("on every pull request", "only when someone mentions @claude");
+- which workflow files and jobs use it and when they run ("on every pull request", "only when someone mentions @claude"; the second only when every alternative of the job's `if:` tests for the mention with `contains(…, '@name')` and none is negated, otherwise the events are named);
 - what happens until it is set;
 - the steps to add it.
 
@@ -152,7 +152,7 @@ What is already set is named in one line ("Already set: `DOPPLER_TOKEN`"). The s
 
 ### How it is checked
 
-- **The workflow files are read as text,** in the project folder on this computer: `.github/workflows/*.yml` and `*.yaml`, at most 50 files of 256 KB each. Nothing of the project is run and no YAML is loaded. References are looked for where GitHub evaluates expressions (`${{ … }}` and `if:`), in the forms `secrets.NAME`, `secrets['NAME']` and `secrets["NAME"]`; comments are skipped, and so are `GITHUB_TOKEN` and every other `GITHUB_…` name, which GitHub provides itself. A job that hands all secrets to a workflow it calls (`secrets: inherit`) is reported as "Inherits all", since that workflow can use names that aren't listed.
+- **The workflow files are read as text,** in the project folder on this computer: `.github/workflows/*.yml` and `*.yaml`, at most 50 files of 256 KB each. Nothing of the project is run and no YAML is loaded. References are looked for where GitHub evaluates expressions (`${{ … }}` and `if:`), in the forms `secrets.NAME`, `secrets['NAME']` and `secrets["NAME"]`; comments are skipped, and so is text inside a quoted string of an expression (`'secrets.EXAMPLE'` is no reference), and so are `GITHUB_TOKEN` and every other `GITHUB_…` name, which GitHub provides itself. A job that hands all secrets to a workflow it calls (`secrets: inherit`) is reported as "Inherits all", since that workflow can use names that aren't listed.
 - **GitHub is asked for names only,** through your own `gh`, with two fixed commands: `gh secret list --repo <owner>/<repo> --json name` and, when a workflow uses a variable, `gh variable list --repo <owner>/<repo> --json name`. A secret's value can't be read from GitHub at all, and a variable's is never asked for. The repository is the one the project is connected to.
 - **When:** when you open the project's page once the setup is over, again when the project gets its GitHub repository, and whenever you press **Check again**. A result is shown again for five minutes before the page asks anew.
 - **If GitHub can't be asked** (`gh` isn't installed or signed in, or the call fails) the names are still listed, marked "couldn't check", with the reason and the steps.

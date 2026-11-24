@@ -218,6 +218,49 @@ jobs:
     expect(scan(text).references[0]?.uses[0]?.events).toEqual([{ name: "push", filtered: false }]);
   });
 
+  it("reads past braces inside a quoted string, and takes no name from inside one", () => {
+    const text = `on: push
+jobs:
+  a:
+    if: contains(github.event.head_commit.message, 'vars.IN_A_STRING') && vars.REAL_VAR == 'secrets.ALSO_TEXT'
+    steps:
+      - run: deploy
+        env:
+          A: \${{ format('{{"token":"{0}"}}', secrets.AFTER_BRACES) }}
+          B: \${{ 'secrets.ONLY_TEXT' }}
+          C: \${{ format('{0} secrets.IN_FORMAT', secrets [ 'INDEXED' ]) }}
+          D: '\${{ contains(github.ref, ''secrets.DOUBLED'') && secrets.IN_YAML_QUOTES }}'
+          E: '\${{ format(''{{0}} }} secrets.DOUBLED_TOO'', 1) }}'
+      - if: 'secrets.YAML_QUOTED != '''''
+        run: echo quoted by YAML
+`;
+    expect(names(text)).toEqual([
+      "secret:AFTER_BRACES",
+      "secret:IN_YAML_QUOTES",
+      "secret:INDEXED",
+      "secret:YAML_QUOTED",
+      "variable:REAL_VAR",
+    ]);
+  });
+
+  it("only says a job waits for a mention when its condition asks for one", () => {
+    const job = (condition: string) =>
+      scan(
+        `on: issue_comment\njobs:\n  a:\n    if: ${condition}\n    env:\n      T: \${{ secrets.T }}\n`,
+      ).references[0]?.uses[0]?.mention;
+    const body = "github.event.comment.body";
+    expect(job(`contains(${body}, '@claude')`)).toBe("@claude");
+    expect(job(`\${{ github.actor != 'x' && contains(${body}, '@claude') }}`)).toBe("@claude");
+    // Negated, it runs where the mention is absent.
+    expect(job(`\${{ !contains(${body}, '@claude') }}`)).toBeNull();
+    expect(job(`! contains(${body}, '@claude')`)).toBeNull();
+    expect(job(`\${{ !(contains(${body}, '@claude') && github.actor == 'x') }}`)).toBeNull();
+    // The name only stands beside a test, or two names are asked for.
+    expect(job(`contains(${body}, 'x') && github.actor != '@claude'`)).toBeNull();
+    expect(job(`contains(${body}, '@claude') || contains(${body}, '@other')`)).toBeNull();
+    expect(job(`contains(${body}, '@claude') && !contains(${body}, '@claude')`)).toBeNull();
+  });
+
   it("leaves out the token GitHub provides, and what only looks like a reference", () => {
     const text = `on: push
 env:

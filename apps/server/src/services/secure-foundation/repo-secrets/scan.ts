@@ -5,14 +5,15 @@ import {
   type SecureFoundationRepoSecretUse,
   type SecureFoundationWorkflowEvent,
 } from "@codeden/contracts";
+import { expressionRanges, indentOf, MAX_EXPRESSION } from "./expressions";
 
 /**
  * Reading a project's workflow files for the repository secrets and variables they use
  * (`secrets.NAME`, `vars.NAME`). The files are text and nothing more: no YAML is loaded, no
  * tag is resolved, nothing of the project runs. The scan is tolerant on purpose, since it only
  * has to find names: it follows indentation for the events of `on:` and the jobs of `jobs:`,
- * and looks for references where GitHub evaluates expressions (`${{ … }}` and `if:`). Junk
- * gives fewer names, never an error.
+ * and looks for references where GitHub evaluates expressions (`${{ … }}` and `if:`), outside
+ * the strings quoted inside them. Junk gives fewer names, never an error.
  */
 
 export interface WorkflowFile {
@@ -31,8 +32,6 @@ export interface WorkflowScan {
 }
 
 const MAX_LINES = 20_000;
-const MAX_EXPRESSION = 8_000;
-const MAX_IF_LINES = 60;
 const MAX_ITEMS = 60;
 const MAX_USES = 20;
 const MAX_JOBS = 40;
@@ -65,8 +64,8 @@ const EVENTS = new Set(
 const REFERENCE =
   /(?<![A-Za-z0-9_.-])(secrets|vars)[ \t]*(?:\.[ \t]*([A-Za-z_][A-Za-z0-9_-]{0,199})|\[[ \t]*(?:'([^'\n]{0,200})'|"([^"\n]{0,200})")[ \t]*\])/gi;
 
-/** A quoted `@name` inside a condition. */
-const MENTION = /'(@[A-Za-z0-9][A-Za-z0-9-]{0,38})'/g;
+/** `contains(<something>, '@name')` in a condition, with the `!` in front of it when negated. */
+const MENTIONED = /(!\s*)?contains\([^,()']{1,300},\s*'(@[A-Za-z0-9][A-Za-z0-9-]{0,38})'\s*\)/g;
 
 const isWord = (ch: string | undefined) => ch !== undefined && /[A-Za-z0-9]/.test(ch);
 
@@ -90,18 +89,23 @@ export function stripComment(line: string): string {
   return line;
 }
 
-const indentOf = (line: string) => line.length - line.trimStart().length;
-
-/** `@claude` when a job's condition lets it run only where something mentions that name. */
+/**
+ * `@claude` when a job's condition lets it run only where something mentions that name: every
+ * alternative of the condition has to test for the mention, none of the tests may be negated
+ * (`!contains(…)` runs where the mention is absent), and no group may be (`!( … )`). Anything
+ * else gives null, and the job is described by its events.
+ */
 function mentionOf(condition: string | undefined): string | null {
-  if (!condition?.includes("contains(")) return null;
+  if (!condition || /!\s*\(/.test(condition)) return null;
   let found: string | null = null;
   // Every alternative has to ask for the mention: `… || github.event_name == 'push'` doesn't.
   for (const alternative of condition.split("||")) {
-    const names = [...alternative.matchAll(MENTION)].map((m) => m[1] as string);
-    if (names.length === 0 || names.some((n) => n !== names[0])) return null;
-    if (found !== null && found !== names[0]) return null;
-    found = names[0] as string;
+    const tests = [...alternative.matchAll(MENTIONED)];
+    if (tests.length === 0) return null;
+    for (const test of tests) {
+      if (test[1] || (found !== null && found !== test[2])) return null;
+      found = test[2] as string;
+    }
   }
   return found;
 }
@@ -202,50 +206,6 @@ function structureOf(lines: string[]): Structure {
   return { events, jobAt, conditions, inherits };
 }
 
-/**
- * Where GitHub evaluates expressions, as ranges of `body` in order, none overlapping another:
- * every `${{ … }}`, and the value of every `if:` with the deeper lines that continue it. Each
- * character is looked at once, however the file is built.
- */
-function expressionRanges(
-  body: string,
-  lines: string[],
-  starts: number[],
-): Array<[number, number]> {
-  const ranges: Array<[number, number]> = [];
-  let at = body.indexOf("${{");
-  while (at >= 0) {
-    const close = body.indexOf("}}", at + 3);
-    const end = Math.min(
-      close < 0 || close - at > MAX_EXPRESSION ? at + MAX_EXPRESSION : close,
-      body.length,
-    );
-    ranges.push([at, end]);
-    at = body.indexOf("${{", Math.max(end, at + 3));
-  }
-  for (const [i, line] of lines.entries()) {
-    const key = /^((?:-[ \t]+)?)if[ \t]*:/.exec(line.trimStart());
-    if (!key) continue;
-    // The column of `if` itself: a step's other keys sit there too, and don't continue it.
-    const indent = indentOf(line) + (key[1] as string).length;
-    let last = i;
-    while (last + 1 < lines.length && last - i < MAX_IF_LINES) {
-      const next = lines[last + 1] as string;
-      if (next.trim() && indentOf(next) <= indent) break;
-      last++;
-    }
-    ranges.push([starts[i] as number, (starts[last] as number) + (lines[last] as string).length]);
-  }
-  ranges.sort((a, b) => a[0] - b[0]);
-  const merged: Array<[number, number]> = [];
-  for (const range of ranges) {
-    const before = merged[merged.length - 1];
-    if (before && range[0] <= before[1]) before[1] = Math.max(before[1], range[1]);
-    else merged.push(range);
-  }
-  return merged;
-}
-
 interface FileScan {
   /** `secret:NAME` or `variable:NAME` to where this file uses it. */
   uses: Map<string, SecureFoundationRepoSecretUse>;
@@ -268,8 +228,11 @@ function scanFile(file: WorkflowFile): FileScan {
   let refused = 0;
   /** The line of the reference at hand: the ranges come in order, so it only moves forward. */
   let line = 0;
-  for (const [from, to] of expressionRanges(body, lines, starts)) {
-    for (const match of body.slice(from, to).matchAll(REFERENCE)) {
+  const masked = body.split("");
+  const ranges = expressionRanges(body, lines, starts, masked);
+  const text = masked.join("");
+  for (const [from, to] of ranges) {
+    for (const match of text.slice(from, to).matchAll(REFERENCE)) {
       const at = from + (match.index ?? 0);
       const raw = match[2] ?? match[3] ?? match[4] ?? "";
       const name = repoSecretName(raw);
