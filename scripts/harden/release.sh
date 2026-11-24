@@ -19,6 +19,15 @@
 # It refuses to run when the tag already exists (here or on the remote), when tracked files
 # have changes, or when the upstream base would move backwards. It never forces a push and
 # never moves a tag. Plain bash, also on macOS's bash 3.2.
+#
+# The cooldown. Upstream changes ship only after they were approved and then waited 48 hours
+# (scripts/harden/sync-cooldown.sh has the rule). When this release would contain upstream
+# commits the last one didn't, it asks GitHub (with `gh`) about the pull request that brought
+# them in, at the moment it was merged, and refuses when it had not waited, when it came in
+# without a pull request, or when GitHub can't be asked. The only way around is the owner's
+# waiver for that upstream commit (the "Waive sync cooldown" workflow); the release then says
+# so, in its output and in the changelog entry. `--dry-run` gives the same verdict and the
+# same exit status. A release of this fork's own commits asks nothing.
 set -euo pipefail
 
 REMOTE="${RELEASE_REMOTE:-origin}"
@@ -37,7 +46,7 @@ while [ $# -gt 0 ]; do
     --push) push=1 ;;
     # A ref that already holds upstream's branch, instead of fetching it (the workflow, tests).
     --upstream-ref) upstream_ref="${2:-}"; shift ;;
-    -h | --help) sed -n '2,22p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,30p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "release: unknown option $1" >&2; exit 2 ;;
   esac
   shift
@@ -112,12 +121,41 @@ elif [ "$push" = 1 ]; then
   die "there is no remote named ${REMOTE} to push to"
 fi
 
+# The cooldown of the upstream commits this release would ship, asked only when there are any.
+cooldown_code=0
+cooldown_text=""
+cooldown_notes=""
+if [ "$prev_base" != "$new_base" ]; then
+  notes_file=$(mktemp)
+  cooldown_text=$(SYNC_COOLDOWN_REPO="${FORK_REPO:-${GITHUB_REPOSITORY:-}}" bash "${script_dir}/sync-cooldown-release.sh" \
+    --prev-base "$prev_base" --new-base "$new_base" --upstream-ref "$upstream_ref" --branch "$TARGET_BRANCH" \
+    --notes "$notes_file") || cooldown_code=$?
+  if [ "$cooldown_code" = 0 ]; then cooldown_notes=$(cat "$notes_file"); fi
+  rm -f "$notes_file"
+fi
+# Why the release is refused, when it is. Anything but a clear yes refuses.
+cooldown_refusal() {
+  if [ "$cooldown_code" = 1 ]; then
+    printf 'release: refused. %s\n' "$cooldown_text"
+  else
+    printf 'release: refused. GitHub could not be asked whether the upstream changes in this release waited out their cooldown, and a release with new upstream commits is not cut without that answer.\n'
+    [ -z "$cooldown_text" ] || printf '%s\n' "$cooldown_text"
+    printf 'It needs the GitHub CLI on PATH, signed in (gh auth status), and a network.\n'
+  fi
+}
+if [ "$cooldown_code" != 0 ] && [ "$dry_run" = 0 ]; then
+  cooldown_refusal >&2
+  die "nothing was changed"
+fi
+
 upstream_lines=$(git log --no-merges --pretty='- %s' "${prev_base}..${new_base}")
 own_lines=$(git log --no-merges --pretty='- %s' "${prev_release}..HEAD" --not "$new_base")
 short=$(git rev-parse --short=8 "$new_base")
 
 entry() {
   printf '## %s — %s %s\n\n' "$version" "$day" "$time"
+  # A waived cooldown stays on record with the release that shipped it.
+  if [ -n "$cooldown_notes" ]; then printf '%s\n\n' "$cooldown_notes"; fi
   if [ -z "$upstream_lines" ] && [ -z "$own_lines" ]; then
     printf -- '- rebuild only (upstream base or dependency refresh)\n\n'
   fi
@@ -136,6 +174,12 @@ if [ "$dry_run" = 1 ]; then
   echo "New entry in ${CHANGELOG_FILE}:"
   echo
   entry
+  if [ "$cooldown_code" != 0 ]; then
+    echo "A real run would stop here:"
+    cooldown_refusal
+    exit 1
+  fi
+  [ -z "$cooldown_text" ] || printf '%s\n' "$cooldown_text"
   exit 0
 fi
 
@@ -154,6 +198,7 @@ git add VERSION "$CHANGELOG_FILE" "$BASE_FILE"
 git commit --quiet -m "release: ${version} (upstream ${short})"
 git tag -a "$tag" -m "CodeHarden ${version} (upstream ${short})"
 echo "Released CodeHarden ${version} (${tag}), upstream base ${short}."
+[ -z "$cooldown_text" ] || printf '%s\n' "$cooldown_text"
 
 if [ "$push" = 1 ]; then
   # One atomic push, never forced: both the commit and the tag land, or neither.

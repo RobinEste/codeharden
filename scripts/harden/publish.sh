@@ -38,6 +38,9 @@ tag="v${version}"
 if [ -n "$(git status --porcelain)" ]; then
   die "the working tree has changes; commit or discard them first"
 fi
+# Only the release tag itself is published. That is also what keeps the cooldown of upstream
+# changes here without a check of its own: release.sh, which makes these tags, refuses a
+# release whose upstream commits had not waited (scripts/harden/sync-cooldown.sh).
 tagged=$(git rev-parse --verify --quiet "refs/tags/${tag}^{commit}" || true)
 [ -n "$tagged" ] || die "the tag ${tag} is not in this checkout. Fetch it: git fetch origin tag ${tag}"
 if [ "$tagged" != "$(git rev-parse HEAD)" ]; then

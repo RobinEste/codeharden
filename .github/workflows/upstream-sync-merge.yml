@@ -36,6 +36,12 @@ name: Upstream sync merge
 #   4. The head branch has not been pushed to since that label was applied: the approval
 #      covers the commit that was reviewed, not a later one. Re-apply the label to restart
 #      the 48 hours.
+#      3 and 4 are the cooldown. This file does not decide them: it asks
+#      scripts/harden/sync-cooldown.sh, the one rule that the pull request's "Sync cooldown"
+#      status and scripts/harden/release.sh ask too, and merges only on the answer
+#      "satisfied" or "waived". Waived means the owner let this upstream commit through
+#      early, with the "Waive sync cooldown" workflow (sync-waiver.yml), whose run a required
+#      reviewer approved; every other condition in this list still applies to a waived one.
 #   5. The head commit is on upstream main, or it is a two-parent merge whose first parent is
 #      on upstream main and whose second parent is on harden. So a sync pull request can only
 #      bring upstream code plus the reviewer's conflict-resolution merge; a label alone can't
@@ -58,18 +64,34 @@ name: Upstream sync merge
 # The commit is tagged `v<version>`. If that tag already exists the job fails; it never
 # overwrites a tag. A run that merges nothing makes no release. The app's own version number
 # (apps/cli, apps/desktop, SOURCE_VERSION) stays upstream's and is never touched.
+# The release script asks the cooldown rule again, about what was merged: a sync that was
+# merged by hand before its 48 hours were over is not released, by this job or by anyone
+# running the script, until the owner waives it. The job then fails and says so.
+#
+# The cooldown on every path (docs/codeharden-sync-cooldown.md)
+#   - On the pull request: the commit status "Sync cooldown", written by the "Sync cooldown
+#     report" workflow (sync-cooldown.yml) every hour and when a label changes, and by the
+#     merge job for the pull requests it looks at.
+#   - Here: conditions 3 and 4.
+#   - At the release: scripts/harden/release.sh refuses to ship upstream commits whose pull
+#     request had not waited when it was merged.
+#   - Around it: only the owner's waiver.
 #
 # Security of this workflow
 #   - Permissions are the minimum: contents: write (push main, merge, push the release
-#     commit and tag), pull-requests: write (merge), checks: read (read the check results).
-#     Nothing else.
+#     commit and tag), pull-requests: write (merge), checks: read (read the check results),
+#     actions: read (read the waiver runs and who approved them), statuses: write (the merge
+#     job, to show its cooldown answer on the pull request). The release job reads pull
+#     requests and waiver runs and writes contents only. Nothing else.
 #   - It uses no actions at all, only `git`, `gh` and `jq` from the runner image, so there is
 #     nothing to pin. If an action is ever added here, pin it by full commit SHA.
 #   - It never checks out or runs code from a pull request. Commits are fetched into a bare
-#     repository as data, only to compare ancestry. The release job checks out five files
+#     repository as data, only to compare ancestry. The release job checks out eight files
 #     of harden and nothing else: VERSION, the changelog, state/upstream-base,
-#     scripts/harden/release.sh and scripts/harden/fork-config.sh (which release.sh sources).
-#     Those two scripts, from harden itself, are the only things it runs from the
+#     scripts/harden/release.sh, the configuration it sources (fork-config.sh) and the
+#     cooldown scripts (COOLDOWN_SCRIPTS), of which it runs sync-cooldown-release.sh and
+#     sync-cooldown.sh. The merge job takes the same scripts out of harden's commit without a
+#     checkout. Those scripts, from harden itself, are the only things run from the
 #     repository; they are the same ones a maintainer runs by hand.
 #   - It authenticates with the run's own GITHUB_TOKEN. No personal tokens, no secrets.
 #   - Values from pull requests (branch names, labels) reach the scripts as data through `jq`
@@ -101,14 +123,16 @@ env:
   HEAD_PREFIX: sync/
   APPROVED_LABEL: sync-approved
   BLOCKING_LABELS: sync-needs-review sync-hold
-  DELAY_HOURS: "48"
   CHANGELOG_FILE: CODEHARDEN-CHANGELOG.md
   CHANGELOG_TITLE: "# CodeHarden releases"
   BASE_FILE: state/upstream-base
   RELEASE_SCRIPT: scripts/harden/release.sh
   FORK_CONFIG_SCRIPT: scripts/harden/fork-config.sh
+  # The cooldown rule and what asks it (space separated). The number of hours and the label
+  # that starts them are written in the first one, and nowhere in this file.
+  COOLDOWN_SCRIPTS: scripts/harden/sync-cooldown.sh scripts/harden/sync-cooldown-report.sh scripts/harden/sync-cooldown-release.sh
   # Paths a sync pull request may not change and still merge by itself (space separated).
-  PROTECTED_PATHS: scripts/harden/ .github/workflows/harden-desktop.yml apps/desktop/scripts/ apps/desktop/electron-builder.config.mjs
+  PROTECTED_PATHS: scripts/harden/ .github/workflows/harden-desktop.yml .github/workflows/sync-cooldown.yml .github/workflows/sync-waiver.yml apps/desktop/scripts/ apps/desktop/electron-builder.config.mjs
   REVIEW_LABEL: sync-needs-review
   RELEASE_TZ: America/New_York
 
@@ -268,10 +292,19 @@ jobs:
       contents: write
       pull-requests: write
       checks: read
+      # The cooldown: the waiver runs and who approved them (read), and the answer shown on
+      # the pull request as the commit status "Sync cooldown" (write).
+      actions: read
+      statuses: write
     env:
       UPSTREAM_REPO: ${{ needs.config.outputs.upstream_repo }}
       UPSTREAM_BRANCH: ${{ needs.config.outputs.upstream_branch }}
       TARGET_BRANCH: ${{ needs.config.outputs.target_branch }}
+      # For the cooldown scripts (scripts/harden/fork-config.sh): the same values, already
+      # checked by the job "config", and no lookup of repository variables.
+      HARDEN_BRANCH: ${{ needs.config.outputs.target_branch }}
+      FORK_CONFIG_NO_GH: "1"
+      SYNC_COOLDOWN_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
     outputs:
       merged: ${{ steps.merge.outputs.merged }}
     steps:
@@ -315,9 +348,16 @@ jobs:
           # Commits as data, for ancestry only. Nothing is checked out and nothing is run.
           git init --quiet --bare "$RUNNER_TEMP/sync.git"
           cd "$RUNNER_TEMP/sync.git"
+          git remote add origin "$fork_url"
           git fetch --quiet --no-tags "$UPSTREAM_URL" "refs/heads/${UPSTREAM_BRANCH}:refs/sync/upstream"
           git fetch --quiet --no-tags "$fork_url" "refs/heads/${TARGET_BRANCH}:refs/sync/target"
-          now=$(date -u +%s)
+          # The cooldown rule, from the target branch itself: the scripts a maintainer runs.
+          mkdir -p "$RUNNER_TEMP/harden"
+          for script in $FORK_CONFIG_SCRIPT $COOLDOWN_SCRIPTS; do
+            if ! git show "refs/sync/target:${script}" > "$RUNNER_TEMP/harden/${script##*/}"; then
+              echo "::error::${TARGET_BRANCH} has no ${script}; nothing is merged without the cooldown rule."; exit 1
+            fi
+          done
 
           for row in "${prs[@]}"; do
             pr=$(printf '%s' "$row" | base64 -d)
@@ -348,38 +388,28 @@ jobs:
               skip "it has the label ${blocked}."; continue
             fi
 
-            # 3. The label's age, from the timeline.
-            if ! labeled_at=$(gh api --paginate "repos/${repo}/issues/${number}/timeline?per_page=100" \
-              --jq ".[] | select(.event == \"labeled\" and .label.name == \"${APPROVED_LABEL}\") | .created_at" | sort | tail -n 1); then
-              skip "its timeline couldn't be read."; failed=1; continue
-            fi
-            if [ -z "$labeled_at" ]; then
-              skip "its timeline has no 'labeled' event for ${APPROVED_LABEL}."; continue
-            fi
-            labeled_s=$(date -u -d "$labeled_at" +%s)
-            age_h=$(( (now - labeled_s) / 3600 ))
-            if [ $(( now - labeled_s )) -lt $(( DELAY_HOURS * 3600 )) ]; then
-              skip "${APPROVED_LABEL} was applied ${age_h}h ago (${labeled_at}); it merges after ${DELAY_HOURS}h."; continue
-            fi
-
-            # 4. No push to the head branch since the approval.
-            ref_q=$(jq -rn --arg r "refs/heads/${head_ref}" '$r | @uri')
-            if ! activity=$(gh api "repos/${repo}/activity?ref=${ref_q}&per_page=1" --jq '.[0] // {} | "\(.after // "") \(.timestamp // "")"'); then
-              skip "the head branch's push history couldn't be read."; failed=1; continue
-            fi
-            pushed_sha=${activity%% *}
-            pushed_at=${activity#* }
-            if [ "$pushed_sha" != "$head_sha" ] || [ -z "$pushed_at" ]; then
-              skip "the head branch's latest push (${pushed_sha:-unknown}) isn't the pull request's head; it will be looked at again on the next run."; continue
-            fi
-            if [ "$(date -u -d "$pushed_at" +%s)" -gt "$labeled_s" ]; then
-              skip "the head branch was pushed at ${pushed_at}, after ${APPROVED_LABEL} was applied (${labeled_at}). Review it again and re-apply the label."; continue
-            fi
-
-            # 5. Upstream code only (plus a merge with the target branch).
+            # Its head commit, as data: the cooldown rule and condition 5 compare ancestry.
             if ! git fetch --quiet --no-tags "$fork_url" "$head_sha" 2> /dev/null; then
               skip "its head commit couldn't be fetched."; failed=1; continue
             fi
+
+            # 3 and 4. The cooldown: approved at least 48 hours ago with no push since, or
+            # waived by the owner. The rule answers; the same call writes the answer on the
+            # pull request as the status "Sync cooldown". Anything but a clear yes is a no.
+            code=0
+            verdict=$(bash "$RUNNER_TEMP/harden/sync-cooldown-report.sh" pull-request "$number" --head "$head_sha" \
+              --upstream-ref refs/sync/upstream --target-ref refs/sync/target) || code=$?
+            cooldown_state=$(sed -n 's/^state: //p' <<< "$verdict")
+            cooldown=$(sed -n 's/^detail: //p' <<< "$verdict")
+            if [ "$code" = 1 ]; then
+              skip "its cooldown is not over (${cooldown_state}). ${cooldown}"; continue
+            fi
+            if [ "$code" != 0 ] || { [ "$cooldown_state" != "satisfied" ] && [ "$cooldown_state" != "waived" ]; }; then
+              skip "its cooldown couldn't be evaluated. ${cooldown}"; failed=1; continue
+            fi
+            echo "  cooldown ${cooldown_state}: ${cooldown}"
+
+            # 5. Upstream code only (plus a merge with the target branch).
             if git merge-base --is-ancestor "$head_sha" refs/sync/upstream; then
               echo "  head is a commit on upstream ${UPSTREAM_BRANCH}"
             else
@@ -425,7 +455,9 @@ jobs:
               mergeable=$(jq -r '.mergeable' <<< "$detail")
               state=$(jq -r '.mergeable_state' <<< "$detail")
               current_sha=$(jq -r '.head.sha' <<< "$detail")
-              [ "$mergeable" != "null" ] && break
+              # "unstable" is a status on the head that is not green; the cooldown's own
+              # status may have been written a moment ago, so that one is asked again too.
+              [ "$mergeable" != "null" ] && [ "$state" != "unstable" ] && break
               sleep 5
             done
             if [ "$current_sha" != "$head_sha" ]; then
@@ -435,10 +467,10 @@ jobs:
               skip "GitHub doesn't report it as mergeable (mergeable: ${mergeable}, state: ${state})."; continue
             fi
 
-            echo "  MERGE #$number: approved ${age_h}h ago, checks passed, mergeable."
+            echo "  MERGE #$number: cooldown ${cooldown_state}, checks passed, mergeable."
             if gh pr merge "$number" --repo "$repo" --merge --match-head-commit "$head_sha" 2> "$RUNNER_TEMP/merge.log"; then
               merged=$((merged + 1))
-              echo "::notice::Merged sync pull request #$number (${head_ref} @ ${head_sha}) into ${TARGET_BRANCH}."
+              echo "::notice::Merged sync pull request #$number (${head_ref} @ ${head_sha}) into ${TARGET_BRANCH}; cooldown ${cooldown_state}."
             else
               cat "$RUNNER_TEMP/merge.log"
               failed=1
@@ -463,6 +495,10 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      # The release script asks the cooldown rule about the pull request that brought the
+      # upstream commits in (its labels' times, its head branch's pushes) and about waivers.
+      pull-requests: read
+      actions: read
     env:
       UPSTREAM_REPO: ${{ needs.config.outputs.upstream_repo }}
       UPSTREAM_BRANCH: ${{ needs.config.outputs.upstream_branch }}
@@ -481,14 +517,18 @@ jobs:
           git remote add origin "$fork_url"
           git fetch --quiet --no-tags origin "refs/heads/${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
           git fetch --quiet --no-tags "https://github.com/${UPSTREAM_REPO}" "refs/heads/${UPSTREAM_BRANCH}:refs/sync/upstream"
-          # Only the three release files, the release script and the configuration it sources
-          # reach the working tree. The scripts are the ones a maintainer runs by hand after
-          # merging our own changes.
-          git sparse-checkout set --no-cone "/VERSION" "/${CHANGELOG_FILE}" "/${BASE_FILE}" "/${RELEASE_SCRIPT}" "/${FORK_CONFIG_SCRIPT}"
+          # Only the three release files, the release script and the scripts it runs or
+          # sources (the configuration and the cooldown rule) reach the working tree. The
+          # scripts are the ones a maintainer runs by hand after merging our own changes.
+          paths=("/VERSION" "/${CHANGELOG_FILE}" "/${BASE_FILE}")
+          for script in $RELEASE_SCRIPT $FORK_CONFIG_SCRIPT $COOLDOWN_SCRIPTS; do paths+=("/${script}"); done
+          git sparse-checkout set --no-cone "${paths[@]}"
           git checkout --quiet -B "$TARGET_BRANCH" "refs/remotes/origin/${TARGET_BRANCH}"
-          if [ ! -f "$RELEASE_SCRIPT" ] || [ ! -f "$FORK_CONFIG_SCRIPT" ]; then
-            echo "::error::${TARGET_BRANCH} has no ${RELEASE_SCRIPT} or no ${FORK_CONFIG_SCRIPT}; can't make a release."; exit 1
-          fi
+          for script in $RELEASE_SCRIPT $FORK_CONFIG_SCRIPT $COOLDOWN_SCRIPTS; do
+            if [ ! -f "$script" ]; then
+              echo "::error::${TARGET_BRANCH} has no ${script}; can't make a release."; exit 1
+            fi
+          done
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -498,6 +538,8 @@ jobs:
           trap 'git config --unset-all "http.https://github.com/.extraheader" || true' EXIT
           git config "http.https://github.com/.extraheader" "AUTHORIZATION: basic $auth"
           # Writes VERSION, the changelog entry and the upstream base, commits, tags and pushes
-          # both in one atomic push, never forced. It fails if the tag already exists.
+          # both in one atomic push, never forced. It fails if the tag already exists, and
+          # when a sync in this release was merged before its cooldown was over and the
+          # owner has not waived it: then nothing is written and the job says which sync.
           bash "$RELEASE_SCRIPT" --upstream-ref refs/sync/upstream --push
           echo "::notice::Released CodeHarden $(cat VERSION) on ${TARGET_BRANCH}."
