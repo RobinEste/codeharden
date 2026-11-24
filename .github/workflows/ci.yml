@@ -48,7 +48,9 @@ jobs:
           # Documentation: docs/, Markdown files (except the automation templates the server
           # ships) and images outside apps/ and packages/ (app icons and assets are code).
           docs='^docs/|^LICENSE$|^[^/]+\.md$|^(apps|packages)/[^/]+/README\.md$|^apps/runner/src/browser/README\.md$|^[^/]+\.(png|jpe?g|gif|svg|webp)$'
-          if [ ! -s "$RUNNER_TEMP/changed.txt" ] || grep -qvE "$docs" "$RUNNER_TEMP/changed.txt"; then
+          # The root README is the exception: the drift guard, part of the tests, reads it.
+          tested='^README\.md$'
+          if [ ! -s "$RUNNER_TEMP/changed.txt" ] || grep -qvE "$docs" "$RUNNER_TEMP/changed.txt" || grep -qE "$tested" "$RUNNER_TEMP/changed.txt"; then
             echo "code=true" >> "$GITHUB_OUTPUT"
           else
             echo "code=false" >> "$GITHUB_OUTPUT"

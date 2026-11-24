@@ -7,6 +7,10 @@
 //      ALLOWED below, each with its reason.
 //   2. Every place the fork redirected to its own channel (CALL_SITES below) still reads it.
 //      The same list holds the defaults the fork sets differently (`harden-defaults.ts`).
+//   3. README.md keeps the fork's wording: the credit to upstream on top, and below it no
+//      mention of upstream's name outside README_ALLOWED (upstream edits its README often, so
+//      this file conflicts on syncs: a conflict is resolved to the fork's wording, and upstream's
+//      content changes are carried over by hand).
 //
 // Upstream's values are fixed text here and are never compared with this fork's own names, so
 // the test reads the same in CodeHarden and in a fork configured with its own variables.
@@ -453,6 +457,69 @@ const CALL_SITES = [
   // --- the vision the project manager reads: the fork's own text in a file upstream ships too
   [".codeden/VISION.md", "the fork's own vision (a conflict on this file is resolved to the fork's text)", /^CodeHarden is a hardened fork/],
 ];
+
+/**
+ * The credit on top of README.md: the first line and the sentence that says where the text comes
+ * from. Unlike the checks above, this one and README_ALLOWED hold this repository's own prose: a
+ * fork that rewrites its README for its own product changes both to match.
+ */
+const README_CREDIT = [
+  "> **CodeHarden** is a hardened fork of [CodeDen](https://github.com/leonvanzyl/codeden)",
+  "> The README below is derived and adapted from the [CodeDen repository](https://github.com/leonvanzyl/codeden).",
+];
+
+/**
+ * The mentions of upstream that stay in README.md below the credit: `[section, text, reason]`,
+ * where the section is the line's nearest `## ` heading. Each is upstream itself, not this
+ * product. Everything else below the credit says CodeHarden and gives the fork's own command,
+ * home, port and links.
+ */
+// biome-ignore format: one entry per line, read as a table
+const README_ALLOWED = [
+  ["Make your own hardened fork", /^CodeHarden follows CodeDen: /, "the upstream this fork follows"],
+  ["Make your own hardened fork", /\| `UPSTREAM_REPO` \| The repository you follow \| `leonvanzyl\/codeden` \|/, "the value of UPSTREAM_REPO here: upstream's repository"],
+  ["Make your own hardened fork", /its own app next to CodeHarden and CodeDen: /, "the upstream app, which a fork's app also stays apart from"],
+  ["Make your own hardened fork", /The "CodeDen" wording inside the UI is not changed by any of this\./, "what the UI's ordinary sentences still say"],
+  ["Make your own hardened fork", /brings upstream CodeDen's own names back/, "what this guard looks for"],
+  ["Contributing", /\[CHANGELOG\.md\]\(CHANGELOG\.md\) for upstream CodeDen's own changes\./, "CHANGELOG.md is upstream's changelog; the fork's is CODEHARDEN-CHANGELOG.md"],
+];
+
+/**
+ * What is wrong with README.md as a list of messages (empty when it is as the fork left it):
+ * the credit is gone or changed, or a line below it names upstream (its name in any case, so
+ * also its package, command, home and website, or its port) outside README_ALLOWED.
+ */
+function readmeProblems(text, used = new Set()) {
+  const lines = text.split("\n");
+  const end = lines.findIndex((line) => !line.startsWith(">"));
+  const credit = lines.slice(0, end < 0 ? lines.length : end);
+  const problems = [];
+  if (!credit[0]?.startsWith(README_CREDIT[0])) {
+    problems.push(`README.md no longer opens with the fork's credit: ${README_CREDIT[0]}`);
+  }
+  if (!credit.includes(README_CREDIT[1])) {
+    problems.push(`README.md's credit lost its sentence: ${README_CREDIT[1]}`);
+  }
+  let section = "";
+  for (let i = credit.length; i < lines.length; i++) {
+    const heading = /^## (.+)$/.exec(lines[i]);
+    if (heading) section = heading[1];
+    let rest = lines[i];
+    for (const entry of README_ALLOWED) {
+      const [where, pattern] = entry;
+      if (where !== section || !pattern.test(rest)) continue;
+      used.add(entry);
+      rest = rest.replace(pattern, "");
+    }
+    const back = /codeden|\b4317\b/i.exec(rest);
+    if (back) {
+      problems.push(
+        `README.md:${i + 1} says \`${back[0]}\` (section "${section || "the top"}"): ${lines[i].trim().slice(0, 160)}`,
+      );
+    }
+  }
+  return problems;
+}
 
 /**
  * True when every line written as a help line (two spaces, upstream's command, a word) stands
@@ -1080,5 +1147,43 @@ describe("the fork's call sites are still there", () => {
     // The fork's sentence further down is not the fork's vision: it must open the file.
     expect(callSiteProblem(vision, `${upstream}${ours}`)).not.toBeNull();
     expect(callSiteProblem(vision, null)).toMatch(/VISION\.md is gone/);
+  });
+});
+
+describe("the README keeps the fork's wording", () => {
+  const ours = read("README.md") ?? "";
+  const HOW =
+    "\n\nA sync brought upstream's README text back. README conflicts resolve to the fork's wording; carry upstream's content changes over by hand: say CodeHarden where the text means this product, with the fork's command, home, port and links (packages/contracts/src/harden-channel.ts). A mention that really is upstream gets a README_ALLOWED entry with its reason.\n\n";
+
+  it("has the credit on top and names upstream below it only where listed", () => {
+    const used = new Set();
+    const problems = readmeProblems(ours, used);
+    expect(problems.length, `${HOW}${problems.join("\n")}\n`).toBe(0);
+    const stale = README_ALLOWED.filter((entry) => !used.has(entry)).map(
+      ([section, pattern]) => `${section}: ${pattern}`,
+    );
+    expect(
+      stale.length,
+      `\n\nThese README_ALLOWED entries match nothing any more. Remove each, or correct it if the text only changed shape.\n\n${stale.join("\n")}\n`,
+    ).toBe(0);
+  });
+
+  // biome-ignore format: one case per line
+  it.each([
+    ["upstream's title", (t) => t.replace("\n# CodeHarden\n", "\n# CodeDen\n"), /says `CodeDen` \(section "the top"\): # CodeDen/],
+    ["upstream's command", (t) => t.replace("npx codeharden\n", "npx codeden\n"), /says `codeden`/],
+    ["upstream's website badge", (t) => t.replace("](https://codeharden.app)", "](https://www.codeden.app)"), /says `codeden`/],
+    ["upstream's home folder", (t) => t.replace("in `~/.codeharden/`.", "in `~/.codeden/`."), /says `codeden` \(section "FAQ"\)/],
+    ["upstream's port", (t) => `${t}\nIt listens on port 4317.\n`, /says `4317`/],
+    ["a new paragraph of upstream's", (t) => t.replace("## FAQ\n", "## FAQ\n\nCodeDen now does more.\n"), /says `CodeDen` \(section "FAQ"\): CodeDen now does more\./],
+    ["an allowed sentence in another section", (t) => t.replace("## FAQ\n", "## FAQ\n\nCodeHarden follows CodeDen: daily.\n"), /says `CodeDen` \(section "FAQ"\)/],
+    ["a second mention on an allowed line", (t) => t.replace("CodeHarden follows CodeDen: ", "CodeHarden follows CodeDen: CodeDen is "), /says `CodeDen` \(section "Make your own hardened fork"\)/],
+    ["the credit sentence dropped", (t) => t.replace(`${README_CREDIT[1]}\n`, ""), /credit lost its sentence/],
+    ["upstream's sentence in the credit again", (t) => t.replace(README_CREDIT[1], "> Everything below is CodeDen's own README."), /credit lost its sentence/],
+    ["upstream's whole README", () => "<div align=\"center\">\n\n# CodeDen\n\n</div>\n", /no longer opens with the fork's credit/],
+  ])("fails on %s", (_what, change, message) => {
+    const changed = change(ours);
+    expect(changed).not.toBe(ours);
+    expect(readmeProblems(changed).join("\n")).toMatch(message);
   });
 });
