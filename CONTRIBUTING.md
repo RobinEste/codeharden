@@ -125,7 +125,7 @@ To re-record the Replay fixtures or regenerate the Codex protocol types, see [pa
 
 ## Releasing (maintainers)
 
-A CodeHarden release is one commit on `harden`, `release: <version> (upstream <sha>)`, tagged `v<version>`, where the version is the release time in America/New_York (`YYYY.MMDD.HHMM`). `scripts/harden/release.sh` writes `VERSION`, the new entry in [CODEHARDEN-CHANGELOG.md](CODEHARDEN-CHANGELOG.md) and `state/upstream-base`, commits and tags (`--dry-run` shows it first, `--push` pushes both). The "Upstream sync merge" workflow runs it after merging a sync. Publishing to npm (`codeharden`) is done by hand by the owner with `scripts/harden/publish.sh`; see [docs/codeharden-npm-release.md](docs/codeharden-npm-release.md). Upstream's Release workflow is disabled here, and the app's own version stays upstream's.
+A CodeHarden release is one commit on `harden`, `release: <version> (upstream <sha>)`, tagged `v<version>`, where the version is the release time in America/New_York (`YYYY.MMDD.HHMM`). `scripts/harden/release.sh` writes `VERSION`, the new entry in [CODEHARDEN-CHANGELOG.md](CODEHARDEN-CHANGELOG.md) and `state/upstream-base`, commits and tags (`--dry-run` shows it first, `--push` pushes both). The "Upstream sync merge" workflow runs it after merging a sync. It refuses a release whose upstream commits were merged before their 48-hour cooldown was over, unless the owner waived it ([docs/codeharden-sync-cooldown.md](docs/codeharden-sync-cooldown.md)). Publishing to npm (`codeharden`) is done by hand by the owner with `scripts/harden/publish.sh`; see [docs/codeharden-npm-release.md](docs/codeharden-npm-release.md). Upstream's Release workflow is disabled here, and the app's own version stays upstream's.
 
 ## Reporting security issues
 

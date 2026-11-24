@@ -347,6 +347,12 @@ cat << EOF
     then labelled sync-approved (it merges 48 hours later), sync-needs-review or sync-hold.
     A CodeDen automation can do the daily review, or you review them yourself and set the
     labels. The README section "Make your own hardened fork" has both.
+  - The 48 hours: the pull request shows them as the status "Sync cooldown", and
+    scripts/harden/release.sh refuses to release a sync that was merged sooner. The only way
+    around is the "Waive sync cooldown" workflow, which waits for an approval in a GitHub
+    environment named sync-waiver that only you can make: Settings > Environments, with
+    required reviewers, the administrators' bypass off, only the branch ${branch}, and no
+    secrets. Without it nothing can be waived. docs/codeharden-sync-cooldown.md has the steps.
   - Optional, once per clone: git config core.hooksPath scripts/harden/hooks runs typecheck
     and lint before each push. The tests run in CI, on pull requests into ${branch}.
   - Releases: scripts/harden/release.sh --dry-run, then --push. npm: scripts/harden/publish.sh,

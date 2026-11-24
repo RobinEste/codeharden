@@ -26,6 +26,8 @@ The package is `codeharden`. The repository's `apps/cli/package.json` keeps upst
 
    It writes `VERSION` (the time now in America/New_York), a new entry on top of `CODEHARDEN-CHANGELOG.md` and `state/upstream-base`, in one commit `release: <version> (upstream <sha>)` tagged `v<version>`. Without `--push` it stays local and prints the push command. It refuses if the tag exists or tracked files have changes. The "Upstream sync merge" workflow runs the same script after it merges a sync, so a release may already be there.
 
+   **The cooldown.** When the release would contain upstream commits the last one didn't, the script asks GitHub (it needs `gh`, signed in) whether the pull request that brought them in had waited its 48 hours when it was merged. If not, or if GitHub can't be asked, it refuses, changes nothing, and says which sync it is, from when it would have been allowed and how you waive it. `--dry-run` gives the same verdict. A sync that was merged early does not become releasable by waiting: you waive it, with the "Waive sync cooldown" workflow, or it stays out. [The 48-hour cooldown](codeharden-sync-cooldown.md) has the steps. `publish.sh` has no check of its own: it publishes only the tag this script made.
+
 2. **Check the release out**, clean:
 
    ```sh
