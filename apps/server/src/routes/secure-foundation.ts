@@ -57,7 +57,7 @@ export function secureFoundationRoutes(s: AppServices) {
     .get("/connections", queryOf(SecureFoundationConnectionsQuery), async (c) => {
       requireLocal(c);
       return c.json<SecureFoundationConnections>({
-        connections: await connections.states(c.req.valid("query").services),
+        connections: await sf.connectionStates(c.req.valid("query").services),
       });
     })
     .post("/connections/:service/login", async (c) => {

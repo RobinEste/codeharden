@@ -327,6 +327,8 @@ describe.runIf(posix)("GitHub and Vercel, for the deploy option", () => {
 describe("the Connections routes are for this computer only", () => {
   const calls: string[] = [];
   const stub = {
+    // The route asks the service, which adds the last deploy's owner to what the CLIs answered.
+    connectionStates: (services: string[]) => stub.connections.states(services),
     connections: {
       states: async (services: string[]) => {
         calls.push(`states:${services.join(",")}`);

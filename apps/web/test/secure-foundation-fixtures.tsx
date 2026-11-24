@@ -62,6 +62,7 @@ export const connection = (
   teams: [],
   account: null,
   owners: [],
+  lastOwner: null,
   missingScopes: [],
   scopes: [],
   ...patch,

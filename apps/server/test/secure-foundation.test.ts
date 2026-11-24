@@ -670,6 +670,52 @@ describe("what a dev preview of the new project depends on", () => {
     expect(service({ setups: again }).devPreview("p2", notAsked).applies).toBe(false);
   });
 
+  it("remembers the last deploy's GitHub owner and offers it while the account can still use it", async () => {
+    const setups = new SecureFoundationSetups(home());
+    expect(setups.lastDeployOwner()).toBeNull();
+    setups.record("p1", { name: "My Site", secrets: "doppler" }, new Date());
+    expect(setups.lastDeployOwner()).toBeNull();
+    setups.record(
+      "p2",
+      { name: "Other", secrets: "env_local", deploy: { owner: "acme-org" } },
+      new Date(),
+    );
+    // A setup without the deploy leaves the last owner as it was; a restart reads it again.
+    setups.record("p3", { name: "Third", secrets: "env_local" }, new Date());
+    const again = new SecureFoundationSetups(home());
+    expect(again.lastDeployOwner()).toBe("acme-org");
+    expect(again.get("p1")?.secrets).toBe("doppler");
+    // Something that isn't an owner name is never offered.
+    const file = join(home(), "secure-foundation.json");
+    writeFileSync(file, JSON.stringify({ projects: {}, lastDeployOwner: "../x" }));
+    expect(new SecureFoundationSetups(home()).lastDeployOwner()).toBeNull();
+
+    const github = (owners: string[]) => ({
+      service: "github" as const,
+      cli: "ready" as const,
+      signedIn: true,
+      message: "Signed in to GitHub.",
+      install: null,
+      teams: [],
+      account: owners[0] ?? null,
+      owners,
+      lastOwner: null,
+      missingScopes: [],
+      scopes: [],
+    });
+    let owners = ["octo", "acme-org"];
+    const connections = {
+      states: async () => [github(owners), { ...github([]), service: "convex" as const }],
+    } as unknown as SecureFoundationDeps["connections"];
+    const s = service({ setups: again, connections });
+    const [gh, convex] = await s.connectionStates(["github", "convex"]);
+    expect(gh?.lastOwner).toBe("acme-org");
+    expect(convex?.lastOwner).toBeNull();
+    // An organisation the account no longer belongs to isn't offered: the account is preselected.
+    owners = ["octo"];
+    expect((await s.connectionStates(["github"]))[0]?.lastOwner).toBeNull();
+  });
+
   it("keeps nothing for a create that failed", async () => {
     failAt = "session";
     const setups = new SecureFoundationSetups(home());

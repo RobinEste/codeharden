@@ -294,12 +294,25 @@ describe("the Connections step's shapes", () => {
       teams: [{ name: "Acme Labs", slug: "acme-labs" }],
       account: null,
       owners: [],
+      lastOwner: null,
       missingScopes: [],
       scopes: [],
     };
     expect(roundTrip(c.SecureFoundationConnections, { connections: [connection] })).toEqual({
       connections: [connection],
     });
+    // GitHub's owners, with the one chosen for the last deploy; an older answer without it reads null.
+    const github = {
+      ...connection,
+      service: "github",
+      teams: [],
+      account: "octo",
+      owners: ["octo", "acme-org"],
+      lastOwner: "acme-org",
+    };
+    expect(roundTrip(c.SecureFoundationConnection, github)).toEqual(github);
+    const { lastOwner: _, ...older } = github;
+    expect(c.SecureFoundationConnection.parse(older).lastOwner).toBeNull();
     for (const status of ["starting", "waiting", "done", "failed", "cancelled", "timed_out"]) {
       const login = { id: "l1", service: "doppler", status, url: null, code: null, message: "" };
       expect(roundTrip(c.SecureFoundationLogin, login)).toEqual(login);

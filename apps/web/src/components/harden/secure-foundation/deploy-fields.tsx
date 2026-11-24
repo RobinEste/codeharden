@@ -2,13 +2,14 @@ import type { SecureFoundationConnection } from "@codeden/contracts";
 import { useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import type { FormAnswers } from "./answers";
-import { deployOf, suggestedRepository } from "./deploy";
+import { deployOf, selectedOwner, suggestedRepository } from "./deploy";
 
 const SELECT = "h-8 w-full rounded-md border border-input bg-transparent px-2 text-[13px]";
 
 /**
  * Where the deploy goes, filled in from the two sign-ins: the repository's owner (the account
- * first, then its organisations), its name, and the Vercel scope. Shown once both are signed in.
+ * first, then its organisations; the last deploy's owner is preselected when it is one of them),
+ * its name, and the Vercel scope. Shown once both are signed in.
  */
 export function DeployFields({
   github,
@@ -23,11 +24,11 @@ export function DeployFields({
 }) {
   const owners = github?.owners ?? [];
   const scopes = vercel?.scopes ?? [];
-  const owner = owners.includes(answers.deployOwner ?? "") ? answers.deployOwner : owners[0];
+  const owner = selectedOwner(github, answers.deployOwner);
   const scope = scopes.some((s) => s.slug === answers.deployScope)
     ? answers.deployScope
     : scopes[0]?.slug;
-  // The personal account and the first (or only) scope are preselected.
+  // The last deploy's owner (else the personal account) and the first (or only) scope are preselected.
   useEffect(() => {
     if (owner !== answers.deployOwner || scope !== answers.deployScope) {
       onChange({ ...answers, deployOwner: owner, deployScope: scope });
@@ -50,6 +51,7 @@ export function DeployFields({
               <option key={o} value={o}>
                 {o}
                 {o === github.account ? " (your account)" : ""}
+                {o === github.lastOwner && o !== github.account ? " (used last time)" : ""}
               </option>
             ))}
           </select>
@@ -85,6 +87,11 @@ export function DeployFields({
           </span>
         )}
       </label>
+      <p className="text-2xs text-muted-foreground" data-testid="deploy-owner-secrets">
+        A repository in an organisation gets the secrets that organisation shares with its
+        repositories, such as a token for the template's Claude reviews. A repository under your own
+        account gets none of those: you add each one to it yourself.
+      </p>
       <p className="text-2xs text-muted-foreground">
         The repository is created <span className="font-medium">private</span>, as {owner}/
         {repository}, and the Vercel project takes the same name. A repository or project of that
