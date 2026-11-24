@@ -6,7 +6,7 @@ What CodeHarden is
 - It is its own app. It has its own name, logo, app id, home folder, port, npm package and releases, so it installs and runs beside CodeDen and the two share nothing. It only ever updates from its own channel, never from upstream's.
 
 How it earns the word "hardened"
-- Every upstream change is reviewed before it reaches users: dependencies and the lockfile, the risk classifier, permissions, tokens, network and auth, and CI and release workflows. Two agents from different providers review each sync, the second checks the first, and an approved change still waits 48 hours before it merges. Only the owner can waive that wait, for one change and on the record, and a change that was merged sooner cannot be released without it.
+- Every upstream change is reviewed before it reaches users: dependencies and the lockfile, the risk classifier, permissions, tokens, network and auth, and CI and release workflows. Two agents from different providers review each sync, the second checks the first, and an approved change still waits 48 hours before it merges.
 - A guard test fails when a merge brings upstream's own names back or drops one of the fork's changes, so a sync cannot quietly undo the hardening.
 - Security findings stay private. They go to the owner, never into a pull request, an issue, a comment or a commit message. Weaknesses found in upstream's code are reported to upstream privately before a fix is made public here.
 - Fixes to upstream's code go to upstream. Only fork-only functionality lives here alone.

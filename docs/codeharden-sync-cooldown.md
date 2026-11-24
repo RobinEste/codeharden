@@ -23,64 +23,77 @@ There is one implementation, `scripts/harden/sync-cooldown.sh`, and everything b
 |---|---|---|
 | On the pull request | The status **Sync cooldown** shows the rule's answer. | Information. A status can be written by anyone who can push, so nothing relies on it. |
 | The automatic merge | The "Upstream sync merge" workflow's merge job asks the rule and merges only on "satisfied" or "waived". Its other conditions are unchanged. | Enforced: the job reads GitHub's records itself. |
-| The release | `scripts/harden/release.sh` asks the rule about the pull request that brought the upstream commits in, at the moment it was merged, and refuses to cut the release otherwise. The sync workflow's release job runs the same script. | Enforced for everyone who releases with the script, which is the only way a release is made. |
-| npm and the installers | Nothing of their own. `scripts/harden/publish.sh` publishes only the checked-out tag `v<VERSION>`, and the "Desktop installers" workflow builds only an existing release tag on the default branch whose `VERSION` names it. Those tags come from `release.sh`; neither can tell one that was made by hand. | As strong as the release. |
+| The release | `scripts/harden/release.sh` asks the rule about everything that was merged since the last release, at the moment it was merged, and refuses to cut the release otherwise. The sync workflow's release job runs the same script. | Enforced for everyone who releases with the script, which is how a release is made. |
+| npm and the installers | Nothing of their own. `scripts/harden/publish.sh` publishes only the checked-out tag `v<VERSION>`, and the "Desktop installers" workflow builds only an existing release tag on the default branch whose `VERSION` names it. That holds for tags `release.sh` made; neither can tell one that was made by hand. | As strong as the release. |
 | A merge by hand | Not blocked. See [Merges by hand](#merges-by-hand). | By instruction, and caught at the release. |
 
-So the guarantee is this: **an upstream change that was merged before its 48 hours were over cannot be released or published without the owner's waiver.** A sync that touches a protected path or a workflow file has to be merged by hand, and a merge by hand has no timer. That is the case the release check exists for.
+So what is guaranteed is this: **the release script refuses a release in which an upstream change was merged before its 48 hours were over, unless the owner waived it.** A sync that touches a protected path or a workflow file has to be merged by hand, and a merge by hand has no timer. That is the case the release check exists for.
 
 ## What a pull request shows
 
-The "Sync cooldown report" workflow writes the status **Sync cooldown** on the head commit of each pull request the rule applies to. A pull request that brings no upstream commits gets no status.
+The "Sync cooldown report" workflow writes the status **Sync cooldown** on the head commit of a pull request the rule applies to. A pull request that brings no upstream commits gets no status.
 
 | Status | Text | Meaning |
 |---|---|---|
-| pending | Not approved yet. Green 48 hours after the label sync-approved is applied. | Waiting for the review. |
-| pending | Approved 2026-01-05 14:55 UTC. Green after 2026-01-07 14:55 UTC. | The clock is running. |
-| pending | On hold (label sync-hold). The 48 hours since the approval end 2026-01-07 14:55 UTC. | Not to be merged while the label is on. |
-| failure | Pushed 2026-01-06 09:00 UTC, after the approval (2026-01-05 14:55 UTC). Re-apply sync-approved to restart. | The approval no longer covers the head. |
-| success | Approved 2026-01-05 14:55 UTC; 48 hours have passed and nothing was pushed since. | The cooldown is over. |
+| pending | Cooling down until 2026-01-07 14:55 UTC (approved 2026-01-05 14:55 UTC). Expected. Not a CI check. | The clock is running. |
+| pending | On hold (label sync-hold). The 48 hours since the approval end 2026-01-07 14:55 UTC. Not a CI check. | Not to be merged while the label is on. |
+| pending | Not approved yet: the 48 hours start when sync-approved is applied. Not a CI check. | The approval was taken off again, or this is not a sync branch (see below). |
+| failure | Pushed 2026-01-06 09:00 UTC, after the approval (2026-01-05 14:55 UTC). Re-apply sync-approved. Not a CI check. | The approval no longer covers the head. |
+| success | Cooldown over: approved 2026-01-05 14:55 UTC, 48 hours passed, nothing pushed since. | The cooldown is over. |
 | success | Cooldown waived by the owner (approved by `<login>`, 2026-01-06 10:12 UTC). | See [Waiving the cooldown](#waiving-the-cooldown). Its "Details" link opens the approved run. |
 
-All times are UTC. The workflow runs every hour, when a label is added or removed, and when a waiver run has finished, so a pull request turns green by itself within the hour after its 48 hours are over. A new head commit has no status until the next of those runs: a moved head never inherits green. You can run it at once from Actions › Sync cooldown report › Run workflow.
+All times are UTC.
 
-The sync workflow merges at 13:00 UTC. It asks the rule itself and writes the same status, so it does not depend on the hourly run.
+**The status is a clock, not a CI check.** It can't be green before 48 hours after the approval, so nobody waits for it, counts it as a failed check, or tries to turn it green. For that reason a `sync/...` pull request gets its first status only when its clock is running: once it is approved, over, or waived. Before the approval it has none, and neither has a new head after a push, until it is approved again. The review that approves a sync looks at the checks on its head, and a status that can't be green yet must not be among them. A head that already has the status keeps being told the truth (the hold, the push, the label taken off). Any other branch that carries upstream commits gets the status at once, "Not approved yet", because nobody reviews that one as a sync.
+
+The workflow runs every hour, when a label is added or removed, and when a waiver run has finished, so a pull request turns green by itself within the hour after its 48 hours are over. You can run it at once from Actions › Sync cooldown report › Run workflow. On a label event its job never fails; the hourly run fails only when the workflow itself is broken, and warns about a pull request it can't evaluate.
+
+The sync workflow merges at 13:00 UTC. It asks the rule itself and writes the same status before it reads the pull request's mergeability, so it does not depend on the hourly run.
 
 ## What a release refuses
 
-`scripts/harden/release.sh` looks at the upstream commits between `state/upstream-base` (what the last release contained) and what the branch contains now. When there are none, it asks nothing: a release of the fork's own commits needs neither `gh` nor a network.
+Before every release `scripts/harden/release.sh` asks GitHub about what was merged since the last one. It needs `gh`, signed in, every time.
 
-When there are some, it walks the branch's own line back to the last release and accounts for every step on which upstream commits arrived. A merge is traced to the pull request it belongs to, and the rule is asked about that pull request at the moment it was merged. It refuses when the pull request had not waited, when the commits came in without a pull request (a merge made by hand, a fast-forward, a direct push), and when GitHub can't be asked (no `gh`, not signed in, an outage). Two syncs in one release are judged each by itself. `--dry-run` shows what the release would be, then the same verdict, with the same exit status.
+**Where the last release was** is not read from the working tree. It is the newest release tag the remote has whose commit is on the branch's own line, and the upstream base is the one that release's commit wrote to `state/upstream-base`. The script refuses when `VERSION` or `state/upstream-base` have been changed since, and when a release that was made locally has not been pushed. Upstream's branch is fetched from the configured upstream, and a ref that is handed to the script must be exactly where that branch is.
+
+**What it looks at.** Upstream code can arrive with its history or without it, so it looks both ways:
+
+- *With its history.* It walks the branch's own line back to the last release and accounts for every step on which upstream commits arrived. A merge is traced to the pull request it is the merge of, and the rule is asked about that pull request at the moment it was merged. An upstream commit on the line itself arrived by a fast-forward or a direct push, with no pull request.
+- *Without its history.* A pull request that was squashed or rebased leaves no trace of what it carried. So every pull request merged since the last release is looked at, and one whose head is not part of the branch is asked about when it was a `sync/...` branch or carried upstream commits the branch lacked.
+
+It refuses when a pull request had not waited, when upstream commits came in without a pull request, and when it can't be decided: no `gh`, not signed in, an outage, a pull request's head that can't be fetched. `--dry-run` shows what the release would be, then the same verdict, with the same exit status.
 
 ```text
 release: refused. This release would ship upstream changes that had not waited out the 48-hour cooldown when they were merged:
   - upstream 1a2b3c4d came in through pull request #41 (sync/2026-01-05), merged 2026-01-05 17:15 UTC: it was merged 2 hours after sync-approved was applied (2026-01-05 14:55 UTC); it would have been allowed from 2026-01-07 14:55 UTC.
-    To waive: upstream commit 1a2b3c4d5e6f..., pull request 41.
-Only the repository owner can let it through: Actions > "Waive sync cooldown" > Run workflow on harden, with the values above. ...
+    To waive: upstream 1a2b3c4d5e6f..., pull request 41, commit 9f8e7d6c5b4a....
+Only the repository owner can let it through: Actions > "Waive sync cooldown" > Run workflow on harden, with the three values above. ...
 release: nothing was changed
 ```
 
 Waiting does not make it releasable. What counts is the moment of the merge: a sync that was merged early stays refused until the owner waives it. When a release goes through, it prints one line for each sync, and for a waived one it says so and writes the waiver into the release's changelog entry.
 
+**What it can't see:** upstream code that was copied in by hand, as a cherry-pick or a patch, in a commit or a pull request that has no upstream ancestry and is not a `sync/...` branch.
+
 ## Waiving the cooldown
 
-Only the repository owner waives, and only for one upstream commit at a time.
+Only the repository owner waives, and only one upstream commit at one head.
 
-1. Take the two values from the pull request's status or from the refused release: the upstream commit (its full id) and the pull request's number.
-2. Actions › **Waive sync cooldown** › Run workflow, on the default branch. Enter the upstream commit and the pull request number. Leave the number empty only for upstream commits that reached the branch without a pull request.
-3. The job "Check the request" runs first and says, in the run's summary, exactly what approving would waive. It refuses when the request doesn't fit: a commit that is not upstream's, a pull request that brings another commit, one that has already waited.
+1. Take the three values from the refused release: the upstream commit, the pull request's number and the commit (the pull request's head). For an open pull request, the upstream commit is in the "Sync cooldown report" run's summary, and the head is on the pull request's page; all three are full ids.
+2. Actions › **Waive sync cooldown** › Run workflow, on the default branch. Enter them. Leave the pull request empty only for upstream commits that reached the branch without one; the commit is then the commit of the branch that brought them in.
+3. The job "Check the request" runs first and says, in the run's summary, exactly what approving would waive. It refuses when the request doesn't fit: an upstream commit that is not upstream's, a commit that is not the pull request's head as it is now or that brings another upstream commit, a pull request that has already waited.
 4. The job "Record the waiver" waits. Press **Review deployments**, tick `sync-waiver`, approve.
 5. Within minutes the pull request's status reads "Cooldown waived by the owner". The sync workflow may merge it on its next run if its other conditions hold (labelled `sync-approved`, not on hold, upstream code only, checks green), and `release.sh` lets the release through.
 
-**What a waiver covers.** The pull request's head as it was before the run started. A push to the branch in that second or afterwards voids it, like an approval. A waiver that names no pull request covers whichever merge brings that upstream commit. A waiver given after the merge covers what was merged.
+**What a waiver covers, and for how long.** Exactly the upstream commit, the pull request and the commit its run names. After a push to the pull request's branch the head is another commit, and that one is not waived. The same upstream commit arriving another way, through another pull request or another merge, is not waived either. It counts for as long as GitHub keeps the run: the repository's retention period, 90 days at most. A waiver is needed from the approval until the release that ships the commit, usually the same day; a waiver whose run is gone is asked for again.
 
-**Where the record is.** The workflow writes nothing: no tag, no file, no variable. Any of those could also be written by whoever can push to the repository. The waiver is the run itself: a successful run of `sync-waiver.yml` on the working branch whose review history shows a reviewer's approval for the environment `sync-waiver`. That is GitHub's own record. It can be read without a secret (`gh api repos/<owner>/<repo>/actions/runs/<run id>/approvals`), it names who approved, the run's times say when, and it comes into being only by approving. The run's title names the upstream commit and the pull request.
+**Who may waive.** The repository's owner. An approval by any other reviewer of the environment does not count. A repository that an organization owns has no such person, so it names the logins in the repository variable `SYNC_WAIVER_APPROVERS` (space separated); with the variable set, that list is the whole of it.
 
-GitHub keeps workflow runs for the repository's retention period, 90 days at most. A waiver is needed from the approval until the release that ships the commit, usually the same day. The release writes it into its entry in `CODEHARDEN-CHANGELOG.md`, where it stays. A waiver whose run is gone no longer counts, and is asked for again.
+**Where the record is.** The workflow writes nothing: no tag, no file, no variable. Any of those could also be written by whoever can push to the repository. The waiver is the run itself: a successful run of `sync-waiver.yml` on the working branch whose review history shows the approval, for the environment `sync-waiver`, of someone who may waive. That is GitHub's own record. It can be read without a secret (`gh api repos/<owner>/<repo>/actions/runs/<run id>/approvals`), it names who approved, the run's times say when, and it comes into being only by approving. The run's title names the three values. The release that ships the change writes the waiver into its entry in `CODEHARDEN-CHANGELOG.md`, where it stays after the run is gone.
 
 ## The environment
 
-The approval is GitHub's doing: a job that names an environment with required reviewers does not start before one of them approved. The workflow checks that the gate is really there, and refuses to go on when the environment is missing (GitHub would create it on first use, with no protection), has no required reviewers, admits anything but the working branch, or lets administrators skip the review.
+The approval is GitHub's doing: a job that names an environment with required reviewers does not start before one of them approved. The workflow checks that the gate is really there, and refuses to go on when the environment is missing (GitHub would create it on first use, with no protection), has no required reviewers or none who may waive, admits anything but the working branch, or lets administrators skip the review.
 
 Settings › Environments › New environment, named `sync-waiver`:
 
@@ -96,16 +109,17 @@ Required reviewers are available for public repositories on every plan, and for 
 Enforced by code that reads GitHub's own records:
 
 - The automatic merge waits for the rule.
-- The release script refuses a sync that was merged early, came in without a pull request, or can't be checked.
-- A waiver counts only when a required reviewer approved its run.
+- The release script refuses upstream commits that were merged early, came in without a pull request, or were squashed or rebased in early, and it refuses when it can't decide.
+- A waiver counts only when someone who may waive approved its run, and only for the commit it names.
 
 Not enforced, and said plainly:
 
 - **A merge by hand is possible at any time.** The status is red or pending, and the release is refused afterwards, but GitHub does not stop the merge.
-- **The release script runs on the owner's machine.** Someone who writes the release commit and tag by hand, or changes the script, goes around it. So does anyone who changes the scripts on the working branch; `scripts/harden/` and these workflows are protected paths for syncs, and a change to them is a pull request like any other.
-- **An approval is as strong as the reviewer's sign-in.** GitHub's API lets a reviewer's token approve a waiting job, and agent sessions on the owner's machine act with the owner's sign-in. The waiver is a deliberate, separate step and a record of who took it, not a cryptographic separation.
+- **The release script runs on the owner's machine.** Someone who writes the release commit and tag by hand and pushes them, changes the script, or sets the variables that say what upstream is, what time it is or who may waive (`UPSTREAM_URL`, `SYNC_COOLDOWN_NOW`, `SYNC_COOLDOWN_REPO`, `SYNC_WAIVER_APPROVERS`), goes around it. So does anyone who changes the scripts on the working branch; `scripts/harden/`, these workflows and the three files a release writes are protected paths for syncs, and a change to them is a pull request like any other.
+- **Upstream code copied in by hand** leaves nothing the script can see.
+- **An approval is as strong as the owner's sign-in.** GitHub's API lets a reviewer's token approve a waiting job, and agent sessions on the owner's machine act with the owner's sign-in. The waiver is a deliberate, separate step and a record of who took it, not a cryptographic separation.
 
-The instructions that cover those are in [AGENTS.md](../AGENTS.md): an agent never merges a pull request whose cooldown status is not green, never approves a waiver, and reports a refused release instead of working around it.
+The instructions that cover those are in [AGENTS.md](../AGENTS.md): an agent never merges a pull request whose cooldown status is not green, never squashes or rebases a sync, never approves a waiver, runs the release script as it is, and reports a refused release instead of working around it.
 
 ## Merges by hand
 
@@ -115,10 +129,14 @@ A repository ruleset can require a status check on a branch, so the obvious ques
 - **Releases are direct pushes.** `release.sh --push` pushes a new commit and its tag straight to the working branch, from the owner's machine and from the sync workflow's release job. A new commit has no status, so both would be refused unless they are on the ruleset's bypass list.
 - **The workflow's token has no documented bypass.** The bypass list takes repository roles, teams, deploy keys, GitHub Apps and users ([Creating rulesets for a repository](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/creating-rulesets-for-a-repository#granting-bypass-permissions-for-your-branch-or-tag-ruleset)). Nothing in GitHub's documentation says that the workflow token can be given one. Without it the release after every automatic merge would fail.
 - **The owner's bypass is everyone's.** The owner's own push needs the bypass in the "always" mode, and agent sessions use the same sign-in, so `gh pr merge --admin` would go around the check for them too. Each bypass is listed under Insights › Rules, but it is an instruction again, not a block.
-- **Every pull request would need the status.** A required check that is never reported leaves a pull request waiting for it forever. Here only pull requests that bring upstream commits get one, on purpose.
+- **Every pull request would need the status.** A required check that is never reported leaves a pull request waiting for it forever. Here only pull requests that bring upstream commits get one, and a sync only after its approval, on purpose.
 
 A mistake in such a rule would stop the daily sync and every release with nobody at the keyboard. If GitHub documents a bypass for the workflow token, the steps are: report the status on every pull request, add the ruleset (`POST /repos/{owner}/{repo}/rulesets`, the rule `required_status_checks` with the context `Sync cooldown`), and remove it again with `DELETE /repos/{owner}/{repo}/rulesets/{id}` if a release push is refused.
 
+One setting does help and is the owner's to choose: with "Allow squash merging" and "Allow rebase merging" off (Settings › General › Pull Requests), a sync can only be merged with its history, which is the form the release check follows most directly. The check asks about squashed and rebased pull requests too, so this is belt and braces.
+
 ## In a fork
 
-A fork of CodeHarden gets all of it with the sync: the rule, the status, the release check and the waiver workflow. They read the fork's own names from its repository variables. To be able to waive, create the environment `sync-waiver` as above; `scripts/harden/setup-fork.sh` does not create environments. The number of hours is `COOLDOWN_HOURS` in `scripts/harden/sync-cooldown.sh`.
+A fork of CodeHarden gets all of it with the sync: the rule, the status, the release check and the waiver workflow. They read the fork's own names from its repository variables. To be able to waive, create the environment `sync-waiver` as above; `scripts/harden/setup-fork.sh` does not create environments. In a repository an organization owns, also set `SYNC_WAIVER_APPROVERS`. The number of hours is `COOLDOWN_HOURS` in `scripts/harden/sync-cooldown.sh`.
+
+`VERSION`, `CODEHARDEN-CHANGELOG.md` and `state/` are your own in a fork: a release writes them and refuses when something else changed them since, so a sync that changes one is not merged by the workflow. CodeHarden changes them with every release, which is why a sync branch merges your working branch and keeps yours (the README's "How syncs get reviewed and merged").
