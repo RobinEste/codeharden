@@ -148,7 +148,17 @@ describe("what the person is told about a name", () => {
     const item = describeRepoSecret(review, false, at());
     expect(item.state).toBe("missing");
     expect(item.purpose).toContain("anthropics/claude-code-action");
-    expect(item.consequence).toContain("these jobs fail shortly after they start");
+    // The template's GitHub-side reviews need it; the app and its reviews on this computer don't.
+    expect(item.purpose).toContain("The sign-in of the template's Claude review workflows");
+    expect(item.purpose).toContain("They run on GitHub's servers, not on this computer");
+    expect(item.purpose).toContain("The template's install doesn't set it.");
+    expect(item.purpose).toMatch(
+      /Reviews you run inside \S+ use your own subscription on this computer and don't need it\./,
+    );
+    expect(item.consequence).toContain(
+      "the template's Claude review checks have no sign-in and fail shortly after they start",
+    );
+    expect(item.consequence).toContain("(the review on every pull request)");
     expect(item.steps[0]).toContain("`claude setup-token`");
     expect(item.steps[1]).toContain("`gh secret set CLAUDE_CODE_OAUTH_TOKEN --repo octo/my-site`");
     expect(item.steps[1]).toContain("Settings › Secrets and variables › Actions");

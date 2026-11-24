@@ -478,8 +478,8 @@ describe("the default app shell", () => {
     await service().create(request());
     const byDefault = started[0]?.input?.text ?? "";
     expect(byDefault).toContain(INSTALL);
-    expect(byDefault).toContain("- Content modules to install: blog pricing");
-    expect(byDefault).toContain("- Content modules skipped: none");
+    expect(byDefault).toContain("- Content modules to install (`<MODULES>`): blog pricing");
+    expect(byDefault).toContain("- Content modules skipped (`<SKIPPED_MODULES>`): none");
     // Asking for "all" by name gives the same brief, commands and flags.
     started = [];
     await service({ projectsDir: join(dir, "other") }).create(request({ shell: "all" }));

@@ -145,7 +145,10 @@ describe("the repository secrets on the Secure Foundation card", () => {
     expect(text).toContain("claude-code-review.yml (jobs security-review and claude-review)");
     expect(text).toContain("runs on every pull request");
     expect(text).toContain("only when someone mentions @claude");
-    expect(text).toContain("these jobs fail shortly after they start");
+    expect(text).toContain("fail shortly after they start");
+    // The template's GitHub-side reviews need it, not the app or its reviews on this computer.
+    expect(text).toContain("They run on GitHub's servers, not on this computer");
+    expect(text).toContain("The template's install doesn't set it.");
     const steps = [...missing.querySelectorAll("ol > li")].map((li) => li.textContent ?? "");
     expect(steps).toHaveLength(4);
     expect(steps[0]).toContain("claude setup-token");

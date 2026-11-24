@@ -315,7 +315,7 @@ export function secureFoundationCreates(answers: {
     created.push({
       service: "Doppler",
       short: "a Doppler project",
-      item: `a Doppler project named "${secureFoundationDopplerProject(answers.name)}" with the configs dev and prd, holding the app's secrets`,
+      item: `a Doppler project named "${secureFoundationDopplerProject(answers.name)}" with the configs dev and prd, holding the app's secrets${answers.deploy ? ", and two read-only service tokens for its dev config that the template's steps create: github-actions-ci (stored in GitHub as DOPPLER_TOKEN) and vercel-runtime-dev (stored in Vercel)" : ""}`,
       removeAt: "the Doppler dashboard, in the project's settings",
     });
   }
@@ -332,7 +332,7 @@ export function secureFoundationCreates(answers: {
       {
         service: "Vercel",
         short: "a Vercel project with a public site",
-        item: `a Vercel project named "${deploy.repository}" in the scope "${deploy.vercelScope}", connected to that repository, with ${doppler ? "a Doppler token as the only environment variable the setup adds" : "the app's environment variables (its development keys) copied to it"}, and the site published on a public vercel.app address running on the development Clerk and Convex`,
+        item: `a Vercel project named "${deploy.repository}" in the scope "${deploy.vercelScope}", connected to that repository, with ${doppler ? "a Doppler token as DOPPLER_TOKEN on its development, preview and production environments, the only environment variable the setup adds" : "the app's environment variables (its development keys) copied to it"}, and the site published on a public vercel.app address running on the development Clerk and Convex`,
         removeAt: "the project's settings on Vercel",
       },
     );

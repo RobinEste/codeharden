@@ -382,8 +382,13 @@ describe("the deploy option", () => {
     const doppler = secureFoundationCreates({ name: "My Site", secrets: "doppler", deploy });
     expect(doppler[3]?.item).toContain("Actions secret DOPPLER_TOKEN");
     expect(doppler[4]?.item).toContain(
-      "a Doppler token as the only environment variable the setup adds",
+      "a Doppler token as DOPPLER_TOKEN on its development, preview and production environments, the only environment variable the setup adds",
     );
+    // The template's steps create two Doppler service tokens with the deploy, and none without it.
+    expect(doppler[2]?.item).toContain("github-actions-ci (stored in GitHub as DOPPLER_TOKEN)");
+    expect(doppler[2]?.item).toContain("vercel-runtime-dev (stored in Vercel)");
+    const dopplerLocal = secureFoundationCreates({ name: "My Site", secrets: "doppler" });
+    expect(dopplerLocal[2]?.item).not.toContain("service tokens");
   });
 });
 
